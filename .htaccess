@@ -1,0 +1,13 @@
+# KidLearn .htaccess
+Options -Indexes
+RewriteEngine On
+
+# ให้ PHP จัดการทุก request ไปที่ api/
+<FilesMatch "\.php$">
+    SetHandler application/x-httpd-php
+</FilesMatch>
+
+# Cache control สำหรับ JS/CSS
+<FilesMatch "\.(js|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>

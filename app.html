@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KidLearn — เรียนสนุก เล่นสนุก</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════
+     NAVBAR
+════════════════════════════════════════════════════ -->
+<nav class="navbar">
+  <a class="brand" href="app.html">🎓 <span>Kid</span>Learn</a>
+  <ul class="nav-links" id="nav-links">
+    <li><a id="nl-home"     onclick="sec('home');closeNav()"     class="active">🏠 หน้าหลัก</a></li>
+    <li><a id="nl-subs"     onclick="sec('subs');closeNav()">📚 วิชา</a></li>
+    <li id="nli-scores"><a  id="nl-scores"  onclick="sec('scores');closeNav()">🏆 คะแนน</a></li>
+    <li id="nli-rec"      style="display:none"><a id="nl-rec"      onclick="sec('rec');closeNav()">💡 คำแนะนำ</a></li>
+    <li id="nli-children" style="display:none"><a id="nl-children" onclick="sec('children');closeNav()">👨‍👩‍👧 จัดการบุตรหลาน</a></li>
+    <li id="nli-teach"    style="display:none"><a id="nl-teach"    onclick="sec('teach');closeNav()">📊 แผงครู</a></li>
+    <li id="nli-admin"    style="display:none"><a id="nl-admin"    onclick="sec('admin');closeNav()">🛠️ ผู้ดูแลระบบ</a></li>
+    <li><a id="nl-profile"  onclick="sec('profile');closeNav()">⚙️ โปรไฟล์</a></li>
+    <li><a class="btn-out"  onclick="doLogout()">ออกจากระบบ</a></li>
+  </ul>
+  <button class="ham-btn" id="ham-btn" onclick="toggleNav()" aria-label="เมนู">
+    <i class="fa-solid fa-bars" id="ham-icon"></i>
+  </button>
+</nav>
+
+<div class="layout">
+
+  <!-- ════════════════════════════════════════════════════
+       SIDEBAR
+  ════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="user-card">
+      <div class="avatar" id="sb-av">ก</div>
+      <div style="font-weight:700;font-size:.95rem" id="sb-nm">ชื่อผู้ใช้</div>
+      <div class="rb" id="sb-rb">นักเรียน</div>
+    </div>
+    <button class="sl active" id="sl-home"     onclick="sec('home')">    <span class="ico">🏠</span>ภาพรวม</button>
+    <button class="sl"        id="sl-subs"     onclick="sec('subs')">    <span class="ico">📚</span>วิชาทั้งหมด</button>
+    <button class="sl"        id="sl-scores"   onclick="sec('scores')">  <span class="ico">🏆</span>คะแนน</button>
+    <button class="sl"        id="sl-rec"      onclick="sec('rec')"      style="display:none"><span class="ico">💡</span>คำแนะนำ</button>
+    <button class="sl"        id="sl-children" onclick="sec('children')" style="display:none"><span class="ico">👨‍👩‍👧</span>จัดการบุตรหลาน</button>
+    <button class="sl"        id="sl-teach"    onclick="sec('teach')"    style="display:none"><span class="ico">📊</span>แผงครู</button>
+    <button class="sl"        id="sl-admin"    onclick="sec('admin')"    style="display:none"><span class="ico">🛠️</span>ผู้ดูแลระบบ</button>
+    <button class="sl"        id="sl-profile"  onclick="sec('profile')"> <span class="ico">⚙️</span>แก้ไขโปรไฟล์</button>
+  </aside>
+
+  <!-- ════════════════════════════════════════════════════
+       MAIN CONTENT
+  ════════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- ── HOME ── -->
+    <div id="s-home">
+      <div class="pg-title">👋 ยินดีต้อนรับ, <span id="wn">ผู้ใช้</span>!</div>
+      <div class="stats" id="home-stats"></div>
+      <div class="pg-title" style="font-size:1.05rem">📚 วิชาทั้งหมด</div>
+      <div class="cards"  id="home-subs"></div>
+    </div>
+
+    <!-- ── SUBJECTS ── -->
+    <div id="s-subs" style="display:none">
+      <div class="pg-title">📚 เลือกวิชา</div>
+      <div class="cards" id="subs-grid"></div>
+    </div>
+
+    <!-- ── GAMES LIST ── -->
+    <div id="s-games" style="display:none">
+      <div id="games-topbar" style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.4rem;flex-wrap:wrap">
+        <button class="btn btn-sm btn-s" id="games-back-btn" onclick="gamesBack()">← กลับ</button>
+        <div class="pg-title" style="margin:0" id="games-hd">เกม</div>
+        <span id="games-badge" class="badge be" style="display:none"></span>
+      </div>
+      <div class="gcards" id="games-grid"></div>
+      <!-- lesson wrap (embed ใน s-games) -->
+      <div id="lesson-wrap" style="display:none"></div>
+    </div>
+
+    <!-- ── GAME PLAY ── -->
+    <div id="s-game" style="display:none">
+      <button class="btn btn-sm btn-s" onclick="backToGames()" style="margin-bottom:1rem">← กลับ</button>
+      <div class="gw">
+        <div class="ghdr">
+          <div class="gtitle" id="g-title">เกม</div>
+          <div class="timer"  id="g-timer">⏱ 60</div>
+        </div>
+        <div class="qp">
+          <div class="qpl">
+            <span id="g-qno">0/0</span>
+            <span id="g-live">คะแนน: 0</span>
+          </div>
+          <div class="qpb"><div class="qpf" id="g-qf" style="width:0%"></div></div>
+        </div>
+        <div id="g-content"></div>
+        <div class="result" id="g-result">
+          <div class="rring" id="r-ring" style="background:conic-gradient(var(--p) 0%,#E5E7EB 0%)">
+            <div class="rinner">
+              <div class="rscore" id="r-sc">0</div>
+              <div class="rmax"   id="r-mx">/ 100</div>
+            </div>
+          </div>
+          <div class="rtitle" id="r-ti">🎉</div>
+          <div class="rmsg"   id="r-mg"></div>
+          <div class="rbtns">
+            <button class="btn btn-p" onclick="replayGame()">🔄 เล่นใหม่</button>
+            <button class="btn btn-s" onclick="backToGames()">📚 กลับบทเรียน</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCORES ── -->
+    <div id="s-scores" style="display:none">
+      <div class="pg-title">🏆 คะแนน</div>
+      <div id="child-sel-wrap" style="display:none">
+        <div style="font-size:.88rem;font-weight:700;color:var(--mu);margin-bottom:.6rem">👦 เลือกบุตรหลาน</div>
+        <div class="child-selector" id="child-btns"></div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr><th>วิชา</th><th>เกม</th><th>ประเภท</th><th>คะแนน</th><th>เวลา</th><th>วันที่</th></tr>
+          </thead>
+          <tbody id="score-tb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── RECOMMENDATIONS ── -->
+    <div id="s-rec" style="display:none">
+      <div class="pg-title">💡 คำแนะนำสำหรับผู้ปกครอง</div>
+      <div class="ts" id="rec-cont"></div>
+    </div>
+
+    <!-- ── MANAGE CHILDREN ── -->
+    <div id="s-children" style="display:none">
+      <div class="pg-title">👨‍👩‍👧 จัดการบุตรหลาน</div>
+
+      <div class="ts" style="margin-bottom:1.25rem;background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border:1px solid #BFDBFE">
+        <h3 style="color:#1D4ED8">📱 เบอร์โทรของคุณ (ที่นักเรียนใช้เชื่อมบัญชี)</h3>
+        <div style="font-size:1.3rem;font-weight:900;color:#1D4ED8;letter-spacing:2px" id="my-phone-display">—</div>
+        <div style="font-size:.76rem;color:#3B82F6;margin-top:.4rem">
+          แจ้งเบอร์นี้ให้บุตรหลานกรอกตอนสมัครสมาชิก เพื่อเชื่อมบัญชีอัตโนมัติ
+        </div>
+      </div>
+
+      <div class="ts" style="margin-bottom:1.25rem">
+        <h3>รายชื่อบุตรหลานที่เชื่อมอยู่</h3>
+        <div id="ch-list"></div>
+      </div>
+
+      <div class="ts">
+        <h3>➕ เพิ่มบุตรหลาน</h3>
+        <div id="ch-add-err" class="al ae" style="display:none"></div>
+        <div id="ch-add-ok"  class="al ao" style="display:none"></div>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:200px">
+            <label class="fl">เบอร์โทรของผู้ปกครอง (ที่นักเรียนกรอกไว้)</label>
+            <input id="ch-inp" type="tel" class="fc" placeholder="เช่น 0812345678" maxlength="10">
+          </div>
+          <button class="btn btn-p" onclick="addChild()" style="height:42px">ค้นหา & เพิ่ม 🔍</button>
+        </div>
+        <div style="font-size:.76rem;color:var(--mu);margin-top:.6rem">
+          💡 ค้นหานักเรียนที่กรอกเบอร์โทรนี้ไว้ตอนสมัครสมาชิก
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TEACHER PANEL ── -->
+    <div id="s-teach" style="display:none">
+      <div class="pg-title">📊 แผงควบคุมครู</div>
+      <div class="stats" id="tc-stats"></div>
+
+      <!-- แท็บหลัก -->
+      <div class="rec-tabs" id="tc-tabs" style="margin:1rem 0 .5rem"></div>
+
+      <!-- ── แท็บ 1: คะแนน ── -->
+      <div id="tc-score-panel">
+        <div class="ts" id="tc-subject-sel" style="margin-bottom:.75rem"></div>
+        <div class="ts" id="tc-student-sel" style="margin-bottom:.75rem"></div>
+        <div class="ts">
+          <h3>👦 รายชื่อนักเรียน & ความก้าวหน้า</h3>
+          <div id="tc-students"></div>
+        </div>
+        <div class="ts">
+          <h3>📈 สรุปรายวิชา <span style="font-size:.78rem;color:var(--mu);font-weight:400">(กดวิชาเพื่อกรอง)</span></h3>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>วิชา</th><th style="text-align:center">นักเรียน</th>
+                <th style="text-align:center">เล่นแล้ว</th>
+                <th style="min-width:120px">คะแนนเฉลี่ย</th>
+                <th style="text-align:center">สูงสุด</th>
+              </tr></thead>
+              <tbody id="tc-sub-table"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="ts" id="tc-history"></div>
+      </div>
+
+      <!-- ── แท็บ 2: แก้ไขบทเรียน ── -->
+      <div id="tc-lesson-panel" style="display:none"></div>
+      <div id="tc-game-panel" style="display:none"></div>
+    </div>
+
+    <!-- ── ADMIN ── -->
+    <div id="s-admin" style="display:none">
+      <div class="pg-title">🛠️ ผู้ดูแลระบบ</div>
+      <div class="rec-tabs" id="adm-tabs" style="margin:0 0 1rem"></div>
+      <div id="adm-users-panel">
+        <div class="ts">
+          <div id="adm-user-list"><div style="color:var(--mu)">⏳ กำลังโหลด...</div></div>
+        </div>
+      </div>
+      <div id="adm-report-panel" style="display:none">
+        <div class="ts"></div>
+      </div>
+    </div>
+
+    <!-- ── PROFILE ── -->
+    <div id="s-profile" style="display:none">
+      <div class="pg-title">⚙️ แก้ไขข้อมูลส่วนตัว</div>
+      <div id="pf-ok"  class="al ao" style="display:none"></div>
+      <div id="pf-err" class="al ae" style="display:none"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;max-width:820px">
+
+        <!-- ซ้าย: ข้อมูลทั่วไป -->
+        <div class="ts" style="margin:0">
+          <h3>👤 ข้อมูลทั่วไป</h3>
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
+            <div class="avatar" id="pf-av" style="width:64px;height:64px;font-size:1.8rem;flex-shrink:0">ก</div>
+            <div>
+              <div style="font-weight:700;font-size:.95rem" id="pf-nm-display">ชื่อ</div>
+              <div class="rb" id="pf-rb-display" style="margin-top:.3rem">บทบาท</div>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="fl">ชื่อ-นามสกุล</label>
+            <input id="pf-name" type="text" class="fc" placeholder="ชื่อ นามสกุล">
+          </div>
+          <div class="fg">
+            <label class="fl">ชื่อผู้ใช้ (username)</label>
+            <input id="pf-user" type="text" class="fc" disabled style="background:#F3F4F6;color:var(--mu);cursor:not-allowed">
+            <div style="font-size:.72rem;color:var(--mu);margin-top:.25rem">⚠️ ไม่สามารถเปลี่ยน username ได้</div>
+          </div>
+          <div class="fg">
+            <label class="fl">อีเมล</label>
+            <input id="pf-email" type="email" class="fc" placeholder="email@example.com">
+          </div>
+          <div id="pf-student-extra" style="display:none">
+            <div class="fg">
+              <label class="fl">ชั้นเรียน</label>
+              <select id="pf-grade" class="fc">
+                <option>ป.1</option><option>ป.2</option><option>ป.3</option>
+                <option>ป.4</option><option>ป.5</option><option>ป.6</option>
+                <option>ม.1</option><option>ม.2</option><option>ม.3</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl">📱 เบอร์โทรผู้ปกครอง</label>
+              <input id="pf-pphone" type="tel" class="fc" placeholder="เช่น 0812345678" maxlength="10">
+            </div>
+          </div>
+          <div id="pf-parent-extra" style="display:none">
+            <div class="fg">
+              <label class="fl">📱 เบอร์โทรของคุณ</label>
+              <input id="pf-phone" type="tel" class="fc" placeholder="เช่น 0812345678" maxlength="10">
+            </div>
+          </div>
+          <div id="pf-teacher-extra" style="display:none">
+            <div class="fg">
+              <label class="fl">แผนก/กลุ่มสาระ</label>
+              <input id="pf-dept" type="text" class="fc" placeholder="เช่น วิทยาศาสตร์">
+            </div>
+          </div>
+          <button class="btn btn-p btn-fw" onclick="saveProfile()">💾 บันทึกข้อมูล</button>
+        </div>
+
+        <!-- ขวา: เปลี่ยนรหัสผ่าน + สถิติ -->
+        <div class="ts" style="margin:0">
+          <h3>🔒 เปลี่ยนรหัสผ่าน</h3>
+          <div class="fg">
+            <label class="fl">รหัสผ่านปัจจุบัน</label>
+            <input id="pf-old-pw" type="password" class="fc" placeholder="รหัสผ่านเดิม">
+          </div>
+          <div class="fg">
+            <label class="fl">รหัสผ่านใหม่</label>
+            <input id="pf-new-pw" type="password" class="fc" placeholder="อย่างน้อย 6 ตัวอักษร">
+          </div>
+          <div class="fg">
+            <label class="fl">ยืนยันรหัสผ่านใหม่</label>
+            <input id="pf-cfm-pw" type="password" class="fc" placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง">
+          </div>
+          <button class="btn btn-s btn-fw" onclick="changePassword()">🔑 เปลี่ยนรหัสผ่าน</button>
+          <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #F3F4F6">
+            <div style="font-weight:700;font-size:.88rem;color:var(--s);margin-bottom:.75rem">📊 สถิติของคุณ</div>
+            <div id="pf-stats" style="display:flex;flex-direction:column;gap:.5rem"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     MODAL — เริ่มเกม
+════════════════════════════════════════════════════ -->
+<div class="overlay" id="gmodal">
+  <div class="modal">
+    <div class="modal-t" id="m-title">🎮 เริ่มเกม</div>
+    <div id="m-body"></div>
+    <div class="modal-btns">
+      <button class="btn btn-sm btn-s" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-sm btn-p" onclick="startFromModal()">▶ เริ่มเลย!</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MOBILE NAV BACKDROP ════ -->
+<div class="nav-backdrop" id="nav-backdrop" onclick="closeNav()"></div>
+
+<!-- ════ BOTTOM TAB BAR (mobile) ════ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="bn-item active" id="bn-home"     onclick="sec('home')">
+    <i class="fa-solid fa-house"></i><span>หน้าหลัก</span>
+  </button>
+  <button class="bn-item" id="bn-subs"     onclick="sec('subs')">
+    <i class="fa-solid fa-book-open"></i><span>วิชา</span>
+  </button>
+  <button class="bn-item" id="bn-scores"   onclick="sec('scores')">
+    <i class="fa-solid fa-trophy"></i><span>คะแนน</span>
+  </button>
+  <button class="bn-item" id="bn-rec"      onclick="sec('rec')"      style="display:none">
+    <i class="fa-solid fa-lightbulb"></i><span>คำแนะนำ</span>
+  </button>
+  <button class="bn-item" id="bn-children" onclick="sec('children')" style="display:none">
+    <i class="fa-solid fa-people-roof"></i><span>บุตรหลาน</span>
+  </button>
+  <button class="bn-item" id="bn-teach"    onclick="sec('teach')"    style="display:none">
+    <i class="fa-solid fa-chalkboard-user"></i><span>แผงครู</span>
+  </button>
+  <button class="bn-item" id="bn-admin"    onclick="sec('admin')"    style="display:none">
+    <i class="fa-solid fa-screwdriver-wrench"></i><span>แอดมิน</span>
+    <i class="fa-solid fa-chalkboard-user"></i><span>แผงครู</span>
+  </button>
+  <button class="bn-item" id="bn-profile"  onclick="sec('profile')">
+    <i class="fa-solid fa-gear"></i><span>โปรไฟล์</span>
+  </button>
+</nav>
+
+<!-- ════════════════════════════════════════════════════
+     SCRIPTS (order matters)
+════════════════════════════════════════════════════ -->
+<script src="js/api.js?v=3.3"></script>
+<script src="js/data.js?v=3.3"></script>
+<script src="js/state.js?v=3.3"></script>
+<script src="js/router.js?v=3.3"></script>
+<script src="js/auth.js?v=3.3"></script>
+<script src="js/home.js?v=3.3"></script>
+<script src="js/game.js?v=3.3"></script>
+<script src="js/scores.js?v=3.3"></script>
+<script src="js/recommendations.js?v=3.3"></script>
+<script src="js/children.js?v=3.3"></script>
+<script src="js/teacher.js?v=3.3"></script>
+<script src="js/game_editor.js?v=3.3"></script>
+<script src="js/admin.js?v=3.3"></script>
+<script src="js/profile.js?v=3.3"></script>
+<script>
+  window.addEventListener('DOMContentLoaded', async () => {
+    const ok = await sessionLoad();
+    if (!ok) { window.location.href = 'index.html'; return; }
+    applyRoleUI();
+    sec('home');
+  });
+
+  function toggleNav() {
+    const links = document.getElementById('nav-links');
+    const backdrop = document.getElementById('nav-backdrop');
+    const icon = document.getElementById('ham-icon');
+    const open = links.classList.toggle('open');
+    backdrop.classList.toggle('show', open);
+    icon.className = open ? 'fa-solid fa-xmark' : 'fa-solid fa-bars';
+  }
+  function closeNav() {
+    document.getElementById('nav-links').classList.remove('open');
+    document.getElementById('nav-backdrop').classList.remove('show');
+    document.getElementById('ham-icon').className = 'fa-solid fa-bars';
+  }
+</script>
+
+</body>
+</html>

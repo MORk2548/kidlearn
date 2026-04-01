@@ -1,0 +1,64 @@
+services:
+
+  # ── MySQL 8.0 ──────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: kidlearn_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: kidlearn_root
+      MYSQL_DATABASE: kidlearn_db
+      MYSQL_USER: kidlearn
+      MYSQL_PASSWORD: kidlearn123
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./kidlearn_full.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ukidlearn", "-pkidlearn123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── PHP 8.2 + Apache ───────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: kidlearn_web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      - ./docker/apache.conf:/etc/apache2/sites-enabled/000-default.conf:ro
+    environment:
+      DB_HOST: db
+      DB_USER: kidlearn
+      DB_PASS: kidlearn123
+      DB_NAME: kidlearn_db
+
+  # ── phpMyAdmin ─────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: kidlearn_pma
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: kidlearn
+      PMA_PASSWORD: kidlearn123
+      UPLOAD_LIMIT: 50M
+
+volumes:
+  db_data:
+    driver: local

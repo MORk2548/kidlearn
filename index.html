@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KidLearn — เข้าสู่ระบบ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<div class="auth-bg">
+  <div class="auth-card">
+    <div class="auth-logo">Kid<span>Learn</span> 🎓</div>
+    <p class="auth-sub">ระบบเรียนรู้สนุกสำหรับเด็ก</p>
+
+    <div id="login-err" class="al ae" style="display:none"></div>
+
+    <div class="fg">
+      <label class="fl">ชื่อผู้ใช้</label>
+      <input id="lu" type="text" class="fc" placeholder="กรอกชื่อผู้ใช้"
+        onkeydown="if(event.key==='Enter')document.getElementById('lp').focus()">
+    </div>
+    <div class="fg" style="position:relative">
+      <label class="fl">รหัสผ่าน</label>
+      <input id="lp" type="password" class="fc" placeholder="กรอกรหัสผ่าน"
+        style="padding-right:3rem"
+        onkeydown="if(event.key==='Enter')doLogin()">
+      <button type="button" onclick="togglePw('lp','eye-lp')"
+        style="position:absolute;right:.85rem;bottom:.72rem;background:none;border:none;
+               cursor:pointer;padding:.3rem;line-height:1;font-size:1.15rem;color:#9CA3AF;
+               transition:color .2s" title="แสดง/ซ่อนรหัสผ่าน"
+        onmouseover="this.style.color='#6B7280'" onmouseout="this.style.color='#9CA3AF'">
+        <i id="eye-lp" class="fa-regular fa-eye"></i>
+      </button>
+    </div>
+
+    <button class="btn btn-p btn-fw" style="margin-bottom:.75rem" onclick="doLogin()">เข้าสู่ระบบ 🚀</button>
+    <div style="text-align:right;margin-bottom:1rem">
+      <a onclick="showForgot()" style="font-size:.8rem;color:var(--mu);cursor:pointer;text-decoration:underline">ลืมรหัสผ่าน?</a>
+    </div>
+
+    <p style="text-align:center;font-size:.82rem;color:var(--mu)">
+      ยังไม่มีบัญชี? <a href="register.html" style="color:var(--p);font-weight:700">สมัครสมาชิก</a>
+    </p>
+  </div>
+</div>
+
+<script src="js/api.js?v=3.3"></script>
+<script src="js/data.js?v=3.3"></script>
+<script src="js/state.js?v=3.3"></script>
+<script src="js/auth.js?v=3.3"></script>
+<script>
+  function togglePw(inputId, eyeId) {
+    const inp = document.getElementById(inputId);
+    const eye = document.getElementById(eyeId);
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      eye.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+      inp.type = 'password';
+      eye.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+  }
+  window.addEventListener('DOMContentLoaded', async () => {
+    const ok = await sessionLoad();
+    if (ok) window.location.href = 'app.html';
+  });
+</script>
+
+<!-- ── MODAL: ลืมรหัสผ่าน ── -->
+<div class="overlay" id="forgot-overlay">
+  <div class="modal" style="max-width:420px;width:100%">
+
+    <!-- Step 1: กรอกอีเมล -->
+    <div id="fg-step1">
+      <div class="modal-t">🔑 ลืมรหัสผ่าน</div>
+      <div class="fg">
+        <label class="fl">อีเมลที่ลงทะเบียนไว้</label>
+        <input id="fg-email" type="email" class="fc" placeholder="example@email.com"
+          onkeydown="if(event.key==='Enter')doForgot()">
+      </div>
+      <div id="fg-msg" class="al ae" style="display:none"></div>
+      <div class="modal-btns">
+        <button class="btn btn-sm" onclick="hideForgot()">ยกเลิก</button>
+        <button class="lp-btn-play" style="padding:.6rem 1.3rem;font-size:.88rem" onclick="doForgot()">ขอรหัส OTP</button>
+      </div>
+    </div>
+
+    <!-- Step 2: กรอก OTP + รหัสใหม่ -->
+    <div id="fg-step2" style="display:none">
+      <div class="modal-t">🔑 รีเซ็ตรหัสผ่าน</div>
+      <div style="background:#D1FAE5;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;color:#065F46">
+        ✅ ส่งรหัส OTP แล้ว — <strong id="fg-otp-display"></strong><br>
+        <span style="font-size:.78rem;color:#047857">(ระบบ demo แสดง OTP โดยตรง — production จะส่งอีเมล)</span>
+      </div>
+      <div class="fg">
+        <label class="fl">รหัส OTP (6 หลัก)</label>
+        <input id="fg-token" type="text" class="fc" placeholder="000000" maxlength="6"
+          style="letter-spacing:.3rem;font-size:1.1rem;text-align:center">
+      </div>
+      <div class="fg">
+        <label class="fl">รหัสผ่านใหม่</label>
+        <div style="position:relative">
+          <input id="fg-newpass" type="password" class="fc" placeholder="อย่างน้อย 6 ตัวอักษร" style="padding-right:3rem">
+          <button type="button" onclick="togglePw('fg-newpass','fg-eye')"
+            style="position:absolute;right:.85rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9CA3AF">
+            <i class="fa-regular fa-eye" id="fg-eye"></i>
+          </button>
+        </div>
+      </div>
+      <div id="fg-msg2" class="al ae" style="display:none"></div>
+      <div class="modal-btns">
+        <button class="btn btn-sm" onclick="document.getElementById('fg-step2').style.display='none';document.getElementById('fg-step1').style.display='block'">← กลับ</button>
+        <button class="lp-btn-play" style="padding:.6rem 1.3rem;font-size:.88rem" onclick="doResetPass()">เปลี่ยนรหัสผ่าน</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function showForgot(){ document.getElementById('forgot-overlay').classList.add('show'); }
+  function hideForgot(){ document.getElementById('forgot-overlay').classList.remove('show');
+    document.getElementById('fg-step1').style.display='block';
+    document.getElementById('fg-step2').style.display='none';
+    document.getElementById('fg-email').value='';
+    document.getElementById('fg-token').value='';
+    document.getElementById('fg-newpass').value=''; }
+
+  async function doForgot(){
+    const email=document.getElementById('fg-email').value.trim();
+    const msg=document.getElementById('fg-msg');
+    if(!email){ showAl('fg-msg','กรุณากรอกอีเมล'); return; }
+    const res=await apiForgotPassword({email}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
+    if(!res.ok){ showAlEl(msg,res.error||'เกิดข้อผิดพลาด'); return; }
+    // แสดง OTP (demo mode)
+    document.getElementById('fg-otp-display').textContent = res.otp ? `OTP: ${res.otp}` : '(ส่งอีเมลแล้ว)';
+    document.getElementById('fg-step1').style.display='none';
+    document.getElementById('fg-step2').style.display='block';
+  }
+
+  async function doResetPass(){
+    const email=document.getElementById('fg-email').value.trim();
+    const token=document.getElementById('fg-token').value.trim();
+    const pass=document.getElementById('fg-newpass').value;
+    const msg=document.getElementById('fg-msg2');
+    if(!token||!pass){ showAlEl(msg,'กรุณากรอกให้ครบ'); return; }
+    if(pass.length<6){ showAlEl(msg,'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return; }
+    const res=await apiResetPassword({email,token,new_password:pass}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
+    if(!res.ok){ showAlEl(msg,res.error||'เกิดข้อผิดพลาด'); return; }
+    hideForgot();
+    showAl('login-err','✅ เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่');
+    document.getElementById('login-err').style.background='#D1FAE5';
+    document.getElementById('login-err').style.color='#065F46';
+  }
+
+  function showAlEl(el, msg){
+    if(!el)return;
+    el.textContent=msg; el.style.display='block';
+    setTimeout(()=>el.style.display='none',4000);
+  }
+</script>
+</body>
+</html>

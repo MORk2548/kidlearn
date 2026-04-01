@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KidLearn — สมัครสมาชิก</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<div class="auth-bg">
+  <div class="auth-card">
+    <div class="auth-logo">Kid<span>Learn</span> 🎓</div>
+    <p class="auth-sub">สร้างบัญชีใหม่</p>
+
+    <div id="reg-err" class="al ae" style="display:none"></div>
+    <div id="reg-ok"  class="al ao" style="display:none"></div>
+
+    <!-- ขั้นตอนที่ 1: เลือก role -->
+    <div id="rs1">
+      <div style="font-size:.86rem;font-weight:700;margin-bottom:.7rem;text-align:center">ฉันคือ...</div>
+      <div class="roles">
+        <div class="ro sel" id="ro-student" onclick="selRole('student')">
+          <div class="ro-ico">👦</div><div class="ro-nm">นักเรียน</div><div class="ro-ds">เรียนและเล่นเกม</div>
+        </div>
+        <div class="ro" id="ro-parent" onclick="selRole('parent')">
+          <div class="ro-ico">👨‍👩‍👧</div><div class="ro-nm">ผู้ปกครอง</div><div class="ro-ds">ติดตามลูกหลาน</div>
+        </div>
+        <div class="ro" id="ro-teacher" onclick="selRole('teacher')">
+          <div class="ro-ico">👩‍🏫</div><div class="ro-nm">ครู</div><div class="ro-ds">จัดการบทเรียน</div>
+        </div>
+      </div>
+      <div id="ri-student" class="al" style="background:#FEF3C7;color:#92400E;border-left:4px solid #F59E0B;font-size:.78rem;margin-bottom:.9rem">
+        👦 <strong>นักเรียน</strong> — เล่นเกม ดูคะแนน ติดตามความก้าวหน้า
+      </div>
+      <div id="ri-parent" class="al" style="background:#E0F2FE;color:#0C4A6E;border-left:4px solid #0EA5E9;font-size:.78rem;margin-bottom:.9rem;display:none">
+        👨‍👩‍👧 <strong>ผู้ปกครอง</strong> — ดูคะแนน/พัฒนาการของบุตรหลาน รับคำแนะนำ
+      </div>
+      <div id="ri-teacher" class="al" style="background:#F0FDF4;color:#14532D;border-left:4px solid #22C55E;font-size:.78rem;margin-bottom:.9rem;display:none">
+        👩‍🏫 <strong>ครู</strong> — จัดการบทเรียน ดูรายงานนักเรียนทั้งหมด
+      </div>
+      <button class="btn btn-p btn-fw" onclick="nextStep()">ถัดไป →</button>
+    </div>
+
+    <!-- ขั้นตอนที่ 2: กรอกข้อมูล -->
+    <div id="rs2" style="display:none">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.1rem;font-size:.86rem;color:var(--mu)">
+        <button onclick="backStep()" style="border:none;background:none;cursor:pointer;font-size:1rem">←</button>
+        กรอกข้อมูล
+        <span id="reg-chip" class="badge be" style="margin-left:auto"></span>
+      </div>
+
+      <div class="fg">
+        <label class="fl">ชื่อ-นามสกุล</label>
+        <input id="rn" type="text" class="fc" placeholder="ชื่อ นามสกุล">
+      </div>
+      <div class="fg">
+        <label class="fl">ชื่อผู้ใช้</label>
+        <input id="ru" type="text" class="fc" placeholder="username">
+      </div>
+      <div class="fg">
+        <label class="fl">อีเมล</label>
+        <div style="position:relative">
+          <input id="re" type="email" class="fc" placeholder="email@example.com"
+            style="padding-right:2.5rem"
+            onblur="validateEmail()"
+            oninput="clearEmailStatus()">
+          <span id="re-status" style="position:absolute;right:.85rem;top:50%;transform:translateY(-50%);font-size:.95rem"></span>
+        </div>
+        <div id="re-msg" style="font-size:.76rem;margin-top:.25rem;min-height:1rem"></div>
+      </div>
+      <div class="fg" style="position:relative">
+        <label class="fl">รหัสผ่าน</label>
+        <input id="rp" type="password" class="fc" placeholder="อย่างน้อย 6 ตัวอักษร" style="padding-right:3rem">
+        <button type="button" onclick="togglePw('rp','eye-rp')"
+          style="position:absolute;right:.85rem;bottom:.72rem;background:none;border:none;
+                 cursor:pointer;padding:.3rem;line-height:1;font-size:1.15rem;color:#9CA3AF" title="แสดง/ซ่อนรหัสผ่าน">
+          <i id="eye-rp" class="fa-regular fa-eye"></i>
+        </button>
+      </div>
+
+      <!-- นักเรียน -->
+      <div id="st-extra">
+        <div class="fg">
+          <label class="fl">ชั้นเรียน</label>
+          <select id="rg" class="fc">
+            <option value="">เลือกชั้นเรียน</option>
+            <option>ป.1</option><option>ป.2</option><option>ป.3</option>
+            <option>ป.4</option><option>ป.5</option><option>ป.6</option>
+            <option>ม.1</option><option>ม.2</option><option>ม.3</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">📱 เบอร์โทรผู้ปกครอง</label>
+          <input id="r-pphone" type="tel" class="fc" placeholder="เช่น 0812345678" maxlength="10">
+          <div style="font-size:.72rem;color:var(--mu);margin-top:.3rem">
+            ใช้เชื่อมบัญชีกับผู้ปกครอง — ต้องตรงกับเบอร์ที่ผู้ปกครองลงทะเบียนไว้
+          </div>
+        </div>
+      </div>
+
+      <!-- ครู -->
+      <div id="tc-extra" class="fg" style="display:none">
+        <label class="fl">แผนก/กลุ่มสาระ</label>
+        <input id="rd" type="text" class="fc" placeholder="เช่น วิทยาศาสตร์">
+      </div>
+
+      <!-- ผู้ปกครอง -->
+      <div id="par-extra" style="display:none">
+        <div class="fg">
+          <label class="fl">📱 เบอร์โทรของคุณ</label>
+          <input id="r-phone" type="tel" class="fc" placeholder="เช่น 0812345678" maxlength="10">
+          <div style="font-size:.72rem;color:var(--mu);margin-top:.3rem">
+            นักเรียนจะใช้เบอร์นี้เพื่อเชื่อมบัญชีกับคุณ
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-p btn-fw" onclick="doRegister()">✅ สมัครสมาชิก</button>
+    </div>
+
+    <p style="text-align:center;margin-top:.9rem;font-size:.8rem;color:var(--mu)">
+      มีบัญชีแล้ว? <a href="index.html" style="color:var(--p);font-weight:700">เข้าสู่ระบบ</a>
+    </p>
+  </div>
+</div>
+
+<script src="js/api.js?v=3.3"></script>
+<script src="js/data.js?v=3.3"></script>
+<script src="js/state.js?v=3.3"></script>
+<script src="js/auth.js?v=3.3"></script>
+<script>
+let _emailValid = false;
+async function validateEmail(){
+  const el=document.getElementById('re');
+  const status=document.getElementById('re-status');
+  const msg=document.getElementById('re-msg');
+  const email=el?.value.trim();
+  if(!email){clearEmailStatus();return;}
+  if(status)status.textContent='⏳';
+  try{
+    const res=await apiValidateEmail(email);
+    if(res.valid){
+      _emailValid=true;
+      if(status)status.textContent='✅';
+      if(msg){msg.textContent='อีเมลถูกต้อง';msg.style.color='#10B981';}
+      if(el)el.style.borderColor='#10B981';
+    }else{
+      _emailValid=false;
+      if(status)status.textContent='❌';
+      if(msg){msg.textContent=res.reason||'อีเมลไม่ถูกต้อง';msg.style.color='#EF4444';}
+      if(el)el.style.borderColor='#EF4444';
+    }
+  }catch(e){_emailValid=true;if(status)status.textContent='';}
+}
+function clearEmailStatus(){
+  _emailValid=false;
+  const status=document.getElementById('re-status');
+  const msg=document.getElementById('re-msg');
+  const el=document.getElementById('re');
+  if(status)status.textContent='';
+  if(msg)msg.textContent='';
+  if(el)el.style.borderColor='';
+}
+
+function togglePw(inputId, eyeId) {
+  const inp = document.getElementById(inputId);
+  const eye = document.getElementById(eyeId);
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    eye.classList.replace('fa-eye', 'fa-eye-slash');
+  } else {
+    inp.type = 'password';
+    eye.classList.replace('fa-eye-slash', 'fa-eye');
+  }
+}
+</script>
+</body>
+</html>
