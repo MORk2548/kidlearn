@@ -66,7 +66,9 @@ async function startGame(gid){
     gridData: gmStatic?.gridData || null,
     // ใช้ type จาก static เป็นหลัก (DB อาจใช้ชื่อต่างกัน)
     type:  gmStatic?.type || gameData.type,
-    time:  gmStatic?.time || gameData.game?.time_limit || 60,
+    time:  (parseInt(gameData.game?.time_limit, 10) > 0
+      ? parseInt(gameData.game?.time_limit, 10)
+      : (parseInt(gmStatic?.time, 10) > 0 ? parseInt(gmStatic.time, 10) : 60)),
   };
 
   const qCount = _countQ({

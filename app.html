@@ -22,6 +22,8 @@
     <li id="nli-rec"      style="display:none"><a id="nl-rec"      onclick="sec('rec');closeNav()">💡 คำแนะนำ</a></li>
     <li id="nli-children" style="display:none"><a id="nl-children" onclick="sec('children');closeNav()">👨‍👩‍👧 จัดการบุตรหลาน</a></li>
     <li id="nli-teach"    style="display:none"><a id="nl-teach"    onclick="sec('teach');closeNav()">📊 แผงครู</a></li>
+    <li id="nli-officer"  style="display:none"><a id="nl-officer"  onclick="sec('officer');closeNav()">👔 จัดการผู้ใช้</a></li>
+    <li id="nli-executive" style="display:none"><a id="nl-executive" onclick="sec('executive');closeNav()">💼 แผงบริหาร</a></li>
     <li id="nli-admin"    style="display:none"><a id="nl-admin"    onclick="sec('admin');closeNav()">🛠️ ผู้ดูแลระบบ</a></li>
     <li><a id="nl-profile"  onclick="sec('profile');closeNav()">⚙️ โปรไฟล์</a></li>
     <li><a class="btn-out"  onclick="doLogout()">ออกจากระบบ</a></li>
@@ -48,6 +50,8 @@
     <button class="sl"        id="sl-rec"      onclick="sec('rec')"      style="display:none"><span class="ico">💡</span>คำแนะนำ</button>
     <button class="sl"        id="sl-children" onclick="sec('children')" style="display:none"><span class="ico">👨‍👩‍👧</span>จัดการบุตรหลาน</button>
     <button class="sl"        id="sl-teach"    onclick="sec('teach')"    style="display:none"><span class="ico">📊</span>แผงครู</button>
+    <button class="sl"        id="sl-officer"  onclick="sec('officer')"  style="display:none"><span class="ico">👔</span>จัดการผู้ใช้</button>
+    <button class="sl"        id="sl-executive" onclick="sec('executive')" style="display:none"><span class="ico">💼</span>แผงบริหาร</button>
     <button class="sl"        id="sl-admin"    onclick="sec('admin')"    style="display:none"><span class="ico">🛠️</span>ผู้ดูแลระบบ</button>
     <button class="sl"        id="sl-profile"  onclick="sec('profile')"> <span class="ico">⚙️</span>แก้ไขโปรไฟล์</button>
   </aside>
@@ -209,6 +213,16 @@
       <!-- ── แท็บ 2: แก้ไขบทเรียน ── -->
       <div id="tc-lesson-panel" style="display:none"></div>
       <div id="tc-game-panel" style="display:none"></div>
+    </div>
+
+    <!-- ── OFFICER ── -->
+    <div id="s-officer" style="display:none">
+      <div id="of-dashboard"></div>
+    </div>
+
+    <!-- ── EXECUTIVE ── -->
+    <div id="s-executive" style="display:none">
+      <div id="ex-dashboard"></div>
     </div>
 
     <!-- ── ADMIN ── -->
@@ -374,6 +388,8 @@
 <script src="js/children.js?v=3.3"></script>
 <script src="js/teacher.js?v=3.3"></script>
 <script src="js/game_editor.js?v=3.3"></script>
+<script src="js/officer.js?v=3.3"></script>
+<script src="js/executive.js?v=3.3"></script>
 <script src="js/admin.js?v=3.3"></script>
 <script src="js/profile.js?v=3.3"></script>
 <script>

@@ -77,6 +77,7 @@ const apiToggleSubject    = (d)    => _api('toggle_subject', {body:d});
 const apiGameQuestions    = (gid)  => _api('game_questions', {params:{game_id:gid}});
 const apiSaveQuestion     = (d)    => _api('save_question',  {body:d});
 const apiDeleteQuestion   = (d)    => _api('delete_question',{body:d});
+const apiSaveGameSettings = (d)    => _api('save_game_settings', {body:d});
 // 8.0 REPORTS
 const apiReport           = (type, extra={}) => _api('report', {params:{type, ...extra}});
 
@@ -87,3 +88,17 @@ const apiValidateEmail  = (email)=> _api('validate_email',   {params:{email}});
 
 // โหลดคำถามสำหรับเล่นเกม (ใช้ใน game.js)
 const apiPlayQuestions = (gid) => _api('play_questions', {params:{game_id:gid}});
+
+// สร้างเจ้าหน้าที่/ผู้บริหาร
+const apiAdminCreateStaff   = (d) => _api('admin_create_staff',   {body:d});
+const apiOfficerCreateStaff = (d) => _api('officer_create_staff', {body:d});
+
+// EXECUTIVE DASHBOARD API
+const apiExecutiveDashboard = ()        => _api('executive_dashboard');
+const apiExecutiveUsers     = ()        => _api('executive_users');
+const apiExecutiveContent   = (type)    => _api('executive_content', {params:{type}});
+
+// OFFICER USER MANAGEMENT API
+const apiOfficerUsers       = ()        => _api('officer_users');
+const apiOfficerUpdateUser  = (d)       => _api('officer_update_user',  {body:d});
+const apiOfficerDeleteUser  = (d)       => _api('officer_delete_user',  {body:d});

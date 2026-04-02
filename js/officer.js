@@ -6,7 +6,7 @@ let _ofUsers = [];
 let _ofFilter = 'all';
 
 function _renderOfficerPanel(){
-  const panel = document.getElementById('tc-game-panel');
+  const panel = document.getElementById('of-dashboard');
   if(!panel) return;
   
   panel.innerHTML = `
@@ -85,6 +85,7 @@ function _renderOfficerPanel(){
             <div style="font-size: .73rem; color: var(--mu);">ดูแลและอัปเดตข้อมูลสมาชิก</div>
           </div>
           <button class="lp-btn-play" style="padding: .5rem 1.25rem; font-size: .85rem;" onclick="ofReloadUsers()">🔄 รีโหลด</button>
+          <button class="lp-btn-play" style="padding: .5rem 1.25rem; font-size: .85rem; background:var(--g);" onclick="ofOpenCreateStaff()">➕ เพิ่มบุคลากร</button>
         </div>
         <div id="of-users-content" style="color: var(--mu); padding: 2rem; text-align: center;">⏳ กำลังโหลด...</div>
       </div>
@@ -302,4 +303,100 @@ async function ofDeleteUser(uid, name) {
 
 function _esc(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ════════ เพิ่มเจ้าหน้าที่ / ผู้บริหาร (Officer) ════════
+function ofOpenCreateStaff() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay show';
+  overlay.id = 'of-create-staff-modal';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:520px;width:100%;padding:1.5rem">
+      <div class="modal-t" style="font-size:1.05rem;margin-bottom:1.1rem">➕ เพิ่มเจ้าหน้าที่ / ผู้บริหาร</div>
+
+      <div style="margin-bottom:.75rem">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ตำแหน่ง *</label>
+        <select id="ocs-role" class="fc" style="font-size:.88rem;padding:.6rem .85rem" onchange="ofToggleStaffFields()">
+          <option value="officer">👔 เจ้าหน้าที่ (Officer)</option>
+          <option value="executive">💼 ผู้บริหาร (Executive)</option>
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem">
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ชื่อ-นามสกุล *</label>
+          <input id="ocs-name" type="text" class="fc" placeholder="สมหญิง ใจดี" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">Username *</label>
+          <input id="ocs-username" type="text" class="fc" placeholder="officer02" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem">
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">อีเมล *</label>
+          <input id="ocs-email" type="email" class="fc" placeholder="staff@school.ac.th" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">รหัสผ่านเริ่มต้น</label>
+          <input id="ocs-password" type="text" class="fc" value="kidlearn123" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+      </div>
+
+      <div style="margin-bottom:.75rem">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">แผนก / ฝ่าย</label>
+        <input id="ocs-dept" type="text" class="fc" placeholder="เช่น ฝ่ายวิชาการ" style="font-size:.88rem;padding:.6rem .85rem">
+      </div>
+
+      <div id="ocs-title-wrap" style="margin-bottom:.75rem;display:none">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ตำแหน่งพิเศษ (executive)</label>
+        <input id="ocs-title" type="text" class="fc" placeholder="เช่น ผู้อำนวยการ" style="font-size:.88rem;padding:.6rem .85rem">
+      </div>
+
+      <div style="margin-bottom:.75rem">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">สิทธิ์พิเศษ (เว้นว่างได้)</label>
+        <input id="ocs-permissions" type="text" class="fc" placeholder="เช่น manage_users,view_reports" style="font-size:.88rem;padding:.6rem .85rem">
+      </div>
+
+      <div style="display:flex;gap:.65rem;justify-content:flex-end;padding-top:.75rem;border-top:1px solid #F1F5F9;margin-top:.5rem">
+        <button class="btn btn-sm" onclick="document.getElementById('of-create-staff-modal').remove()">ยกเลิก</button>
+        <button class="lp-btn-play" style="padding:.6rem 1.4rem;font-size:.88rem" onclick="ofSubmitCreateStaff()">💾 สร้างบัญชี</button>
+      </div>
+      <div id="ocs-msg" style="font-size:.85rem;margin-top:.5rem;text-align:center"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function ofToggleStaffFields() {
+  const role = document.getElementById('ocs-role')?.value;
+  const w = document.getElementById('ocs-title-wrap');
+  if (w) w.style.display = role === 'executive' ? 'block' : 'none';
+}
+
+async function ofSubmitCreateStaff() {
+  const msg = document.getElementById('ocs-msg');
+  const payload = {
+    role:        document.getElementById('ocs-role')?.value,
+    full_name:   document.getElementById('ocs-name')?.value.trim(),
+    username:    document.getElementById('ocs-username')?.value.trim(),
+    email:       document.getElementById('ocs-email')?.value.trim(),
+    password:    document.getElementById('ocs-password')?.value.trim() || 'kidlearn123',
+    department:  document.getElementById('ocs-dept')?.value.trim(),
+    title:       document.getElementById('ocs-title')?.value.trim(),
+    permissions: document.getElementById('ocs-permissions')?.value.trim(),
+  };
+  if (!payload.full_name || !payload.username || !payload.email) {
+    msg.innerHTML = '<span style="color:#EF4444">⚠️ ต้องกรอกชื่อ, username, อีเมล</span>'; return;
+  }
+  msg.innerHTML = '<span style="color:var(--mu)">⏳ กำลังสร้าง...</span>';
+  const res = await _api('officer_create_staff', { body: payload }).catch(() => ({ ok: false, error: 'เชื่อมต่อไม่ได้' }));
+  if (res.ok) {
+    document.getElementById('of-create-staff-modal')?.remove();
+    alert(`✅ สร้างบัญชี ${payload.role} "${payload.full_name}" สำเร็จ\nรหัสผ่าน: ${payload.password}`);
+    ofLoadUsers();
+  } else {
+    msg.innerHTML = `<span style="color:#EF4444">❌ ${res.error || 'สร้างไม่สำเร็จ'}</span>`;
+  }
 }

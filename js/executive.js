@@ -6,7 +6,7 @@ let _exTab = 'dashboard';
 let _exData = { users: [], games: [], summary: {} };
 
 function _renderExecutivePanel(){
-  const panel = document.getElementById('tc-game-panel');
+  const panel = document.getElementById('ex-dashboard');
   if(!panel) return;
   
   panel.innerHTML = `

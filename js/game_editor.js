@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════
 // GAME EDITOR — ครูแก้ไขคำถาม-คำตอบ (4.0)
 // ══════════════════════════════════════════════════════
-let _geGid=null, _geDbGid=null, _geQuestions=[], _geAnsCount=4;
+let _geGid=null, _geDbGid=null, _geQuestions=[], _geAnsCount=4, _geGameMeta=null;
 
 function _renderGameEditor(){
   const panel=document.getElementById('tc-game-panel');
@@ -70,9 +70,11 @@ async function selectGeGame(jsKey){
     return;
   }
   _geQuestions=res.questions||[];
+  _geGameMeta=res.game||null;
 
   const gm=GAMES_DB[jsKey],sub=SUBS.find(s=>s.id===gm.sid);
   const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'ค้นหาคำ'};
+  const timeLimit=parseInt(_geGameMeta?.time_limit,10)>0?parseInt(_geGameMeta.time_limit,10):(parseInt(gm?.time,10)||60);
 
   ed.innerHTML=`
     <div style="background:#fff;border-radius:14px;padding:1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06)">
@@ -83,8 +85,17 @@ async function selectGeGame(jsKey){
           <div style="font-weight:800;font-size:.95rem">${gm.name}</div>
           <div style="font-size:.73rem;color:var(--mu)">${sub?.name} · ${TYPE_LBL[gm.type]||gm.type} · <span id="ge-qcount">${_geQuestions.length}</span> คำถาม</div>
         </div>
+        <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;justify-content:flex-end">
+          <label for="ge-time-limit" style="font-size:.75rem;color:var(--mu);font-weight:700">เวลาเล่น</label>
+          <input id="ge-time-limit" type="number" min="10" max="3600" value="${timeLimit}"
+            style="width:88px;padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
+          <span style="font-size:.75rem;color:var(--mu)">วินาที</span>
+          <button class="btn btn-sm" style="background:#F8FAFC;border:1px solid #CBD5E1;font-size:.75rem"
+            onclick="geSaveGameSettings()">บันทึกเวลา</button>
+        </div>
         <button class="lp-btn-play" style="padding:.5rem 1.25rem;font-size:.85rem" onclick="geOpenForm(-1)">+ เพิ่มคำถาม</button>
       </div>
+      <div id="ge-game-msg" style="min-height:1.1rem;font-size:.8rem;margin:-.35rem 0 .75rem;text-align:right"></div>
       <div id="ge-q-list">${_geRenderQList(gm.type)}</div>
     </div>`;
 }
@@ -292,6 +303,25 @@ function geAddAnsRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)ret
 function geAddPairRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_gePairRow(_geAnsCount++);w.appendChild(d.firstElementChild); }
 function geAddSeqRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const cnt=document.querySelectorAll('[id^="ge-ar-"]').length+1;const d=document.createElement('div');d.innerHTML=_geSeqRow(_geAnsCount,``,cnt);w.appendChild(d.firstElementChild);_geAnsCount++; }
 function geAddWordRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_geWordRow(_geAnsCount++);w.appendChild(d.firstElementChild); }
+
+async function geSaveGameSettings(){
+  const input=document.getElementById('ge-time-limit');
+  const msg=document.getElementById('ge-game-msg');
+  const timeLimit=parseInt(input?.value,10);
+  if(!Number.isFinite(timeLimit)||timeLimit<10||timeLimit>3600){
+    if(msg) msg.innerHTML='<span style="color:#EF4444">❌ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
+    return;
+  }
+  if(msg) msg.innerHTML='<span style="color:var(--mu)">⏳ กำลังบันทึกเวลาเล่น...</span>';
+  const res=await apiSaveGameSettings({game_id:_geDbGid,time_limit:timeLimit}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
+  if(res.ok){
+    if(_geGameMeta) _geGameMeta.time_limit=timeLimit;
+    if(msg) msg.innerHTML='<span style="color:#10B981">✅ บันทึกเวลาเล่นสำเร็จ</span>';
+    setTimeout(()=>{ if(msg) msg.innerHTML=''; },3000);
+  }else{
+    if(msg) msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
+  }
+}
 
 async function geSaveQ(idx){
   const text=document.getElementById('ge-qtext')?.value.trim();

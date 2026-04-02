@@ -6,9 +6,9 @@
 // ============================================================
 
 // ── CONFIG ────────────────────────────────────────────────────
-define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') ?: '');
+define('DB_HOST', getenv('DB_HOST') ?: 'db');
+define('DB_USER', getenv('DB_USER') ?: 'kidlearn');
+define('DB_PASS', getenv('DB_PASS') ?: 'kidlearn123');
 define('DB_NAME', getenv('DB_NAME') ?: 'kidlearn_db');
 
 header('Content-Type: application/json; charset=utf-8');
@@ -122,6 +122,7 @@ match ($action) {
     'all_students'    => handleAllStudents(),
     'save_lesson'     => handleSaveLesson(),
     'delete_lesson'   => handleDeleteLesson(),
+    'save_game_settings' => handleSaveGameSettings(),
     // 2.0 admin users
     'admin_users'        => handleAdminUsers(),
     'admin_toggle_user'  => handleAdminToggleUser(),
@@ -142,9 +143,12 @@ match ($action) {
     'reset_password'     => handleResetPassword(),
     'validate_email'     => handleValidateEmail(),
     // officer endpoints
-    'officer_users'      => handleOfficerUsers(),
-    'officer_update_user' => handleOfficerUpdateUser(),
-    'officer_delete_user' => handleOfficerDeleteUser(),
+    'officer_users'        => handleOfficerUsers(),
+    'officer_update_user'  => handleOfficerUpdateUser(),
+    'officer_delete_user'  => handleOfficerDeleteUser(),
+    'officer_create_staff' => handleOfficerCreateStaff(),
+    // admin create staff
+    'admin_create_staff'   => handleAdminCreateStaff(),
     // executive endpoints
     'executive_dashboard' => handleExecutiveDashboard(),
     'executive_users'     => handleExecutiveUsers(),
@@ -543,8 +547,8 @@ function handleScores(): never {
 
     $scores = $db->all(
         "SELECT sc.score_id, sc.student_id, sc.score,
-                COALESCE(sc.max_score, 100) AS max_score,
-                sc.time_spent, sc.played_at,
+                100 AS max_score,
+                sc.lesson_no, sc.time_spent, sc.played_at,
                 g.game_id, g.name AS game_name, g.game_type, g.level,
                 sub.subject_id, sub.name AS subject_name, sub.color AS subject_color,
                 u.full_name AS student_name, st.grade
@@ -798,7 +802,7 @@ function handleAllStudents(): never {
 
 function handleSaveLesson(): never {
     global $body;
-    authRole('teacher', 'admin');
+    authRole('teacher', 'admin', 'officer');
     $db       = DB::get();
     $gameId   = (int)($body['game_id']   ?? 0);
     $lessonNo = (int)($body['lesson_no'] ?? 1);
@@ -830,7 +834,7 @@ function handleSaveLesson(): never {
 
 function handleDeleteLesson(): never {
     global $body;
-    authRole('teacher', 'admin');
+    authRole('teacher', 'admin', 'officer');
     $gameId   = (int)($body['game_id']   ?? 0);
     $lessonNo = (int)($body['lesson_no'] ?? 1);
     if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
@@ -839,6 +843,26 @@ function handleDeleteLesson(): never {
         [$gameId, $lessonNo], 'ii'
     );
     DB::ok(['message' => 'ลบสำเร็จ']);
+}
+
+function handleSaveGameSettings(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    $db        = DB::get();
+    $gameId    = (int)($body['game_id'] ?? 0);
+    $timeLimit = (int)($body['time_limit'] ?? 0);
+
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
+    if ($timeLimit < 10 || $timeLimit > 3600) {
+        DB::fail('เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที', 400);
+    }
+
+    $db->run(
+        "UPDATE games SET time_limit=? WHERE game_id=?",
+        [$timeLimit, $gameId],
+        'ii'
+    );
+    DB::ok(['message' => 'บันทึกเวลาเล่นสำเร็จ', 'time_limit' => $timeLimit]);
 }
 
 
@@ -951,17 +975,18 @@ function handleGetGameQuestions(): never {
     $gid  = (int)($_GET['game_id'] ?? 0);
     if (!$gid) DB::fail('ต้องส่ง game_id', 400);
     $db   = DB::get();
+    $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
     $qs   = $db->all("SELECT * FROM questions WHERE game_id=? ORDER BY order_no", [$gid], 'i');
     foreach ($qs as &$q) {
         $q['answers'] = $db->all("SELECT * FROM answers WHERE question_id=? ORDER BY answer_id",
             [$q['question_id']], 'i');
     }
-    DB::ok(['questions' => $qs]);
+    DB::ok(['game' => $game, 'questions' => $qs]);
 }
 
 function handleSaveQuestion(): never {
     global $body;
-    authRole('teacher', 'admin');
+    authRole('teacher', 'admin', 'officer');
     $db   = DB::get();
     $qid  = (int)($body['question_id'] ?? 0);
     $gid  = (int)($body['game_id'] ?? 0);
@@ -1000,7 +1025,7 @@ function handleSaveQuestion(): never {
 
 function handleDeleteQuestion(): never {
     global $body;
-    authRole('teacher', 'admin');
+    authRole('teacher', 'admin', 'officer');
     $qid = (int)($body['question_id'] ?? 0);
     if (!$qid) DB::fail('ต้องส่ง question_id', 400);
     DB::get()->run("DELETE FROM questions WHERE question_id=?", [$qid], 'i');
@@ -1191,7 +1216,7 @@ function handlePlayQuestions(): never {
         $qid = $q['question_id'];
         $answers = $db->all(
             "SELECT answer_id, answer_text, is_correct, pair_left, pair_right, seq_order
-             FROM answers WHERE question_id=? ORDER BY answer_id",
+             FROM answers WHERE question_id=? ORDER BY COALESCE(seq_order, 999999), answer_id",
             [$qid], 'i'
         );
 
@@ -1211,7 +1236,12 @@ function handlePlayQuestions(): never {
             $correct_ans = null;
             foreach ($answers as $a) {
                 if ($a['is_correct']) {
-                    $correct_ans = ($a['answer_text'] === 'ถูก');
+                    $text = mb_strtolower(trim((string)$a['answer_text']), 'UTF-8');
+                    if (in_array($text, ['ถูก', 'จริง', 'true', 'yes', 'ใช่'], true)) {
+                        $correct_ans = true;
+                    } elseif (in_array($text, ['ผิด', 'เท็จ', 'false', 'no', 'ไม่ใช่'], true)) {
+                        $correct_ans = false;
+                    }
                     break;
                 }
             }
@@ -1230,20 +1260,56 @@ function handlePlayQuestions(): never {
                 'hint' => $q['hint'] ?? '',
             ];
         } elseif ($type === 'matching') {
-            // คืน pairs array
-            $result[] = [
-                'left'  => $q['question_text'],
-                'right' => $answers[0]['pair_right'] ?? '',
-            ];
+            if ($answers) {
+                foreach ($answers as $i => $a) {
+                    $left = trim((string)($a['pair_left'] ?? ''));
+                    $right = trim((string)($a['pair_right'] ?? ''));
+                    if ($left === '' && $right === '') {
+                        $left = $i === 0 ? trim((string)$q['question_text']) : '';
+                        $right = trim((string)$a['answer_text']);
+                    }
+                    if ($left !== '' && $right !== '') {
+                        $result[] = ['left' => $left, 'right' => $right];
+                    }
+                }
+            } elseif (trim((string)$q['question_text']) !== '') {
+                $result[] = ['left' => trim((string)$q['question_text']), 'right' => ''];
+            }
         } elseif ($type === 'sequence') {
-            $result[] = [
-                'id'    => 'q' . $qid,
-                'text'  => $q['question_text'],
-                'order' => (int)($q['order_no'] ?? 1),
-            ];
+            if ($answers) {
+                foreach ($answers as $i => $a) {
+                    $text = trim((string)$a['answer_text']);
+                    if ($text === '') continue;
+                    $result[] = [
+                        'id'    => 'q' . $qid . '_a' . ($a['answer_id'] ?? $i),
+                        'text'  => $text,
+                        'order' => (int)($a['seq_order'] ?? ($i + 1)),
+                    ];
+                }
+            } elseif (trim((string)$q['question_text']) !== '') {
+                $result[] = [
+                    'id'    => 'q' . $qid,
+                    'text'  => trim((string)$q['question_text']),
+                    'order' => (int)($q['order_no'] ?? 1),
+                ];
+            }
         } elseif ($type === 'wordsearch') {
-            $result[] = $q['question_text'];   // list of words
+            if ($answers) {
+                foreach ($answers as $a) {
+                    $word = trim((string)$a['answer_text']);
+                    if ($word !== '') $result[] = $word;
+                }
+            } else {
+                $word = trim((string)$q['question_text']);
+                if ($word !== '') $result[] = $word;
+            }
         }
+    }
+
+    if ($type === 'sequence') {
+        usort($result, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+    } elseif ($type === 'wordsearch') {
+        $result = array_values(array_unique($result));
     }
 
     // จัดรูปแบบ response ตาม type
@@ -1440,3 +1506,66 @@ function handleExecutiveContent(): never {
 }
 
 
+// ============================================================
+// สร้างเจ้าหน้าที่/ผู้บริหาร — Admin เรียกได้
+// ============================================================
+function handleAdminCreateStaff(): never {
+    global $body;
+    authRole('admin');
+    _doCreateStaff($body);
+}
+
+// ============================================================
+// สร้างเจ้าหน้าที่/ผู้บริหาร — Officer เรียกได้
+// ============================================================
+function handleOfficerCreateStaff(): never {
+    global $body;
+    authRole('officer', 'admin');
+    _doCreateStaff($body);
+}
+
+// ── ฟังก์ชันกลางสร้าง officer / executive ──────────────────
+function _doCreateStaff(array $body): never {
+    $db         = DB::get();
+    $role       = $body['role']       ?? '';
+    $username   = trim($body['username']   ?? '');
+    $email      = trim($body['email']      ?? '');
+    $password   = $body['password']   ?? 'kidlearn123';
+    $full_name  = trim($body['full_name']  ?? '');
+    $department = trim($body['department'] ?? '');
+    $title      = trim($body['title']      ?? '');      // executive เท่านั้น
+    $permissions= trim($body['permissions']?? '');
+
+    // validation
+    if (!in_array($role, ['officer', 'executive'], true))
+        DB::fail('role ต้องเป็น officer หรือ executive', 400);
+    if (!$username || !$email || !$full_name)
+        DB::fail('ต้องกรอก username, email, ชื่อ-นามสกุล', 400);
+
+    // ตรวจ username / email ซ้ำ
+    if ($db->one("SELECT user_id FROM users WHERE username=?", [$username], 's'))
+        DB::fail("username '$username' มีอยู่แล้ว", 409);
+    if ($db->one("SELECT user_id FROM users WHERE email=?", [$email], 's'))
+        DB::fail("email '$email' มีอยู่แล้ว", 409);
+
+    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $db->run(
+        "INSERT INTO users (username,email,password,role,full_name) VALUES (?,?,?,?,?)",
+        [$username, $email, $hash, $role, $full_name], 'sssss'
+    );
+    $uid = $db->insertId();
+
+    if ($role === 'officer') {
+        $db->run(
+            "INSERT INTO officers (user_id,department,permissions) VALUES (?,?,?)",
+            [$uid, $department ?: null, $permissions ?: null], 'iss'
+        );
+    } else {
+        $db->run(
+            "INSERT INTO executives (user_id,title,department,permissions) VALUES (?,?,?,?)",
+            [$uid, $title ?: null, $department ?: null, $permissions ?: null], 'isss'
+        );
+    }
+
+    DB::ok(['user_id' => $uid, 'message' => "สร้าง $role สำเร็จ"]);
+}

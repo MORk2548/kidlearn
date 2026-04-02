@@ -43,6 +43,7 @@ async function _loadAdminUsers(){
         style="flex:1;min-width:160px;padding:.5rem .75rem;font-size:.85rem"
         oninput="A.adminSearch=this.value" onkeydown="if(event.key==='Enter')_loadAdminUsers()">
       <button class="btn btn-s btn-sm" onclick="_loadAdminUsers()">🔍 ค้นหา</button>
+      <button class="lp-btn-play" style="padding:.45rem 1rem;font-size:.82rem;white-space:nowrap" onclick="adminOpenCreateStaff()">➕ เพิ่มเจ้าหน้าที่/ผู้บริหาร</button>
       <span style="font-size:.82rem;color:var(--mu)">ทั้งหมด ${total} คน</span>
     </div>
     <div style="overflow-x:auto">
@@ -200,4 +201,100 @@ async function _renderReport(type){
       <th>วันที่</th><th style="text-align:center">นักเรียนที่เล่น</th>
       <th style="text-align:center">ครั้งที่เล่น</th><th style="text-align:center">คะแนนเฉลี่ย</th>
     </tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:1rem">ยังไม่มีข้อมูล</td></tr>'}</tbody></table></div>`; return;}
+}
+
+// ════════ เพิ่มเจ้าหน้าที่ / ผู้บริหาร (Admin) ════════
+function adminOpenCreateStaff() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay show';
+  overlay.id = 'adm-create-staff-modal';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:520px;width:100%;padding:1.5rem">
+      <div class="modal-t" style="font-size:1.05rem;margin-bottom:1.1rem">➕ เพิ่มเจ้าหน้าที่ / ผู้บริหาร</div>
+
+      <div style="margin-bottom:.75rem">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ตำแหน่ง *</label>
+        <select id="cs-role" class="fc" style="font-size:.88rem;padding:.6rem .85rem" onchange="adminToggleStaffFields()">
+          <option value="officer">👔 เจ้าหน้าที่ (Officer)</option>
+          <option value="executive">💼 ผู้บริหาร (Executive)</option>
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem">
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ชื่อ-นามสกุล *</label>
+          <input id="cs-name" type="text" class="fc" placeholder="สมหญิง ใจดี" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">Username *</label>
+          <input id="cs-username" type="text" class="fc" placeholder="officer01" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem">
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">อีเมล *</label>
+          <input id="cs-email" type="email" class="fc" placeholder="officer@school.ac.th" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+        <div>
+          <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">รหัสผ่านเริ่มต้น</label>
+          <input id="cs-password" type="text" class="fc" value="kidlearn123" style="font-size:.88rem;padding:.6rem .85rem">
+        </div>
+      </div>
+
+      <div style="margin-bottom:.75rem">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">แผนก / ฝ่าย</label>
+        <input id="cs-dept" type="text" class="fc" placeholder="เช่น ฝ่ายวิชาการ" style="font-size:.88rem;padding:.6rem .85rem">
+      </div>
+
+      <div id="cs-title-wrap" style="margin-bottom:.75rem;display:none">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ตำแหน่งพิเศษ (executive)</label>
+        <input id="cs-title" type="text" class="fc" placeholder="เช่น ผู้อำนวยการ" style="font-size:.88rem;padding:.6rem .85rem">
+      </div>
+
+      <div style="margin-bottom:.75rem">
+        <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">สิทธิ์พิเศษ (เว้นว่างได้)</label>
+        <input id="cs-permissions" type="text" class="fc" placeholder="เช่น manage_users,view_reports" style="font-size:.88rem;padding:.6rem .85rem">
+      </div>
+
+      <div style="display:flex;gap:.65rem;justify-content:flex-end;padding-top:.75rem;border-top:1px solid #F1F5F9;margin-top:.5rem">
+        <button class="btn btn-sm" onclick="document.getElementById('adm-create-staff-modal').remove()">ยกเลิก</button>
+        <button class="lp-btn-play" style="padding:.6rem 1.4rem;font-size:.88rem" onclick="adminSubmitCreateStaff()">💾 สร้างบัญชี</button>
+      </div>
+      <div id="cs-msg" style="font-size:.85rem;margin-top:.5rem;text-align:center"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function adminToggleStaffFields() {
+  const role = document.getElementById('cs-role')?.value;
+  const titleWrap = document.getElementById('cs-title-wrap');
+  if (titleWrap) titleWrap.style.display = role === 'executive' ? 'block' : 'none';
+}
+
+async function adminSubmitCreateStaff() {
+  const msg = document.getElementById('cs-msg');
+  const payload = {
+    role:        document.getElementById('cs-role')?.value,
+    full_name:   document.getElementById('cs-name')?.value.trim(),
+    username:    document.getElementById('cs-username')?.value.trim(),
+    email:       document.getElementById('cs-email')?.value.trim(),
+    password:    document.getElementById('cs-password')?.value.trim() || 'kidlearn123',
+    department:  document.getElementById('cs-dept')?.value.trim(),
+    title:       document.getElementById('cs-title')?.value.trim(),
+    permissions: document.getElementById('cs-permissions')?.value.trim(),
+  };
+  if (!payload.full_name || !payload.username || !payload.email) {
+    msg.innerHTML = '<span style="color:#EF4444">⚠️ ต้องกรอกชื่อ, username, อีเมล</span>'; return;
+  }
+  msg.innerHTML = '<span style="color:var(--mu)">⏳ กำลังสร้าง...</span>';
+  const res = await _api('admin_create_staff', { body: payload }).catch(() => ({ ok: false, error: 'เชื่อมต่อไม่ได้' }));
+  if (res.ok) {
+    document.getElementById('adm-create-staff-modal')?.remove();
+    alert(`✅ สร้างบัญชี ${payload.role} "${payload.full_name}" สำเร็จ\nรหัสผ่าน: ${payload.password}`);
+    _loadAdminUsers();
+  } else {
+    msg.innerHTML = `<span style="color:#EF4444">❌ ${res.error || 'สร้างไม่สำเร็จ'}</span>`;
+  }
 }
