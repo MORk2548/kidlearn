@@ -2,19 +2,35 @@
 // MODAL
 // ══════════════════════════════════════════════════════
 let pendingGid=null, pendingLesson=1;
-function openModal(gid, lessonNo){
+async function openModal(gid, lessonNo){
   pendingGid=gid; pendingLesson=lessonNo||1;
   const gm=GAMES_DB[gid], sub=SUBS.find(s=>s.id===gm.sid);
   const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'ค้นหาคำ'};
   const lessonNames=LESSON_NAMES||{};
   const lname=(lessonNames[gid]||[])[lessonNo-1]||`บทที่ ${lessonNo}`;
-  document.getElementById('m-title').textContent=`${gm.icon} ${gm.name}`;
+  let gameName=gm.name;
+  let gameType=gm.type;
+  let timeLimit=gm.time;
+  const dbGameId=A.curDbGameId || (typeof jsKeyToDbId==='function' ? jsKeyToDbId(gid) : parseInt(gid));
+  if (dbGameId) {
+    try {
+      const res = await apiPlayQuestions(dbGameId);
+      if (res?.ok) {
+        gameName = res.game?.name || gameName;
+        gameType = res.game?.game_type || gameType;
+        timeLimit = parseInt(res.game?.time_limit, 10) > 0 ? parseInt(res.game.time_limit, 10) : timeLimit;
+      }
+    } catch(e) {
+      console.warn('[openModal] failed to load DB game meta', e);
+    }
+  }
+  document.getElementById('m-title').textContent=`${gm.icon} ${gameName}`;
   document.getElementById('m-body').innerHTML=`
     <div style="font-size:.88rem;line-height:2.2;color:#374151">
       📚 <strong>${sub.name}</strong><br>
       📖 บทเรียน: <strong>${lessonNo}/6 — ${lname}</strong><br>
-      🎯 ประเภท: ${TYPE_LBL[gm.type]}<br>
-      ⏱ เวลา: ${gm.time} วิ<br>
+      🎯 ประเภท: ${TYPE_LBL[gameType]||gameType}<br>
+      ⏱ เวลา: ${timeLimit} วิ<br>
       🏆 คะแนนเต็ม: 100
     </div>`;
   document.getElementById('gmodal').classList.add('show');

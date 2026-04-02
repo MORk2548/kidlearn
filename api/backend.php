@@ -410,7 +410,7 @@ function handleGames(): never {
     $sid = (int)($_GET['subject_id'] ?? 0);
     if (!$sid) DB::fail('ต้องส่ง subject_id', 400);
     DB::ok(['games' => DB::get()->all(
-        "SELECT * FROM games WHERE subject_id=? AND is_active=1 ORDER BY game_id", [$sid], 'i'
+        "SELECT * FROM games WHERE subject_id=? ORDER BY game_id", [$sid], 'i'
     )]);
 }
 
@@ -1197,7 +1197,7 @@ function handlePlayQuestions(): never {
     if (!$gid) DB::fail('ต้องส่ง game_id', 400);
 
     // ข้อมูลเกม
-    $game = $db->one("SELECT * FROM games WHERE game_id=? AND is_active=1", [$gid], 'i');
+    $game = $db->one("SELECT * FROM games WHERE game_id=?", [$gid], 'i');
     if (!$game) DB::fail('ไม่พบเกม', 404);
 
     $type = $game['game_type'];

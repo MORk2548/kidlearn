@@ -162,15 +162,18 @@ async function selectTcStudent(sid){
       <thead><tr style="background:#F1F5F9">
         <th style="padding:.5rem .75rem;text-align:left">วิชา</th>
         <th style="padding:.5rem .75rem;text-align:left">เกม</th>
+        <th style="padding:.5rem .75rem;text-align:center">บท</th>
         <th style="padding:.5rem .75rem;text-align:center">คะแนน</th>
         <th style="padding:.5rem .75rem;text-align:center">เวลา</th>
         <th style="padding:.5rem .75rem;text-align:left">วันที่</th>
       </tr></thead>
       <tbody>${sc.slice(0,30).map(s=>{
         const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
+        const lesson=parseInt(s.lesson_no,10)>0?`บท ${parseInt(s.lesson_no,10)}`:'—';
         return `<tr style="border-bottom:1px solid #F1F5F9">
           <td style="padding:.5rem .75rem">${s.subject_name||'—'}</td>
           <td style="padding:.5rem .75rem">${s.game_name||'—'}<br><span style="font-size:.7rem;color:var(--mu)">${TYPE_LBL[s.game_type]||''}</span></td>
+          <td style="padding:.5rem .75rem;text-align:center">${lesson}</td>
           <td style="padding:.5rem .75rem;text-align:center">
             <strong style="color:${c}">${s.score}</strong><span style="color:#9CA3AF">/${s.max_score||100}</span>
             ${pct>=80?' ⭐⭐⭐':pct>=50?' ⭐⭐':pct>0?' ⭐':''}
@@ -512,4 +515,3 @@ async function deleteLesson(){
   if(res.ok){_edHasContent[_edGid]=false;selectEdGame(_edGid);}
 }
 function _esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-

@@ -4,7 +4,7 @@
 async function loadScores() {
   const childWrap = document.getElementById('child-sel-wrap');
   const tb        = document.getElementById('score-tb');
-  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">⏳ กำลังโหลด...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2rem">⏳ กำลังโหลด...</td></tr>';
 
   if (A.role === 'parent') {
     childWrap.style.display = 'block';
@@ -16,7 +16,7 @@ async function loadScores() {
 
     if (!kids.length) {
       btns.innerHTML = '<div style="color:var(--mu);font-size:.85rem">ยังไม่ได้เชื่อมบัญชีบุตรหลาน</div>';
-      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ไม่มีข้อมูล — กรอกเบอร์โทรให้ตรงกับที่บุตรหลานกรอกตอนสมัคร</td></tr>';
+      tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2.5rem">ไม่มีข้อมูล — กรอกเบอร์โทรให้ตรงกับที่บุตรหลานกรอกตอนสมัคร</td></tr>';
       return;
     }
 
@@ -41,14 +41,14 @@ async function loadScores() {
 
   } else {
     childWrap.style.display = 'none';
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">⚠️ ครูดูคะแนนรวมได้ที่เมนู "แผงครู"</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2rem">⚠️ ครูดูคะแนนรวมได้ที่เมนู "แผงครู"</td></tr>';
   }
 }
 
 function renderScoreTable(sc) {
   const tb = document.getElementById('score-tb');
   if (!sc || !sc.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีคะแนน</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีคะแนน</td></tr>';
     return;
   }
   const TYPE_LBL={mcq:'MCQ',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'ค้นหาคำ'};
@@ -60,9 +60,11 @@ function renderScoreTable(sc) {
     const stars = pct>=80?'⭐⭐⭐':pct>=50?'⭐⭐':pct>0?'⭐':'';
     const date  = s.played_at ? new Date(s.played_at).toLocaleDateString('th-TH') : (s.date||'—');
     const time  = s.time_spent ? s.time_spent+'วิ' : (s.time||'—');
+    const lesson = parseInt(s.lesson_no, 10) > 0 ? `บท ${parseInt(s.lesson_no, 10)}` : '—';
     return `<tr>
       <td>${s.subject_name||s.sub||'—'}</td>
       <td>${s.game_name||s.game||'—'}</td>
+      <td>${lesson}</td>
       <td>${TYPE_LBL[s.game_type||s.type]||s.type||'—'}</td>
       <td><strong style="color:${c}">${score}</strong><span style="color:#9CA3AF">/${max}</span> ${stars}</td>
       <td>${time}</td>
