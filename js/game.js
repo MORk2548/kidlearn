@@ -45,6 +45,7 @@ function startFromModal(){closeModal();startGame(pendingGid);}
 // ══════════════════════════════════════════════════════
 async function startGame(gid){
   clearInterval(A.tmr);
+  cleanupGameInteraction();
   const gmStatic = GAMES_DB[gid];  // metadata เกม (icon, name, type ฯลฯ)
   A.curDbGameId  = typeof jsKeyToDbId==='function' ? jsKeyToDbId(gid) : parseInt(gid);
 
@@ -109,6 +110,124 @@ function _staticToGameData(gm){
   if(gm.type==='sequence')  return { items: gm.items||[] };
   if(gm.type==='wordsearch') return { words: gm.words||[] };
   return { qs: gm.qs||[] };
+}
+function cleanupGameInteraction(){
+  if(typeof A.gameCleanup==='function'){
+    try{A.gameCleanup();}catch(e){console.warn('[game] cleanup failed',e);}
+  }
+  A.gameCleanup=null;
+}
+function shuffleItems(arr){
+  const copy=[...arr];
+  for(let i=copy.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [copy[i],copy[j]]=[copy[j],copy[i]];
+  }
+  return copy;
+}
+function wsLineKey(cells){
+  return cells.map(cell=>`${cell.r},${cell.c}`).join('|');
+}
+function wsBuildGridLocal(words, alphabet){
+  const cleaned=(words||[]).map(w=>String(w||'').trim()).filter(Boolean);
+  const longest=Math.max(1,...cleaned.map(w=>[...w].length));
+  const minSize=Math.max(10,longest+2,Math.ceil(Math.sqrt(cleaned.join('').length))+2);
+  const dirs=[
+    {dr:0,dc:1},{dr:1,dc:0},{dr:1,dc:1},{dr:1,dc:-1},
+    {dr:0,dc:-1},{dr:-1,dc:0},{dr:-1,dc:-1},{dr:-1,dc:1}
+  ];
+
+  for(let size=minSize;size<=minSize+4;size++){
+    const grid=Array.from({length:size},()=>Array.from({length:size},()=>null));
+    const placed=[];
+    let ok=true;
+
+    for(const word of shuffleItems(cleaned).sort((a,b)=>[...b].length-[...a].length)){
+      const chars=[...word];
+      let placedWord=false;
+
+      for(let tries=0;tries<300 && !placedWord;tries++){
+        const dir=dirs[Math.floor(Math.random()*dirs.length)];
+        const startR=Math.floor(Math.random()*size);
+        const startC=Math.floor(Math.random()*size);
+        const endR=startR+(chars.length-1)*dir.dr;
+        const endC=startC+(chars.length-1)*dir.dc;
+        if(endR<0||endR>=size||endC<0||endC>=size) continue;
+
+        const cells=chars.map((ch,idx)=>({
+          r:startR+idx*dir.dr,
+          c:startC+idx*dir.dc,
+          ch
+        }));
+        if(!cells.every(cell=>{
+          const existing=grid[cell.r][cell.c];
+          return existing===null || existing===cell.ch;
+        })) continue;
+
+        cells.forEach(cell=>{grid[cell.r][cell.c]=cell.ch;});
+        const line=cells.map(({r,c})=>({r,c}));
+        placed.push({
+          word,
+          cells: line,
+          key: wsLineKey(line),
+          reverseKey: wsLineKey([...line].reverse())
+        });
+        placedWord=true;
+      }
+
+      if(!placedWord){
+        ok=false;
+        break;
+      }
+    }
+
+    if(!ok) continue;
+
+    for(let r=0;r<size;r++){
+      for(let c=0;c<size;c++){
+        if(grid[r][c]===null){
+          grid[r][c]=alphabet[Math.floor(Math.random()*alphabet.length)];
+        }
+      }
+    }
+    return {grid,placed};
+  }
+
+  const fallbackSize=Math.max(minSize,longest);
+  const fallbackGrid=Array.from({length:fallbackSize},()=>Array.from({length:fallbackSize},()=>alphabet[Math.floor(Math.random()*alphabet.length)]));
+  const fallbackPlaced=[];
+  cleaned.forEach((word,rowIdx)=>{
+    const row=rowIdx%fallbackSize;
+    const line=[...word].slice(0,fallbackSize).map((ch,colIdx)=>{
+      fallbackGrid[row][colIdx]=ch;
+      return {r:row,c:colIdx};
+    });
+    fallbackPlaced.push({
+      word,
+      cells: line,
+      key: wsLineKey(line),
+      reverseKey: wsLineKey([...line].reverse())
+    });
+  });
+  return {grid:fallbackGrid,placed:fallbackPlaced};
+}
+function getWSGrid(words, sid){
+  return sid===4
+    ? wsBuildGridLocal(words,'abcdefghijklmnopqrstuvwxyz')
+    : wsBuildGridLocal(words,'กขคงจฉชซดตถทธนบปผพฝฟมยรลวศษสหอฮ');
+}
+function getLineCells(start,end){
+  if(!start||!end) return [];
+  const dRow=end.r-start.r;
+  const dCol=end.c-start.c;
+  const stepRow=Math.sign(dRow);
+  const stepCol=Math.sign(dCol);
+  if(!(dRow===0 || dCol===0 || Math.abs(dRow)===Math.abs(dCol))) return [start];
+  const len=Math.max(Math.abs(dRow),Math.abs(dCol));
+  return Array.from({length:len+1},(_,idx)=>({
+    r:start.r+(stepRow*idx),
+    c:start.c+(stepCol*idx)
+  }));
 }
 
 function runTimer(){
@@ -332,6 +451,7 @@ function renderWS(){
 /* ── FINISH ── */
 function finishGame(){
   clearInterval(A.tmr);
+  cleanupGameInteraction();
   const sc=Math.min(100,Math.max(0,A.gs.earned)), pct=sc;
   document.getElementById('g-content').style.display='none';
   document.getElementById('g-result').style.display='block';
@@ -362,4 +482,190 @@ function replayGame(){
   document.getElementById('g-result').style.display='none';
   document.getElementById('g-content').style.display='block';
   startGame(A.gs.gid);
+}
+
+function renderSeq(){
+  const items=A.curGame.items;
+  if(!items?.length){finishGame();return;}
+  cleanupGameInteraction();
+  let cur=shuffleItems(items);
+  const drag={active:false,id:null,pointerId:null};
+  upQP(0,items.length);
+
+  const draw=()=>{
+    document.getElementById('g-content').innerHTML=`
+      <div style="font-size:.83rem;color:var(--mu);margin-bottom:.75rem">ลากด้วยนิ้วหรือเมาส์เพื่อเรียงลำดับ และใช้ปุ่มขึ้นลงได้ถ้าต้องการ</div>
+      <div class="seq">${cur.map((it,i)=>`
+        <div class="si2${drag.active&&drag.id===(it.id||it.text)?' dragging':''}" data-id="${it.id||it.text}">
+          <div class="sn">${i+1}</div>
+          <div class="si2-text">${it.text}</div>
+          <div class="si2-tools">
+            <span class="si2-grip" aria-hidden="true">⋮⋮</span>
+            <div style="display:flex;flex-direction:column;gap:.15rem">
+              <button type="button" onclick="mvSeq('${it.id||it.text}',-1)" style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">โฌ</button>
+              <button type="button" onclick="mvSeq('${it.id||it.text}',1)"  style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">โฌ</button>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>
+      <button class="btn btn-p btn-sm" style="margin-top:.75rem;width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">โ” เธ•เธฃเธงเธเธเธณเธ•เธญเธ</button>`;
+
+    document.querySelectorAll('.si2').forEach(el=>{
+      el.addEventListener('pointerdown',ev=>{
+        if(ev.target.closest('button')) return;
+        drag.active=true;
+        drag.id=el.dataset.id;
+        drag.pointerId=ev.pointerId;
+        el.setPointerCapture?.(ev.pointerId);
+        ev.preventDefault();
+        draw();
+      });
+    });
+  };
+
+  window.mvSeq=(id,dir)=>{
+    const idx=cur.findIndex(it=>(it.id||it.text)===id);
+    const nextIdx=idx+dir;
+    if(idx<0 || nextIdx<0 || nextIdx>=cur.length) return;
+    [cur[idx],cur[nextIdx]]=[cur[nextIdx],cur[idx]];
+    draw();
+  };
+  window.chkSeq=()=>{
+    document.querySelectorAll('.si2').forEach((el,i)=>el.classList.add(
+      (cur[i].id||cur[i].text)===(items[i].id||items[i].text)?'ok':'no'
+    ));
+    A.gs.earned=Math.round(cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length/items.length*100);
+    document.getElementById('g-live').textContent='เธเธฐเนเธเธ: '+A.gs.earned;
+    document.querySelector('#g-content .btn')?.remove();
+    setTimeout(finishGame,1500);
+  };
+
+  const moveDragged=(clientX,clientY)=>{
+    if(!drag.active) return;
+    const target=document.elementFromPoint(clientX,clientY)?.closest('.si2');
+    if(!target || target.dataset.id===drag.id) return;
+    const fromIdx=cur.findIndex(it=>(it.id||it.text)===drag.id);
+    const targetIdx=cur.findIndex(it=>(it.id||it.text)===target.dataset.id);
+    if(fromIdx<0 || targetIdx<0) return;
+    const rect=target.getBoundingClientRect();
+    let insertIdx=targetIdx+(clientY>(rect.top+rect.height/2)?1:0);
+    if(fromIdx<insertIdx) insertIdx--;
+    if(insertIdx===fromIdx) return;
+    const [moved]=cur.splice(fromIdx,1);
+    cur.splice(insertIdx,0,moved);
+    draw();
+  };
+  const onPointerMove=ev=>{
+    if(!drag.active || (drag.pointerId!==null && ev.pointerId!==drag.pointerId)) return;
+    ev.preventDefault();
+    moveDragged(ev.clientX,ev.clientY);
+  };
+  const onPointerUp=ev=>{
+    if(!drag.active || (drag.pointerId!==null && ev.pointerId!==drag.pointerId)) return;
+    drag.active=false;
+    drag.id=null;
+    drag.pointerId=null;
+    draw();
+  };
+
+  window.addEventListener('pointermove',onPointerMove,{passive:false});
+  window.addEventListener('pointerup',onPointerUp);
+  window.addEventListener('pointercancel',onPointerUp);
+  A.gameCleanup=()=>{
+    window.removeEventListener('pointermove',onPointerMove);
+    window.removeEventListener('pointerup',onPointerUp);
+    window.removeEventListener('pointercancel',onPointerUp);
+    delete window.mvSeq;
+    delete window.chkSeq;
+  };
+  draw();
+}
+
+function renderWS(){
+  const words=A.curGame.words;
+  if(!words?.length){finishGame();return;}
+  cleanupGameInteraction();
+  const {grid,placed}=getWSGrid(words,A.curGame.sid);
+  const placedMap=new Map(placed.map(p=>[p.word,p]));
+  let found=[];
+  let selection=[];
+  const drag={active:false,start:null,pointerId:null};
+  upQP(0,words.length);
+
+  const isFoundCell=(r,c)=>found.some(word=>placedMap.get(word)?.cells.some(cell=>cell.r===r&&cell.c===c));
+  const finishSelection=()=>{
+    if(!selection.length) return;
+    const key=wsLineKey(selection);
+    const match=placed.find(p=>!found.includes(p.word) && (p.key===key || p.reverseKey===key));
+    if(match){
+      found.push(match.word);
+      A.gs.earned=Math.round(found.length/words.length*100);
+      document.getElementById('g-live').textContent='เธเธฐเนเธเธ: '+A.gs.earned;
+      upQP(found.length,words.length);
+      if(found.length===words.length){
+        draw();
+        clearInterval(A.tmr);
+        setTimeout(finishGame,600);
+        return;
+      }
+    }
+    selection=[];
+    draw();
+  };
+  const updateSelection=(endCell)=>{
+    if(!drag.start || !endCell) return;
+    selection=getLineCells(drag.start,endCell);
+    draw();
+  };
+  const getCellFromPoint=(clientX,clientY)=>{
+    const cell=document.elementFromPoint(clientX,clientY)?.closest('.wsc');
+    if(!cell) return null;
+    return {r:Number(cell.dataset.r),c:Number(cell.dataset.c)};
+  };
+  const draw=()=>{
+    document.getElementById('g-content').innerHTML=`
+      <div class="ws-wl">${words.map(w=>`<span class="wsw ${found.includes(w)?'fd':''}">${w}</span>`).join('')}</div>
+      <div class="wsg" style="grid-template-columns:repeat(${grid[0].length},1fr)">
+        ${grid.map((row,r)=>row.map((ch,c)=>{
+          const isSel=selection.some(cell=>cell.r===r&&cell.c===c);
+          return `<div class="wsc${isFoundCell(r,c)?' fd':isSel?' hl':''}" data-r="${r}" data-c="${c}">${ch}</div>`;
+        }).join('')).join('')}
+      </div>
+      <div style="font-size:.78rem;color:var(--mu);margin-top:.5rem">ลากผ่านคำในตารางเพื่อเลือกคำที่ต้องหา พบแล้ว ${found.length}/${words.length} คำ</div>`;
+
+    document.querySelector('.wsg')?.addEventListener('pointerdown',ev=>{
+      const cell=ev.target.closest('.wsc');
+      if(!cell) return;
+      drag.active=true;
+      drag.pointerId=ev.pointerId;
+      drag.start={r:Number(cell.dataset.r),c:Number(cell.dataset.c)};
+      selection=[drag.start];
+      cell.setPointerCapture?.(ev.pointerId);
+      ev.preventDefault();
+      draw();
+    });
+  };
+
+  const onPointerMove=ev=>{
+    if(!drag.active || (drag.pointerId!==null && ev.pointerId!==drag.pointerId)) return;
+    ev.preventDefault();
+    updateSelection(getCellFromPoint(ev.clientX,ev.clientY));
+  };
+  const onPointerUp=ev=>{
+    if(!drag.active || (drag.pointerId!==null && ev.pointerId!==drag.pointerId)) return;
+    drag.active=false;
+    drag.pointerId=null;
+    drag.start=null;
+    finishSelection();
+  };
+
+  window.addEventListener('pointermove',onPointerMove,{passive:false});
+  window.addEventListener('pointerup',onPointerUp);
+  window.addEventListener('pointercancel',onPointerUp);
+  A.gameCleanup=()=>{
+    window.removeEventListener('pointermove',onPointerMove);
+    window.removeEventListener('pointerup',onPointerUp);
+    window.removeEventListener('pointercancel',onPointerUp);
+  };
+  draw();
 }
