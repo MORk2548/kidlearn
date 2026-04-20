@@ -63,9 +63,10 @@ async function startGame(gid){
     const res = await apiPlayQuestions(A.curDbGameId);
     if (res.ok) gameData = res;
   } catch(e) { console.warn('[game] DB load failed, fallback to static:', e); }
+  gameData = normalizePreferredGameData(gmStatic, gameData);
 
   // Fallback: ใช้คำถามจาก data.js ถ้า DB ไม่มีหรือโหลดไม่ได้
-  if (!gameData || _countQ(gameData) === 0) {
+  if (!gameData || _countQ(gameData) === 0 || shouldUseStaticGameData(gmStatic, gameData)) {
     console.log('[game] using static questions for', gid);
     gameData = _staticToGameData(gmStatic);
   }
@@ -87,13 +88,18 @@ async function startGame(gid){
       ? parseInt(gameData.game?.time_limit, 10)
       : (parseInt(gmStatic?.time, 10) > 0 ? parseInt(gmStatic.time, 10) : 60)),
   };
+  if (gmStatic?.preferStatic) {
+    A.curGame.name = gmStatic?.name || A.curGame.name;
+    A.curGame.icon = gmStatic?.icon || A.curGame.icon;
+    A.curGame.type = gmStatic?.type || A.curGame.type;
+  }
 
   const qCount = _countQ({
     qs: A.curGame.qs, pairs: A.curGame.pairs,
     items: A.curGame.items, words: A.curGame.words
   });
 
-  A.gs = { gid, qi:0, earned:0, timeLeft:A.curGame.time, totalQ:qCount, lessonNo:pendingLesson };
+  A.gs = { gid, qi:0, earned:0, timeLeft:A.curGame.time, totalQ:qCount, lessonNo:pendingLesson, attempts:[], wrongQuestions:[] };
   document.getElementById('g-title').textContent = A.curGame.name || gmStatic?.name;
   runTimer();
   renderGame();
@@ -101,6 +107,64 @@ async function startGame(gid){
 
 function _countQ(d){
   return d?.qs?.length || d?.pairs?.length || d?.items?.length || d?.words?.length || 0;
+}
+function hasQuestionImageData(qs){
+  return Array.isArray(qs) && qs.some(q=>String(q?.img || '').trim() !== '');
+}
+function shouldUseStaticGameData(gmStatic, gameData){
+  if(!gmStatic?.preferStatic) return false;
+  if(gmStatic.type === 'fill'){
+    return !hasQuestionImageData(gameData?.qs);
+  }
+  return true;
+}
+function normalizePreferredGameData(gmStatic, gameData){
+  if(!gmStatic?.preferStatic || gmStatic?.type !== 'fill' || !Array.isArray(gameData?.qs)) return gameData;
+  const normalizedQs = gameData.qs.map(q=>{
+    const hasOptions = Array.isArray(q?.opts);
+    const answerFromOptions = hasOptions
+      ? q.opts?.[Number.isInteger(q?.ans) ? q.ans : parseInt(q?.ans,10)] ?? ''
+      : '';
+    return {
+      q: q?.q || '',
+      img: q?.img || '',
+      hint: q?.hint || '',
+      ans: String(q?.ans ?? '').trim() && !hasOptions ? q.ans : answerFromOptions
+    };
+  }).filter(q=>q.q || q.img || q.ans);
+  return { ...gameData, qs: normalizedQs };
+}
+
+function currentSkillMeta(){
+  const sid = A.curGame?.sid;
+  const skillMap = {
+    1: { key:'math_foundation', name:'พื้นฐานคณิตศาสตร์' },
+    2: { key:'science_concepts', name:'แนวคิดวิทยาศาสตร์' },
+    3: { key:'thai_language', name:'ภาษาไทย' },
+    4: { key:'english_language', name:'ภาษาอังกฤษ' },
+    5: { key:'social_studies', name:'สังคมศึกษา' },
+    6: { key:'health_education', name:'สุขศึกษา' }
+  };
+  return skillMap[sid] || { key:'general_learning', name:'ทักษะการเรียนรู้' };
+}
+
+function recordAttempt({ prompt='', correctAnswer='', studentAnswer='', isCorrect=false, questionKey='', wrongQuestion=null }){
+  if(!A.gs) return;
+  const skill=currentSkillMeta();
+  A.gs.attempts = A.gs.attempts || [];
+  A.gs.attempts.push({
+    question_key: questionKey || `q${A.gs.qi + 1}`,
+    prompt,
+    correct_answer: String(correctAnswer ?? ''),
+    student_answer: String(studentAnswer ?? ''),
+    is_correct: !!isCorrect,
+    skill_key: skill.key,
+    skill_name: skill.name
+  });
+  if(!isCorrect && wrongQuestion){
+    A.gs.wrongQuestions = A.gs.wrongQuestions || [];
+    A.gs.wrongQuestions.push(wrongQuestion);
+  }
 }
 
 // แปลง static game data เป็น format เดียวกับ DB response
@@ -116,6 +180,14 @@ function cleanupGameInteraction(){
     try{A.gameCleanup();}catch(e){console.warn('[game] cleanup failed',e);}
   }
   A.gameCleanup=null;
+}
+function renderQuestionImage(q){
+  if(!q?.img) return '';
+  const alt = q?.imgAlt || 'question image';
+  return `
+    <div style="margin-bottom:1rem;text-align:center">
+      <img src="${q.img}" alt="${alt}" style="max-width:100%;width:min(100%,320px);border-radius:18px;border:1px solid #DBEAFE;box-shadow:0 10px 24px rgba(37,99,235,.12);background:#F8FAFC">
+    </div>`;
 }
 function shuffleItems(arr){
   const copy=[...arr];
@@ -261,6 +333,7 @@ function renderMCQ(){
   upQP(qi+1,totalQ);
   const letters=['A','B','C','D','E','F'];
   document.getElementById('g-content').innerHTML=`
+    ${renderQuestionImage(q)}
     <div class="qt">${q.q}</div>
     <div class="choices">
       ${q.opts.map((o,i)=>`
@@ -272,11 +345,25 @@ function renderMCQ(){
 }
 function ansMCQ(btn,chose,correct){
   document.querySelectorAll('.ch').forEach(b=>b.disabled=true);
+  const q = A.curGame.qs[A.gs.qi];
   if(chose===correct){
+    recordAttempt({
+      prompt: q?.q || '',
+      correctAnswer: q?.opts?.[correct] ?? correct,
+      studentAnswer: q?.opts?.[chose] ?? chose,
+      isCorrect: true
+    });
     btn.classList.add('ok');
     btn.innerHTML=`<span class="ch-letter ch-letter-ok">✓</span><span class="ch-text">${btn.querySelector('.ch-text').textContent}</span><span class="ch-fb">+${Math.round(100/A.gs.totalQ)}</span>`;
     A.gs.earned+=Math.round(100/A.gs.totalQ);
   } else {
+    recordAttempt({
+      prompt: q?.q || '',
+      correctAnswer: q?.opts?.[correct] ?? correct,
+      studentAnswer: q?.opts?.[chose] ?? chose,
+      isCorrect: false,
+      wrongQuestion: q ? { ...q } : null
+    });
     btn.classList.add('no');
     btn.innerHTML=`<span class="ch-letter ch-letter-no">✗</span><span class="ch-text">${btn.querySelector('.ch-text').textContent}</span>`;
     const cb=document.querySelectorAll('.ch')[correct];
@@ -292,6 +379,7 @@ function renderTF(){
   if(!q){finishGame();return;}
   upQP(qi+1,totalQ);
   document.getElementById('g-content').innerHTML=`
+    ${renderQuestionImage(q)}
     <div class="qt">${q.q}</div>
     <div class="tf">
       <button class="tfb t" onclick="ansTF(this,true,${q.ans})">
@@ -307,6 +395,14 @@ function renderTF(){
 function ansTF(btn,chose,correct){
   document.querySelectorAll('.tfb').forEach(b=>b.disabled=true);
   const ok=chose===correct;
+  const q=A.curGame.qs[A.gs.qi];
+  recordAttempt({
+    prompt: q?.q || '',
+    correctAnswer: correct ? 'จริง' : 'เท็จ',
+    studentAnswer: chose ? 'จริง' : 'เท็จ',
+    isCorrect: ok,
+    wrongQuestion: ok || !q ? null : { ...q }
+  });
   btn.classList.add(ok?'ok':'no');
   if(ok){A.gs.earned+=Math.round(100/A.gs.totalQ);document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;}
   setTimeout(()=>{A.gs.qi++;renderTF();},1100);
@@ -318,6 +414,7 @@ function renderFill(){
   if(!q){finishGame();return;}
   upQP(qi+1,totalQ);
   document.getElementById('g-content').innerHTML=`
+    ${renderQuestionImage(q)}
     <div class="qt">${q.q}</div>
     ${q.hint?`<div class="hint-box">💡 คำใบ้: ${q.hint}</div>`:''}
     <input id="fi-inp" class="fi" placeholder="พิมพ์คำตอบ..." onkeydown="if(event.key==='Enter')chkFill()">
@@ -326,8 +423,16 @@ function renderFill(){
 }
 function chkFill(){
   const inp=document.getElementById('fi-inp');if(!inp)return;
-  const ans=inp.value.trim(), correct=A.curGame.qs[A.gs.qi].ans;
-  const ok=ans.toLowerCase()===String(correct).toLowerCase();
+  const q=A.curGame.qs[A.gs.qi];
+  const ans=inp.value.trim(), correct=q.ans;
+  const ok=ans.toLowerCase()===String(correct).trim().toLowerCase();
+  recordAttempt({
+    prompt: q?.q || '',
+    correctAnswer: correct,
+    studentAnswer: ans,
+    isCorrect: ok,
+    wrongQuestion: ok || !q ? null : { ...q }
+  });
   inp.classList.add(ok?'ok':'no'); inp.disabled=true;
   document.querySelector('#g-content .btn')?.remove();
   if(ok){A.gs.earned+=Math.round(100/A.gs.totalQ);}
@@ -365,7 +470,16 @@ function renderMatch(){
       document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
       upQP(matched,pairs.length);
       if(matched===pairs.length){clearInterval(A.tmr);setTimeout(finishGame,600);}
-    } else {el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),600);}
+    } else {
+      const pair = pairs.find(p=>p.left===selL);
+      recordAttempt({
+        prompt: 'จับคู่คำให้ถูกต้อง',
+        correctAnswer: pair?.right || '',
+        studentAnswer: el.textContent || '',
+        isCorrect: false
+      });
+      el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),600);
+    }
     selL=null;document.querySelectorAll('#ml .mi').forEach(e=>e.classList.remove('sel'));
   };
 }
@@ -393,10 +507,17 @@ function renderSeq(){
   };
   window.mvSeq=(id,dir)=>{const idx=cur.findIndex(it=>(it.id||it.text)===id),n=idx+dir;if(n<0||n>=cur.length)return;[cur[idx],cur[n]]=[cur[n],cur[idx]];draw();};
   window.chkSeq=()=>{
+    const correctItems = cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length;
+    recordAttempt({
+      prompt: 'เรียงลำดับให้ถูกต้อง',
+      correctAnswer: items.map(it=>it.text).join(' > '),
+      studentAnswer: cur.map(it=>it.text).join(' > '),
+      isCorrect: correctItems === items.length
+    });
     document.querySelectorAll('.si2').forEach((el,i)=>el.classList.add(
       (cur[i].id||cur[i].text)===(items[i].id||items[i].text)?'ok':'no'
     ));
-    A.gs.earned=Math.round(cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length/items.length*100);
+    A.gs.earned=Math.round(correctItems/items.length*100);
     document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
     document.querySelector('#g-content .btn')?.remove();
     setTimeout(finishGame,1500);
@@ -442,7 +563,15 @@ function renderWS(){
         }
       });
       sel=[];draw();upQP(found.length,words.length);
-      if(found.length===words.length){clearInterval(A.tmr);setTimeout(finishGame,600);}
+      if(found.length===words.length){
+        recordAttempt({
+          prompt:'ค้นหาคำทั้งหมดในตาราง',
+          correctAnswer:words.join(', '),
+          studentAnswer:found.join(', '),
+          isCorrect:true
+        });
+        clearInterval(A.tmr);setTimeout(finishGame,600);
+      }
     }
   };
   draw();
@@ -461,6 +590,37 @@ function finishGame(){
   const[title,msg]=pct>=80?['🎉 ยอดเยี่ยม!','คุณทำได้ดีมากเลย!']:pct>=50?['👍 ดีทีเดียว!','ฝึกอีกนิดจะเก่งมาก!']:['💪 สู้ๆ!','ลองใหม่นะ ทำได้แน่!'];
   document.getElementById('r-ti').textContent=title;
   document.getElementById('r-mg').textContent=msg;
+  let reviewBox=document.getElementById('g-review-box');
+  if(!reviewBox){
+    reviewBox=document.createElement('div');
+    reviewBox.id='g-review-box';
+    document.getElementById('g-result').appendChild(reviewBox);
+  }
+  if(reviewBox){
+    const wrongs=(A.gs?.attempts||[]).filter(a=>!a.is_correct).slice(0,5);
+    reviewBox.style.display=wrongs.length?'block':'none';
+    reviewBox.innerHTML=wrongs.length?`
+      <div style="margin-top:1rem;text-align:left;background:#FFF7ED;border:1px solid #FED7AA;border-radius:14px;padding:1rem">
+        <div style="font-weight:800;color:#9A3412;margin-bottom:.55rem">ข้อที่ยังพลาด</div>
+        ${wrongs.map(item=>`
+          <div style="padding:.55rem 0;border-bottom:1px solid #FDE68A">
+            <div style="font-size:.82rem;font-weight:700;color:#7C2D12">${item.prompt||'โจทย์'}</div>
+            <div style="font-size:.78rem;color:#92400E">ตอบ: ${item.student_answer||'-'}</div>
+            <div style="font-size:.78rem;color:#166534">เฉลย: ${item.correct_answer||'-'}</div>
+          </div>`).join('')}
+      </div>`:'';
+  }
+  let weakBtn=document.getElementById('r-weak-btn');
+  if(!weakBtn){
+    weakBtn=document.createElement('button');
+    weakBtn.id='r-weak-btn';
+    weakBtn.className='btn btn-sm';
+    weakBtn.textContent='ฝึกเฉพาะข้อที่ยังอ่อน';
+    weakBtn.style.cssText='display:none;background:#FFF7ED;color:#9A3412;border:1px solid #FDBA74';
+    weakBtn.onclick=practiceWeakness;
+    document.querySelector('#g-result .rbtns')?.insertBefore(weakBtn, document.querySelector('#g-result .rbtns .btn-s'));
+  }
+  if(weakBtn) weakBtn.style.display=(A.gs?.wrongQuestions?.length&&['mcq','truefalse','fill'].includes(A.curGame?.type))?'inline-flex':'none';
 
   if (A.role==='student') {
     const dbGid = A.curDbGameId || (typeof jsKeyToDbId==='function' ? jsKeyToDbId(A.gs.gid) : parseInt(A.gs.gid)) || 0;
@@ -469,7 +629,8 @@ function finishGame(){
         game_id:    dbGid,
         lesson_no:  A.gs.lessonNo||1,
         score:      sc,
-        time_spent: (A.curGame?.time||0)-(A.gs.timeLeft||0)
+        time_spent: (A.curGame?.time||0)-(A.gs.timeLeft||0),
+        attempts:   A.gs.attempts||[]
       }).then(res=>{
         if(res.ok) A.progDirty=true;
         else console.warn('[save_score]',res.error);
@@ -484,6 +645,17 @@ function replayGame(){
   startGame(A.gs.gid);
 }
 
+function practiceWeakness(){
+  const wrongs=A.gs?.wrongQuestions||[];
+  if(!wrongs.length||!['mcq','truefalse','fill'].includes(A.curGame?.type)) return;
+  A.curGame={...A.curGame,qs:wrongs.map(q=>({...q}))};
+  A.gs={gid:A.gs.gid,qi:0,earned:0,timeLeft:Math.max(30,Math.min(A.curGame.time||60,wrongs.length*25)),totalQ:wrongs.length,lessonNo:A.gs.lessonNo,attempts:[],wrongQuestions:[]};
+  document.getElementById('g-result').style.display='none';
+  document.getElementById('g-content').style.display='block';
+  runTimer();
+  renderGame();
+}
+
 function renderSeq(){
   const items=A.curGame.items;
   if(!items?.length){finishGame();return;}
@@ -494,21 +666,21 @@ function renderSeq(){
 
   const draw=()=>{
     document.getElementById('g-content').innerHTML=`
-      <div style="font-size:.83rem;color:var(--mu);margin-bottom:.75rem">ลากด้วยนิ้วหรือเมาส์เพื่อเรียงลำดับ และใช้ปุ่มขึ้นลงได้ถ้าต้องการ</div>
+      <div style="font-size:.83rem;color:var(--mu);margin-bottom:.75rem">\u0e25\u0e32\u0e01\u0e14\u0e49\u0e27\u0e22\u0e19\u0e34\u0e49\u0e27\u0e2b\u0e23\u0e37\u0e2d\u0e40\u0e21\u0e32\u0e2a\u0e4c\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e40\u0e23\u0e35\u0e22\u0e07\u0e25\u0e33\u0e14\u0e31\u0e1a \u0e41\u0e25\u0e30\u0e43\u0e0a\u0e49\u0e1b\u0e38\u0e48\u0e21\u0e02\u0e36\u0e49\u0e19\u0e25\u0e07\u0e44\u0e14\u0e49\u0e16\u0e49\u0e32\u0e15\u0e49\u0e2d\u0e07\u0e01\u0e32\u0e23</div>
       <div class="seq">${cur.map((it,i)=>`
         <div class="si2${drag.active&&drag.id===(it.id||it.text)?' dragging':''}" data-id="${it.id||it.text}">
           <div class="sn">${i+1}</div>
           <div class="si2-text">${it.text}</div>
           <div class="si2-tools">
-            <span class="si2-grip" aria-hidden="true">⋮⋮</span>
+            <span class="si2-grip" aria-hidden="true">::</span>
             <div style="display:flex;flex-direction:column;gap:.15rem">
-              <button type="button" onclick="mvSeq('${it.id||it.text}',-1)" style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">โฌ</button>
-              <button type="button" onclick="mvSeq('${it.id||it.text}',1)"  style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">โฌ</button>
+              <button type="button" onclick="mvSeq('${it.id||it.text}',-1)" style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">\u2191</button>
+              <button type="button" onclick="mvSeq('${it.id||it.text}',1)"  style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">\u2193</button>
             </div>
           </div>
         </div>`).join('')}
       </div>
-      <button class="btn btn-p btn-sm" style="margin-top:.75rem;width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">โ” เธ•เธฃเธงเธเธเธณเธ•เธญเธ</button>`;
+      <button class="btn btn-p btn-sm" style="margin-top:.75rem;width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">\u2714 \u0e15\u0e23\u0e27\u0e08\u0e04\u0e33\u0e15\u0e2d\u0e1a</button>`;
 
     document.querySelectorAll('.si2').forEach(el=>{
       el.addEventListener('pointerdown',ev=>{
@@ -531,11 +703,18 @@ function renderSeq(){
     draw();
   };
   window.chkSeq=()=>{
+    const correctItems=cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length;
+    recordAttempt({
+      prompt:'เรียงลำดับให้ถูกต้อง',
+      correctAnswer:items.map(it=>it.text).join(' > '),
+      studentAnswer:cur.map(it=>it.text).join(' > '),
+      isCorrect:correctItems===items.length
+    });
     document.querySelectorAll('.si2').forEach((el,i)=>el.classList.add(
       (cur[i].id||cur[i].text)===(items[i].id||items[i].text)?'ok':'no'
     ));
-    A.gs.earned=Math.round(cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length/items.length*100);
-    document.getElementById('g-live').textContent='เธเธฐเนเธเธ: '+A.gs.earned;
+    A.gs.earned=Math.round(correctItems/items.length*100);
+    document.getElementById('g-live').textContent='\u0e04\u0e30\u0e41\u0e19\u0e19: '+A.gs.earned;
     document.querySelector('#g-content .btn')?.remove();
     setTimeout(finishGame,1500);
   };
@@ -603,6 +782,12 @@ function renderWS(){
       document.getElementById('g-live').textContent='เธเธฐเนเธเธ: '+A.gs.earned;
       upQP(found.length,words.length);
       if(found.length===words.length){
+        recordAttempt({
+          prompt: 'ค้นหาคำทั้งหมดในตาราง',
+          correctAnswer: words.join(', '),
+          studentAnswer: found.join(', '),
+          isCorrect: true
+        });
         draw();
         clearInterval(A.tmr);
         setTimeout(finishGame,600);
@@ -631,7 +816,7 @@ function renderWS(){
           return `<div class="wsc${isFoundCell(r,c)?' fd':isSel?' hl':''}" data-r="${r}" data-c="${c}">${ch}</div>`;
         }).join('')).join('')}
       </div>
-      <div style="font-size:.78rem;color:var(--mu);margin-top:.5rem">ลากผ่านคำในตารางเพื่อเลือกคำที่ต้องหา พบแล้ว ${found.length}/${words.length} คำ</div>`;
+      <div style="font-size:.78rem;color:var(--mu);margin-top:.5rem">\u0e25\u0e32\u0e01\u0e1c\u0e48\u0e32\u0e19\u0e04\u0e33\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e04\u0e33\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e2b\u0e32 \u0e1e\u0e1a\u0e41\u0e25\u0e49\u0e27 ${found.length}/${words.length} \u0e04\u0e33</div>`;
 
     document.querySelector('.wsg')?.addEventListener('pointerdown',ev=>{
       const cell=ev.target.closest('.wsc');

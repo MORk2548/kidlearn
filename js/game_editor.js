@@ -119,6 +119,7 @@ function _geRenderQList(type){
           onclick="geDeleteQ(${i})">🗑</button>
       </div>
       <div class="ge-q-body">
+        ${q.question_img?`<div style="margin-bottom:.65rem"><img src="${q.question_img}" alt="question" style="max-width:220px;width:100%;border-radius:12px;border:1px solid #E5E7EB"></div>`:''}
         ${(q.answers||[]).map(a=>`
           <div style="display:flex;align-items:center;gap:.5rem;padding:.18rem 0">
             <span style="width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -162,10 +163,55 @@ function geOpenForm(idx){
       <div id="ge-form-msg" style="font-size:.85rem;margin-top:.5rem;text-align:center"></div>
     </div>`;
   document.body.appendChild(overlay);
+  geBindImagePicker();
+}
+
+function geUpdateImagePreview(src=''){
+  const wrap=document.getElementById('ge-qimg-preview');
+  if(!wrap) return;
+  const val=String(src||'').trim();
+  wrap.innerHTML = val
+    ? `<img src="${val}" alt="preview" style="max-width:240px;width:100%;border-radius:12px;border:1px solid #DBEAFE;box-shadow:0 8px 18px rgba(37,99,235,.12)">`
+    : '<div style="font-size:.78rem;color:var(--mu)">ยังไม่ได้เลือกรูปภาพ</div>';
+}
+
+function geBindImagePicker(){
+  const txt=document.getElementById('ge-qimg');
+  const file=document.getElementById('ge-qimg-file');
+  const clearBtn=document.getElementById('ge-qimg-clear');
+  if(txt){
+    txt.addEventListener('input',()=>geUpdateImagePreview(txt.value));
+    geUpdateImagePreview(txt.value);
+  }
+  if(file && txt){
+    file.addEventListener('change',()=>{
+      const picked=file.files?.[0];
+      if(!picked) return;
+      if(!picked.type.startsWith('image/')){
+        alert('กรุณาเลือกไฟล์รูปภาพ');
+        file.value='';
+        return;
+      }
+      const reader=new FileReader();
+      reader.onload=()=>{
+        txt.value=String(reader.result||'');
+        geUpdateImagePreview(txt.value);
+      };
+      reader.readAsDataURL(picked);
+    });
+  }
+  if(clearBtn && txt && file){
+    clearBtn.addEventListener('click',()=>{
+      txt.value='';
+      file.value='';
+      geUpdateImagePreview('');
+    });
+  }
 }
 
 function _geFormHtml(type, q){
   const qt = q?.question_text||'';
+  const qimg = q?.question_img||'';
   const hint = q?.hint||'';
   const answers = q?.answers||[];
 
@@ -178,6 +224,16 @@ function _geFormHtml(type, q){
           font-family:'Kanit',sans-serif;font-size:.88rem;resize:vertical;outline:none;box-sizing:border-box"
         onfocus="this.style.borderColor='var(--s)'" onblur="this.style.borderColor='#E2E8F0'"
       >${_geEsc(qt)}</textarea>
+    </div>
+    <div style="margin-bottom:.85rem">
+      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">รูปภาพคำถาม</label>
+      <input id="ge-qimg" type="text" class="fc" value="${_geEsc(qimg)}"
+        placeholder="วาง URL รูปภาพ หรือ data:image/... ได้" style="font-size:.85rem;padding:.55rem .8rem">
+      <div style="display:flex;gap:.5rem;align-items:center;margin-top:.55rem;flex-wrap:wrap">
+        <input id="ge-qimg-file" type="file" accept="image/*" style="font-size:.78rem">
+        <button type="button" id="ge-qimg-clear" class="btn btn-sm" style="background:#F8FAFC;border:1px solid #CBD5E1">ล้างรูป</button>
+      </div>
+      <div id="ge-qimg-preview" style="margin-top:.7rem"></div>
     </div>`;
 
   // hint (fill เท่านั้น)
@@ -331,6 +387,7 @@ async function geSaveQ(idx){
   const gm=GAMES_DB[_geGid];
   const type=gm?.type||'mcq';
   const q=idx>=0?_geQuestions[idx]:null;
+  const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
   const hint=document.getElementById('ge-hint')?.value.trim()||'';
 
   // สร้าง answers ตาม type
@@ -370,7 +427,7 @@ async function geSaveQ(idx){
 
   if(!answers.length){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ ใส่คำตอบอย่างน้อย 1 รายการ</span>';return;}
 
-  const payload={game_id:_geDbGid,question_text:text,hint,
+  const payload={game_id:_geDbGid,question_text:text,question_img,hint,
     order_no:idx>=0?idx+1:_geQuestions.length+1,answers};
   if(q?.question_id) payload.question_id=q.question_id;
 

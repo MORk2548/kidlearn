@@ -12,7 +12,7 @@ async function _api(action, { method='GET', body, params }={}) {
     const r = await fetch(url, opt);
     const data = await r.json();
     // แปลง HTTP error เป็น error message ที่ชัดเจน
-    if (!data.ok && r.status === 401) return { ok:false, error:'กรุณาเข้าสู่ระบบใหม่ (session หมดอายุ)' };
+    if (!data.ok && r.status === 401) return { ok:false, error:'กรุณาเข้าสู่ระบบใหม่' };
     if (!data.ok && r.status === 403) return { ok:false, error:'ไม่มีสิทธิ์ดำเนินการนี้' };
     return data;
   } catch(e) {
@@ -40,6 +40,7 @@ const apiScores    = (sid) => _api('scores', sid?{params:{student_id:sid}}:{});
 // LESSON CONTENT
 const apiGetContent    = (gid)      => _api('get_content',    {params:{game_id:gid}});
 const apiLessonContent = (gid,lno)  => _api('lesson_content', {params:{game_id:gid,lesson_no:lno}});
+const apiLessonHistory = (gid,lno)  => _api('lesson_history', {params:{game_id:gid,lesson_no:lno}});
 
 // PARENT
 const apiMyChildren      = ()    => _api('my_children');
@@ -57,6 +58,9 @@ const apiStudentScores = (sid, subjectId) => {
   if(subjectId) params.subject_id = subjectId;
   return _api('scores', {params});
 };
+const apiStudentAnalytics = (sid) => _api('student_analytics', sid ? {params:{student_id:sid}} : {});
+const apiStudentPlans     = (sid) => _api('student_plans', sid ? {params:{student_id:sid}} : {});
+const apiCreatePlan       = (d)   => _api('create_plan', {body:d});
 
 // LESSON EDITOR (ครู)
 const apiSaveLesson   = (d) => _api('save_lesson',   {body:d});

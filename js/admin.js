@@ -273,6 +273,163 @@ function adminToggleStaffFields() {
   if (titleWrap) titleWrap.style.display = role === 'executive' ? 'block' : 'none';
 }
 
+async function _loadReports(){
+  const el=document.getElementById('adm-report-panel');
+  if(!el)return;
+  const tabs = [
+    ['summary','ภาพรวม'],
+    ['by_subject','รายวิชา'],
+    ['by_student','รายนักเรียน'],
+    ['by_game','รายเกม'],
+    ['daily','รายวัน'],
+    ['engagement','Engagement'],
+    ['at_risk','At Risk'],
+    ['mastery','Mastery'],
+    ['plans','Plans'],
+    ['notifications','Notifications']
+  ];
+  el.innerHTML=`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem">
+    ${tabs.map(([t,l])=>`<button class="child-btn${A.reportTab===t?' active':''}" onclick="switchReportTab('${t}')">${l}</button>`).join('')}
+  </div>
+  <div id="report-content"><div style="color:var(--mu);padding:1rem">กำลังโหลด...</div></div>`;
+  await _renderReport(A.reportTab);
+}
+
+function switchReportTab(t){
+  A.reportTab=t;
+  document.querySelectorAll('#adm-report-panel .child-btn').forEach((b,i)=>{
+    const labels=['summary','by_subject','by_student','by_game','daily','engagement','at_risk','mastery','plans','notifications'];
+    b.classList.toggle('active', labels[i]===t);
+  });
+  _renderReport(t);
+}
+
+async function _renderReport(type){
+  const el=document.getElementById('report-content');
+  if(!el)return;
+  el.innerHTML='<div style="color:var(--mu);padding:1rem">กำลังโหลด...</div>';
+  const res=await apiReport(type).catch(()=>({ok:false}));
+  if(!res.ok){el.innerHTML='<div style="color:#EF4444;padding:1rem">โหลดข้อมูลไม่สำเร็จ</div>';return;}
+
+  if(type==='summary'){
+    el.innerHTML=`<div class="stats" style="margin:0">
+      <div class="stat"><div class="sv">${res.total_students||0}</div><div class="sl2">นักเรียน</div></div>
+      <div class="stat"><div class="sv">${res.total_parents||0}</div><div class="sl2">ผู้ปกครอง</div></div>
+      <div class="stat"><div class="sv">${res.total_teachers||0}</div><div class="sl2">ครู</div></div>
+      <div class="stat"><div class="sv">${res.total_plays||0}</div><div class="sl2">ครั้งที่เล่น</div></div>
+      <div class="stat"><div class="sv">${Math.round(res.avg_score||0)}%</div><div class="sl2">คะแนนเฉลี่ย</div></div>
+    </div>`;
+    return;
+  }
+  if(type==='by_subject'){
+    const rows=(res.subjects||[]).map(s=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem;font-weight:600">${s.subject_name}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.student_count||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.total_plays||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.best_score||0}</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>วิชา</th><th style="text-align:center">นักเรียน</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Best</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  if(type==='by_student'){
+    const rows=(res.students||[]).map(s=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem;font-weight:600">${s.full_name}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.grade||'-'}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.total_plays||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem">${s.last_active?new Date(s.last_active).toLocaleDateString('th-TH'):'-'}</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>นักเรียน</th><th style="text-align:center">ชั้น</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th><th>ล่าสุด</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  if(type==='by_game'){
+    const rows=(res.games||[]).map(g=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem;font-weight:600">${g.game_name}</td>
+        <td style="padding:.6rem .75rem">${g.subject_name}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${g.game_type}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${g.total_plays||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+g.avg_score||0)}%</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>เกม</th><th>วิชา</th><th style="text-align:center">ประเภท</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  if(type==='daily'){
+    const rows=(res.daily||[]).map(d=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem">${d.day}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${d.active_students||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${d.plays||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+d.avg_score||0)}%</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>วัน</th><th style="text-align:center">นักเรียนที่เล่น</th><th style="text-align:center">Plays</th><th style="text-align:center">Avg Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+
+  if(type==='engagement'){
+    const rows=(res.engagement||[]).map(r=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem">${r.day}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${r.active_students}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${r.plays}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+r.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+r.avg_time||0)} วิ</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>วัน</th><th style="text-align:center">Active</th><th style="text-align:center">Plays</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Avg Time</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  if(type==='at_risk'){
+    const rows=(res.students||[]).map(s=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem;font-weight:600">${s.full_name}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.grade||'-'}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.weakest_mastery||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${s.inactive_days||0}</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>นักเรียน</th><th style="text-align:center">ชั้น</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Weakest Mastery</th><th style="text-align:center">Inactive Days</th></tr></thead><tbody>${rows||'<tr><td colspan="5" style="padding:1rem;text-align:center;color:var(--mu)">ไม่มีรายการเสี่ยง</td></tr>'}</tbody></table></div>`;
+    return;
+  }
+  if(type==='mastery'){
+    const rows=(res.mastery||[]).map(m=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem">${m.subject_name}</td>
+        <td style="padding:.6rem .75rem">${m.skill_name}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+m.avg_mastery||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${m.student_count||0}</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>วิชา</th><th>หัวข้อ</th><th style="text-align:center">Avg Mastery</th><th style="text-align:center">Students</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  if(type==='plans'){
+    const rows=(res.plans||[]).map(p=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem;font-weight:600">${p.title}</td>
+        <td style="padding:.6rem .75rem">${p.student_name}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${p.completed_items||0}/${p.total_items||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${p.status}</td>
+        <td style="padding:.6rem .75rem">${p.week_start||'-'}</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>แผน</th><th>นักเรียน</th><th style="text-align:center">Progress</th><th style="text-align:center">Status</th><th>Week</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  if(type==='notifications'){
+    const rows=(res.notifications||[]).map(n=>`
+      <tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.6rem .75rem">${n.notif_type||'info'}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${n.total||0}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${n.unread||0}</td>
+      </tr>`).join('');
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>Type</th><th style="text-align:center">Total</th><th style="text-align:center">Unread</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+
+  el.innerHTML='<div style="color:var(--mu);padding:1rem">ยังไม่มีรูปแบบรายงานนี้</div>';
+}
+
 async function adminSubmitCreateStaff() {
   const msg = document.getElementById('cs-msg');
   const payload = {

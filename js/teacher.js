@@ -31,9 +31,11 @@ async function loadTeach() {
     <div class="stat"><div class="si">üìä</div><div><div class="sv">${avgAll}%</div><div class="sl2">‡∏Ñ‡∏∞‡πÅ‡∏ô‡∏ô‡πÄ‡∏â‡∏•‡∏µ‡πà‡∏¢</div></div></div>`;
 
   _renderTcTabs();
+  ensureTcPlanPanel();
   _renderTcSubjectFilter();
   _renderTcStudentList();
   renderTcSubTable(A.tcSubjects);
+  renderTcPlanPanel();
   const hist=document.getElementById('tc-history');
   if(hist&&A.tcStudent===null)
     hist.innerHTML='<div style="color:var(--mu);font-size:.85rem;padding:.5rem 0">üëà ‡∏Å‡∏î‡∏ä‡∏∑‡πà‡∏≠‡∏ô‡∏±‡∏Å‡πÄ‡∏£‡∏µ‡∏¢‡∏ô‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏î‡∏π‡∏Ñ‡∏∞‡πÅ‡∏ô‡∏ô</div>';
@@ -515,3 +517,460 @@ async function deleteLesson(){
   if(res.ok){_edHasContent[_edGid]=false;selectEdGame(_edGid);}
 }
 function _esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function _renderTcTabs(){
+  const wrap=document.getElementById('tc-tabs');
+  if(!wrap)return;
+  wrap.innerHTML=`
+    <button class="rec-tab${A.tcTab==='scores'?' active':''}"  onclick="switchTcTab('scores')">‡∏Ñ‡∏∞‡πÅ‡∏ô‡∏ô‡∏ô‡∏±‡∏Å‡πÄ‡∏£‡∏µ‡∏¢‡∏ô</button>
+    <button class="rec-tab${A.tcTab==='plans'?' active':''}"   onclick="switchTcTab('plans')">‡πÅ‡∏ú‡∏ô‡∏£‡∏≤‡∏¢‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå</button>
+    <button class="rec-tab${A.tcTab==='lessons'?' active':''}" onclick="switchTcTab('lessons')">‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏ö‡∏ó‡πÄ‡∏£‡∏µ‡∏¢‡∏ô</button>
+    <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÄ‡∏Å‡∏°</button>`;
+  const scorePanel=document.getElementById('tc-score-panel');
+  const lessonPanel=document.getElementById('tc-lesson-panel');
+  const gamePanel=document.getElementById('tc-game-panel');
+  const planPanel=document.getElementById('tc-plan-panel');
+  if(scorePanel) scorePanel.style.display=A.tcTab==='scores'?'block':'none';
+  if(lessonPanel) lessonPanel.style.display=A.tcTab==='lessons'?'block':'none';
+  if(gamePanel) gamePanel.style.display=A.tcTab==='games'?'block':'none';
+  if(planPanel) planPanel.style.display=A.tcTab==='plans'?'block':'none';
+}
+
+function switchTcTab(tab){
+  A.tcTab=tab;
+  _renderTcTabs();
+  if(tab==='plans') renderTcPlanPanel();
+  if(tab==='lessons') _renderLessonEditor();
+  if(tab==='games') _renderGameEditor();
+}
+
+function ensureTcPlanPanel(){
+  const teach=document.getElementById('s-teach');
+  if(!teach || document.getElementById('tc-plan-panel')) return;
+  const panel=document.createElement('div');
+  panel.id='tc-plan-panel';
+  panel.style.display='none';
+  const lessonPanel=document.getElementById('tc-lesson-panel');
+  if(lessonPanel) teach.insertBefore(panel, lessonPanel);
+  else teach.appendChild(panel);
+}
+
+async function renderTcPlanPanel(){
+  ensureTcPlanPanel();
+  const panel=document.getElementById('tc-plan-panel');
+  if(!panel) return;
+  const sid=A.tcStudent || null;
+  const plansRes=sid ? await apiStudentPlans(sid).catch(()=>({ok:false,plans:[]})) : {ok:false,plans:[]};
+  const rows=plansRes.ok ? (plansRes.plans||[]) : [];
+  const grouped={};
+  rows.forEach(row=>{
+    if(!grouped[row.plan_id]){
+      grouped[row.plan_id]={...row,items:[]};
+    }
+    if(row.item_id) grouped[row.plan_id].items.push(row);
+  });
+  const selectedGames=Object.values(GAMES_DB).filter(g=>A.tcSubject?g.sid==A.tcSubject:true).slice(0,12);
+  panel.innerHTML=`
+    <div class="ts">
+      <h3>‡∏°‡∏≠‡∏ö‡∏´‡∏°‡∏≤‡∏¢‡πÅ‡∏ú‡∏ô‡∏Å‡∏≤‡∏£‡πÄ‡∏£‡∏µ‡∏¢‡∏ô/‡∏†‡∏≤‡∏£‡∏Å‡∏¥‡∏à‡∏£‡∏≤‡∏¢‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå</h3>
+      <div style="margin-bottom:.75rem;padding:.65rem .8rem;border-radius:12px;background:${sid?'#EEF2FF':'#FEF3C7'};color:${sid?'#3730A3':'#92400E'};font-size:.82rem;font-weight:700">
+        ${sid ? `‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏°‡∏≠‡∏ö‡∏´‡∏°‡∏≤‡∏¢‡πÉ‡∏´‡πâ: ${(A.tcStudents.find(s=>s.student_id==sid)?.full_name)||'‡∏ô‡∏±‡∏Å‡πÄ‡∏£‡∏µ‡∏¢‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å'}` : '‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏ô‡∏±‡∏Å‡πÄ‡∏£‡∏µ‡∏¢‡∏ô‡∏à‡∏≤‡∏Å‡πÅ‡∏ó‡πá‡∏ö‡∏Ñ‡∏∞‡πÅ‡∏ô‡∏ô‡∏Å‡πà‡∏≠‡∏ô ‡πÅ‡∏•‡πâ‡∏ß‡∏Ñ‡πà‡∏≠‡∏¢‡∏™‡∏£‡πâ‡∏≤‡∏á‡πÅ‡∏ú‡∏ô‡∏£‡∏≤‡∏¢‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå'}
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.75rem">
+        <input id="tc-plan-title" class="fc" placeholder="‡πÄ‡∏ä‡πà‡∏ô ‡∏ó‡∏ö‡∏ó‡∏ß‡∏ô‡∏Ñ‡∏ì‡∏¥‡∏ï‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå‡∏ô‡∏µ‡πâ">
+        <input id="tc-plan-week" class="fc" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <input id="tc-plan-due" class="fc" type="datetime-local">
+      </div>
+      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="‡∏≠‡∏ò‡∏¥‡∏ö‡∏≤‡∏¢‡πÄ‡∏õ‡πâ‡∏≤‡∏´‡∏°‡∏≤‡∏¢‡∏´‡∏£‡∏∑‡∏≠‡∏Ñ‡∏≥‡πÅ‡∏ô‡∏∞‡∏ô‡∏≥‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏ú‡∏π‡πâ‡∏õ‡∏Å‡∏Ñ‡∏£‡∏≠‡∏á"></textarea>
+      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏Å‡∏°‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡πÅ‡∏ú‡∏ô</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
+        ${selectedGames.map(g=>`
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .75rem;border:1px solid #E5E7EB;border-radius:999px;background:#fff">
+            <input type="checkbox" class="tc-plan-game" value="${typeof jsKeyToDbId==='function' ? jsKeyToDbId(g.id) : parseInt(g.id,10)}">
+            <span>${g.icon||'üéÆ'} ${g.name}</span>
+          </label>`).join('')}
+      </div>
+      <div style="margin-top:.85rem;display:flex;justify-content:flex-end">
+        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${sid?'':'disabled style="opacity:.55;cursor:not-allowed"'}>‡∏°‡∏≠‡∏ö‡∏´‡∏°‡∏≤‡∏¢‡πÅ‡∏ú‡∏ô</button>
+      </div>
+    </div>
+    <div class="ts">
+      <h3>‡πÅ‡∏ú‡∏ô‡∏ó‡∏µ‡πà‡∏°‡∏≠‡∏ö‡∏´‡∏°‡∏≤‡∏¢‡πÅ‡∏•‡πâ‡∏ß</h3>
+      ${Object.values(grouped).length?Object.values(grouped).map(plan=>`
+        <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
+          <div style="display:flex;justify-content:space-between;gap:.75rem">
+            <strong>${plan.title}</strong>
+            <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.items.filter(i=>(+i.best_score||0) >= (+i.target_score||80)).length}/${plan.items.length}</span>
+          </div>
+          <div style="font-size:.75rem;color:var(--mu);margin:.2rem 0">‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå ${plan.week_start||'-'} ${plan.due_at?`‚Ä¢ ‡∏Ñ‡∏£‡∏ö‡∏Å‡∏≥‡∏´‡∏ô‡∏î ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
+          <div style="font-size:.78rem;color:#475569">${plan.description||''}</div>
+          <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.35rem">
+            ${plan.items.map(item=>`<span class="badge" style="background:${(+item.best_score||0) >= (+item.target_score||80)?'#DCFCE7':'#FEF3C7'};color:${(+item.best_score||0) >= (+item.target_score||80)?'#166534':'#92400E'}">${item.game_name} ${item.best_score||0}/${item.target_score||80}</span>`).join('')}
+          </div>
+        </div>`).join(''):'<div style="color:var(--mu)">‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡πÅ‡∏ú‡∏ô‡∏ó‡∏µ‡πà‡∏°‡∏≠‡∏ö‡∏´‡∏°‡∏≤‡∏¢</div>'}
+    </div>`;
+}
+
+async function submitWeeklyPlan(){
+  const sid=A.tcStudent;
+  if(!sid){ alert('‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏ô‡∏±‡∏Å‡πÄ‡∏£‡∏µ‡∏¢‡∏ô‡∏Å‡πà‡∏≠‡∏ô'); return; }
+  const title=document.getElementById('tc-plan-title')?.value.trim() || '‡πÅ‡∏ú‡∏ô‡∏£‡∏≤‡∏¢‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå';
+  const description=document.getElementById('tc-plan-desc')?.value.trim() || '';
+  const weekStart=document.getElementById('tc-plan-week')?.value || new Date().toISOString().slice(0,10);
+  const dueAt=document.getElementById('tc-plan-due')?.value || '';
+  const items=[...document.querySelectorAll('.tc-plan-game:checked')].map((el,idx)=>({ game_id:+el.value, lesson_no:1, target_score:80, sort_order:idx+1 }));
+  if(!items.length){ alert('‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏Å‡∏°‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 1 ‡πÄ‡∏Å‡∏°'); return; }
+  const res=await apiCreatePlan({ student_id:sid, title, description, week_start:weekStart, due_at:dueAt, items }).catch(()=>({ok:false,error:'‡πÄ‡∏ä‡∏∑‡πà‡∏≠‡∏°‡∏ï‡πà‡∏≠‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ'}));
+  if(!res.ok){ alert(res.error||'‡∏™‡∏£‡πâ‡∏≤‡∏á‡πÅ‡∏ú‡∏ô‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'); return; }
+  renderTcPlanPanel();
+}
+
+async function saveLesson(status='draft'){
+  const title=document.getElementById('ed-title')?.value.trim();
+  const body=document.getElementById('ed-body')?.value.trim();
+  const summary=document.getElementById('ed-summary')?.value.trim();
+  const readTime=parseInt(document.getElementById('ed-readtime')?.value)||5;
+  const msg=document.getElementById('ed-msg');
+  if(!title){if(msg)msg.innerHTML='<span style="color:#EF4444">‡πÉ‡∏™‡πà‡∏ä‡∏∑‡πà‡∏≠‡∏ö‡∏ó‡πÄ‡∏£‡∏µ‡∏¢‡∏ô‡∏î‡πâ‡∏ß‡∏¢</span>';return;}
+  if(msg)msg.innerHTML='<span style="color:var(--mu)">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å...</span>';
+  const res=await apiSaveLesson({game_id:_edDbGid,lesson_no:1,title,body,summary,read_time:readTime,status}).catch(()=>({ok:false,error:'‡πÄ‡∏ä‡∏∑‡πà‡∏≠‡∏°‡∏ï‡πà‡∏≠‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ'}));
+  if(res.ok){
+    _edHasContent[_edGid]=true;
+    if(msg)msg.innerHTML=`<span style="color:#10B981">‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å${status==='published'?'‡πÅ‡∏•‡∏∞‡πÄ‡∏ú‡∏¢‡πÅ‡∏û‡∏£‡πà':'‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á'}‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à</span>`;
+    setTimeout(()=>{if(msg)msg.innerHTML='';},3000);
+    selectEdGame(_edGid);
+  }else{
+    if(msg)msg.innerHTML=`<span style="color:#EF4444">${res.error||'‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'}</span>`;
+  }
+}
+
+const _origSelectEdGame = selectEdGame;
+selectEdGame = async function(jsKey){
+  await _origSelectEdGame(jsKey);
+  enhanceLessonEditorWorkflow();
+};
+
+async function enhanceLessonEditorWorkflow(){
+  const bar=document.querySelector('#tc-editor-form [id="ed-msg"]')?.parentElement;
+  if(!bar || document.getElementById('ed-publish-btn')) return;
+  const publishBtn=document.createElement('button');
+  publishBtn.id='ed-publish-btn';
+  publishBtn.className='btn btn-sm';
+  publishBtn.textContent='‡πÄ‡∏ú‡∏¢‡πÅ‡∏û‡∏£‡πà';
+  publishBtn.style.cssText='background:#DCFCE7;color:#166534;border:1px solid #86EFAC';
+  publishBtn.onclick=()=>saveLesson('published');
+  bar.insertBefore(publishBtn, document.getElementById('ed-msg'));
+
+  const historyBtn=document.createElement('button');
+  historyBtn.className='btn btn-sm';
+  historyBtn.textContent='‡∏î‡∏π‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥';
+  historyBtn.style.cssText='background:#F8FAFC;color:#334155;border:1px solid #CBD5E1';
+  historyBtn.onclick=async()=>{
+    const res=await apiLessonHistory(_edDbGid,1).catch(()=>({ok:false,history:[]}));
+    const rows=res.ok?(res.history||[]):[];
+    alert(rows.length ? rows.map(r=>`v${r.version_no} ‚Ä¢ ${r.status} ‚Ä¢ ${new Date(r.snapshot_at).toLocaleString('th-TH')}`).join('\n') : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥');
+  };
+  bar.insertBefore(historyBtn, document.getElementById('ed-msg'));
+}
+
+if(typeof A.tcPlanStudents === 'undefined') A.tcPlanStudents = [];
+if(typeof A.tcPlanFilter === 'undefined') A.tcPlanFilter = null;
+
+function getSelectedTcPlanStudents(){
+  const picked=[...new Set((A.tcPlanStudents||[]).map(x=>+x).filter(Boolean))];
+  if(!picked.length && A.tcStudent) return [+A.tcStudent];
+  return picked;
+}
+
+function toggleTcPlanStudent(studentId, checked){
+  const sid=+studentId;
+  const current=new Set(getSelectedTcPlanStudents());
+  if(checked) current.add(sid);
+  else current.delete(sid);
+  A.tcPlanStudents=[...current];
+}
+
+function selectOnlyTcPlanStudent(studentId){
+  const sid=+studentId;
+  A.tcPlanStudents=sid?[sid]:[];
+  A.tcPlanFilter=sid||null;
+  if(sid) A.tcStudent=sid;
+  renderTcPlanPanel();
+}
+
+function selectAllTcPlanStudents(){
+  A.tcPlanStudents=(A.tcStudents||[]).map(s=>+s.student_id).filter(Boolean);
+  renderTcPlanPanel();
+}
+
+function clearTcPlanStudents(){
+  A.tcPlanStudents=[];
+  renderTcPlanPanel();
+}
+
+function setTcPlanFilter(studentId){
+  const sid=studentId?+studentId:null;
+  A.tcPlanFilter=sid||null;
+  if(sid) A.tcStudent=sid;
+  renderTcPlanPanel();
+}
+
+async function renderTcPlanPanel(){
+  ensureTcPlanPanel();
+  const panel=document.getElementById('tc-plan-panel');
+  if(!panel) return;
+
+  if((!A.tcPlanStudents || !A.tcPlanStudents.length) && A.tcStudent) A.tcPlanStudents=[+A.tcStudent];
+  const filterId=A.tcPlanFilter || A.tcStudent || null;
+  const plansRes=await apiStudentPlans(filterId).catch(()=>({ok:false,plans:[]}));
+  const rows=plansRes.ok ? (plansRes.plans||[]) : [];
+  const grouped={};
+  rows.forEach(row=>{
+    if(!grouped[row.plan_id]) grouped[row.plan_id]={...row,items:[]};
+    if(row.item_id) grouped[row.plan_id].items.push(row);
+  });
+
+  const selectedStudentIds=getSelectedTcPlanStudents();
+  const selectedStudentNames=selectedStudentIds
+    .map(id=>(A.tcStudents||[]).find(s=>+s.student_id===+id)?.full_name)
+    .filter(Boolean);
+  const selectedGames=Object.values(GAMES_DB).filter(g=>A.tcSubject?g.sid==A.tcSubject:true).slice(0,12);
+  const planList=Object.values(grouped);
+
+  panel.innerHTML=`
+    <div class="ts">
+      <h3>¡Õ∫À¡“¬·ºπ°“√‡√’¬π/¿“√°‘®√“¬ —ª¥“ÀÏ</h3>
+      <div style="margin-bottom:.75rem;padding:.75rem;border-radius:14px;background:#F8FAFC;border:1px solid #E2E8F0">
+        <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
+          <div>
+            <div style="font-size:.82rem;font-weight:800;color:#0F172A">‡≈◊Õ°π—°‡√’¬π„πÀπÈ“π’È‰¥È‡≈¬</div>
+            <div style="font-size:.76rem;color:#64748B">‡≈◊Õ°∑’≈–§πÀ√◊ÕÀ≈“¬§π°Á‰¥È ·≈È«„™È·ºπ‡¥’¬«°—π Ëßæ√ÈÕ¡°—π</div>
+          </div>
+          <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="selectAllTcPlanStudents()">‡≈◊Õ°∑—ÈßÀ¡¥</button>
+            <button class="btn btn-sm" onclick="clearTcPlanStudents()">≈È“ß∑’Ë‡≈◊Õ°</button>
+            <button class="btn btn-sm" onclick="setTcPlanFilter(null)">¥Ÿ∑ÿ°·ºπ</button>
+          </div>
+        </div>
+        <div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:.5rem">
+          ${(A.tcStudents||[]).map(student=>{
+            const sid=+student.student_id;
+            const checked=selectedStudentIds.includes(sid);
+            const active=filterId===sid;
+            return `
+              <label style="display:flex;align-items:center;gap:.45rem;padding:.55rem .75rem;border:1px solid ${active?'#818CF8':'#CBD5E1'};border-radius:999px;background:${active?'#EEF2FF':'#fff'};cursor:pointer">
+                <input type="checkbox" class="tc-plan-student" value="${sid}" ${checked?'checked':''} onchange="toggleTcPlanStudent(${sid}, this.checked)">
+                <span style="font-weight:700;color:#0F172A">${student.full_name}</span>
+                <button type="button" class="btn btn-sm" style="padding:.2rem .5rem" onclick="event.preventDefault();event.stopPropagation();selectOnlyTcPlanStudent(${sid})">¥Ÿ·ºπ</button>
+              </label>`;
+          }).join('') || '<div style="color:var(--mu)">¬—ß‰¡Ëæ∫π—°‡√’¬π</div>'}
+        </div>
+        <div style="margin-top:.7rem;font-size:.78rem;color:${selectedStudentIds.length?'#166534':'#92400E'};font-weight:700">
+          ${selectedStudentIds.length ? `æ√ÈÕ¡¡Õ∫À¡“¬„ÀÈ ${selectedStudentIds.length} §π: ${selectedStudentNames.join(', ')}` : '¬—ß‰¡Ë‰¥È‡≈◊Õ°π—°‡√’¬π ”À√—∫¡Õ∫À¡“¬'}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.75rem">
+        <input id="tc-plan-title" class="fc" placeholder="‡™Ëπ ∑∫∑«π§≥‘µ —ª¥“ÀÏπ’È">
+        <input id="tc-plan-week" class="fc" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <input id="tc-plan-due" class="fc" type="datetime-local">
+      </div>
+      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="Õ∏‘∫“¬‡ªÈ“À¡“¬À√◊Õ§”·π–π” ”À√—∫ºŸÈª°§√Õß"></textarea>
+      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">‡≈◊Õ°‡°¡ ”À√—∫·ºπ</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
+        ${selectedGames.map(g=>`
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .75rem;border:1px solid #E5E7EB;border-radius:999px;background:#fff">
+            <input type="checkbox" class="tc-plan-game" value="${typeof jsKeyToDbId==='function' ? jsKeyToDbId(g.id) : parseInt(g.id,10)}">
+            <span>${g.icon||'??'} ${g.name}</span>
+          </label>`).join('')}
+      </div>
+      <div style="margin-top:.85rem;display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
+        <div style="font-size:.76rem;color:var(--mu)">${filterId ? `°”≈—ß¥Ÿ·ºπ¢Õß ${(A.tcStudents||[]).find(s=>+s.student_id===+filterId)?.full_name || 'π—°‡√’¬π∑’Ë‡≈◊Õ°'}` : '°”≈—ß¥Ÿ·ºπ¢Õßπ—°‡√’¬π∑—ÈßÀ¡¥'}</div>
+        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${selectedStudentIds.length?'':'disabled style="opacity:.55;cursor:not-allowed"'}>¡Õ∫À¡“¬·ºπ</button>
+      </div>
+    </div>
+    <div class="ts">
+      <h3>·ºπ∑’Ë¡Õ∫À¡“¬·≈È«</h3>
+      ${planList.length?planList.map(plan=>`
+        <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
+          <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start">
+            <div>
+              <strong>${plan.title}</strong>
+              <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${plan.student_name||'π—°‡√’¬π'} ï  —ª¥“ÀÏ ${plan.week_start||'-'} ${plan.due_at?`ï §√∫°”Àπ¥ ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
+            </div>
+            <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.items.filter(i=>(+i.best_score||0) >= (+i.target_score||80)).length}/${plan.items.length}</span>
+          </div>
+          <div style="font-size:.78rem;color:#475569;margin-top:.35rem">${plan.description||''}</div>
+          <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.35rem">
+            ${plan.items.map(item=>`<span class="badge" style="background:${(+item.best_score||0) >= (+item.target_score||80)?'#DCFCE7':'#FEF3C7'};color:${(+item.best_score||0) >= (+item.target_score||80)?'#166534':'#92400E'}">${item.game_name} ${item.best_score||0}/${item.target_score||80}</span>`).join('')}
+          </div>
+        </div>`).join(''):'<div style="color:var(--mu)">¬—ß‰¡Ë¡’·ºπ∑’Ë¡Õ∫À¡“¬</div>'}
+    </div>`;
+}
+
+async function submitWeeklyPlan(){
+  const selectedStudentIds=[...new Set([...[...document.querySelectorAll('.tc-plan-student:checked')].map(el=>+el.value), ...getSelectedTcPlanStudents()])].filter(Boolean);
+  if(!selectedStudentIds.length){ alert('‡≈◊Õ°π—°‡√’¬πÕ¬Ë“ßπÈÕ¬ 1 §π'); return; }
+  const title=document.getElementById('tc-plan-title')?.value.trim() || '·ºπ√“¬ —ª¥“ÀÏ';
+  const description=document.getElementById('tc-plan-desc')?.value.trim() || '';
+  const weekStart=document.getElementById('tc-plan-week')?.value || new Date().toISOString().slice(0,10);
+  const dueAt=document.getElementById('tc-plan-due')?.value || '';
+  const items=[...document.querySelectorAll('.tc-plan-game:checked')].map((el,idx)=>({ game_id:+el.value, lesson_no:1, target_score:80, sort_order:idx+1 }));
+  if(!items.length){ alert('‡≈◊Õ°‡°¡Õ¬Ë“ßπÈÕ¬ 1 ‡°¡'); return; }
+
+  A.tcPlanStudents=selectedStudentIds;
+  const payload={ title, description, week_start:weekStart, due_at:dueAt, items };
+  if(selectedStudentIds.length===1) payload.student_id=selectedStudentIds[0];
+  else payload.student_ids=selectedStudentIds;
+
+  const res=await apiCreatePlan(payload).catch(()=>({ok:false,error:'‡™◊ËÕ¡µËÕ‰¡Ë‰¥È'}));
+  if(!res.ok){ alert(res.error||' √È“ß·ºπ‰¡Ë ”‡√Á®'); return; }
+
+  A.tcPlanFilter=selectedStudentIds.length===1 ? selectedStudentIds[0] : null;
+  alert(`¡Õ∫À¡“¬·ºπ ”‡√Á® ${res.created_count || selectedStudentIds.length} §π`);
+  renderTcPlanPanel();
+}
+
+const TC_PLAN_TEXT = {
+  heading: '\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22\u0e41\u0e1c\u0e19\u0e01\u0e32\u0e23\u0e40\u0e23\u0e35\u0e22\u0e19/\u0e20\u0e32\u0e23\u0e01\u0e34\u0e08\u0e23\u0e32\u0e22\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c',
+  selectHint: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22',
+  selectSubhint: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e17\u0e35\u0e25\u0e30\u0e04\u0e19\u0e2b\u0e23\u0e37\u0e2d\u0e2b\u0e25\u0e32\u0e22\u0e04\u0e19\u0e01\u0e47\u0e44\u0e14\u0e49 \u0e41\u0e25\u0e49\u0e27\u0e43\u0e0a\u0e49\u0e41\u0e1c\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27\u0e01\u0e31\u0e19\u0e2a\u0e48\u0e07\u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e01\u0e31\u0e19',
+  selectAll: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14',
+  clear: '\u0e25\u0e49\u0e32\u0e07\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01',
+  allPlans: '\u0e14\u0e39\u0e17\u0e38\u0e01\u0e41\u0e1c\u0e19',
+  viewPlan: '\u0e14\u0e39\u0e41\u0e1c\u0e19',
+  noStudents: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19',
+  noneSelected: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22',
+  readyPrefix: '\u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22\u0e43\u0e2b\u0e49',
+  people: '\u0e04\u0e19',
+  titlePlaceholder: '\u0e40\u0e0a\u0e48\u0e19 \u0e17\u0e1a\u0e17\u0e27\u0e19\u0e04\u0e13\u0e34\u0e15\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c\u0e19\u0e35\u0e49',
+  descPlaceholder: '\u0e2d\u0e18\u0e34\u0e1a\u0e32\u0e22\u0e40\u0e1b\u0e49\u0e32\u0e2b\u0e21\u0e32\u0e22\u0e2b\u0e23\u0e37\u0e2d\u0e04\u0e33\u0e41\u0e19\u0e30\u0e19\u0e33\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e1c\u0e39\u0e49\u0e1b\u0e01\u0e04\u0e23\u0e2d\u0e07',
+  chooseGames: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e01\u0e21\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e41\u0e1c\u0e19',
+  viewingAll: '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e14\u0e39\u0e41\u0e1c\u0e19\u0e02\u0e2d\u0e07\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14',
+  viewingOne: '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e14\u0e39\u0e41\u0e1c\u0e19\u0e02\u0e2d\u0e07',
+  fallbackStudent: '\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01',
+  assign: '\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22\u0e41\u0e1c\u0e19',
+  assigned: '\u0e41\u0e1c\u0e19\u0e17\u0e35\u0e48\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22\u0e41\u0e25\u0e49\u0e27',
+  noPlans: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e41\u0e1c\u0e19\u0e17\u0e35\u0e48\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22',
+  student: '\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19',
+  week: '\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c',
+  due: '\u0e04\u0e23\u0e1a\u0e01\u0e33\u0e2b\u0e19\u0e14',
+  chooseStudentAlert: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 1 \u0e04\u0e19',
+  chooseGameAlert: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e01\u0e21\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 1 \u0e40\u0e01\u0e21',
+  planTitle: '\u0e41\u0e1c\u0e19\u0e23\u0e32\u0e22\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c',
+  networkError: '\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e15\u0e48\u0e2d\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49',
+  createFailed: '\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e41\u0e1c\u0e19\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08',
+  createdPrefix: '\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22\u0e41\u0e1c\u0e19\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08'
+};
+
+async function renderTcPlanPanel(){
+  ensureTcPlanPanel();
+  const panel=document.getElementById('tc-plan-panel');
+  if(!panel) return;
+
+  if((!A.tcPlanStudents || !A.tcPlanStudents.length) && A.tcStudent) A.tcPlanStudents=[+A.tcStudent];
+  const filterId=A.tcPlanFilter || A.tcStudent || null;
+  const plansRes=await apiStudentPlans(filterId).catch(()=>({ok:false,plans:[]}));
+  const rows=plansRes.ok ? (plansRes.plans||[]) : [];
+  const grouped={};
+  rows.forEach(row=>{
+    if(!grouped[row.plan_id]) grouped[row.plan_id]={...row,items:[]};
+    if(row.item_id) grouped[row.plan_id].items.push(row);
+  });
+
+  const selectedStudentIds=getSelectedTcPlanStudents();
+  const selectedStudentNames=selectedStudentIds.map(id=>(A.tcStudents||[]).find(s=>+s.student_id===+id)?.full_name).filter(Boolean);
+  const selectedGames=Object.values(GAMES_DB).filter(g=>A.tcSubject?g.sid==A.tcSubject:true).slice(0,12);
+  const planList=Object.values(grouped);
+
+  panel.innerHTML=`
+    <div class="ts">
+      <h3>${TC_PLAN_TEXT.heading}</h3>
+      <div style="margin-bottom:.75rem;padding:.75rem;border-radius:14px;background:#F8FAFC;border:1px solid #E2E8F0">
+        <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
+          <div>
+            <div style="font-size:.82rem;font-weight:800;color:#0F172A">${TC_PLAN_TEXT.selectHint}</div>
+            <div style="font-size:.76rem;color:#64748B">${TC_PLAN_TEXT.selectSubhint}</div>
+          </div>
+          <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="selectAllTcPlanStudents()">${TC_PLAN_TEXT.selectAll}</button>
+            <button class="btn btn-sm" onclick="clearTcPlanStudents()">${TC_PLAN_TEXT.clear}</button>
+            <button class="btn btn-sm" onclick="setTcPlanFilter(null)">${TC_PLAN_TEXT.allPlans}</button>
+          </div>
+        </div>
+        <div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:.5rem">
+          ${(A.tcStudents||[]).map(student=>{
+            const sid=+student.student_id;
+            const checked=selectedStudentIds.includes(sid);
+            const active=filterId===sid;
+            return `
+              <label style="display:flex;align-items:center;gap:.45rem;padding:.55rem .75rem;border:1px solid ${active?'#818CF8':'#CBD5E1'};border-radius:999px;background:${active?'#EEF2FF':'#fff'};cursor:pointer">
+                <input type="checkbox" class="tc-plan-student" value="${sid}" ${checked?'checked':''} onchange="toggleTcPlanStudent(${sid}, this.checked)">
+                <span style="font-weight:700;color:#0F172A">${student.full_name}</span>
+                <button type="button" class="btn btn-sm" style="padding:.2rem .5rem" onclick="event.preventDefault();event.stopPropagation();selectOnlyTcPlanStudent(${sid})">${TC_PLAN_TEXT.viewPlan}</button>
+              </label>`;
+          }).join('') || `<div style="color:var(--mu)">${TC_PLAN_TEXT.noStudents}</div>`}
+        </div>
+        <div style="margin-top:.7rem;font-size:.78rem;color:${selectedStudentIds.length?'#166534':'#92400E'};font-weight:700">
+          ${selectedStudentIds.length ? `${TC_PLAN_TEXT.readyPrefix} ${selectedStudentIds.length} ${TC_PLAN_TEXT.people}: ${selectedStudentNames.join(', ')}` : TC_PLAN_TEXT.noneSelected}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.75rem">
+        <input id="tc-plan-title" class="fc" placeholder="${TC_PLAN_TEXT.titlePlaceholder}">
+        <input id="tc-plan-week" class="fc" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <input id="tc-plan-due" class="fc" type="datetime-local">
+      </div>
+      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="${TC_PLAN_TEXT.descPlaceholder}"></textarea>
+      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">${TC_PLAN_TEXT.chooseGames}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
+        ${selectedGames.map(g=>`
+          <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .75rem;border:1px solid #E5E7EB;border-radius:999px;background:#fff">
+            <input type="checkbox" class="tc-plan-game" value="${typeof jsKeyToDbId==='function' ? jsKeyToDbId(g.id) : parseInt(g.id,10)}">
+            <span>${g.icon||'üéÆ'} ${g.name}</span>
+          </label>`).join('')}
+      </div>
+      <div style="margin-top:.85rem;display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
+        <div style="font-size:.76rem;color:var(--mu)">${filterId ? `${TC_PLAN_TEXT.viewingOne} ${(A.tcStudents||[]).find(s=>+s.student_id===+filterId)?.full_name || TC_PLAN_TEXT.fallbackStudent}` : TC_PLAN_TEXT.viewingAll}</div>
+        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${selectedStudentIds.length?'':'disabled style="opacity:.55;cursor:not-allowed"'}>${TC_PLAN_TEXT.assign}</button>
+      </div>
+    </div>
+    <div class="ts">
+      <h3>${TC_PLAN_TEXT.assigned}</h3>
+      ${planList.length?planList.map(plan=>`
+        <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
+          <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start">
+            <div>
+              <strong>${plan.title}</strong>
+              <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${plan.student_name||TC_PLAN_TEXT.student} ‚Ä¢ ${TC_PLAN_TEXT.week} ${plan.week_start||'-'} ${plan.due_at?`‚Ä¢ ${TC_PLAN_TEXT.due} ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
+            </div>
+            <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.items.filter(i=>(+i.best_score||0) >= (+i.target_score||80)).length}/${plan.items.length}</span>
+          </div>
+          <div style="font-size:.78rem;color:#475569;margin-top:.35rem">${plan.description||''}</div>
+          <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.35rem">
+            ${plan.items.map(item=>`<span class="badge" style="background:${(+item.best_score||0) >= (+item.target_score||80)?'#DCFCE7':'#FEF3C7'};color:${(+item.best_score||0) >= (+item.target_score||80)?'#166534':'#92400E'}">${item.game_name} ${item.best_score||0}/${item.target_score||80}</span>`).join('')}
+          </div>
+        </div>`).join(''):`<div style="color:var(--mu)">${TC_PLAN_TEXT.noPlans}</div>`}
+    </div>`;
+}
+
+async function submitWeeklyPlan(){
+  const selectedStudentIds=[...new Set([...[...document.querySelectorAll('.tc-plan-student:checked')].map(el=>+el.value), ...getSelectedTcPlanStudents()])].filter(Boolean);
+  if(!selectedStudentIds.length){ alert(TC_PLAN_TEXT.chooseStudentAlert); return; }
+  const title=document.getElementById('tc-plan-title')?.value.trim() || TC_PLAN_TEXT.planTitle;
+  const description=document.getElementById('tc-plan-desc')?.value.trim() || '';
+  const weekStart=document.getElementById('tc-plan-week')?.value || new Date().toISOString().slice(0,10);
+  const dueAt=document.getElementById('tc-plan-due')?.value || '';
+  const items=[...document.querySelectorAll('.tc-plan-game:checked')].map((el,idx)=>({ game_id:+el.value, lesson_no:1, target_score:80, sort_order:idx+1 }));
+  if(!items.length){ alert(TC_PLAN_TEXT.chooseGameAlert); return; }
+
+  A.tcPlanStudents=selectedStudentIds;
+  const payload={ title, description, week_start:weekStart, due_at:dueAt, items };
+  if(selectedStudentIds.length===1) payload.student_id=selectedStudentIds[0];
+  else payload.student_ids=selectedStudentIds;
+
+  const res=await apiCreatePlan(payload).catch(()=>({ok:false,error:TC_PLAN_TEXT.networkError}));
+  if(!res.ok){ alert(res.error||TC_PLAN_TEXT.createFailed); return; }
+
+  A.tcPlanFilter=selectedStudentIds.length===1 ? selectedStudentIds[0] : null;
+  alert(`${TC_PLAN_TEXT.createdPrefix} ${res.created_count || selectedStudentIds.length} ${TC_PLAN_TEXT.people}`);
+  renderTcPlanPanel();
+}

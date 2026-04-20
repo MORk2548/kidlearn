@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS questions (
   question_id   INT AUTO_INCREMENT PRIMARY KEY,
   game_id       INT          NOT NULL,
   question_text TEXT         NOT NULL,
-  question_img  VARCHAR(300) DEFAULT NULL,
+  question_img  MEDIUMTEXT   DEFAULT NULL,
   question_type VARCHAR(20)  NOT NULL DEFAULT 'text',
   hint          TEXT         DEFAULT NULL,
   order_no      INT          NOT NULL DEFAULT 0,

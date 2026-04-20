@@ -168,3 +168,153 @@ async function syncChildrenRec() {
     alert('เกิดข้อผิดพลาด กรุณาลองใหม่');
   }
 }
+
+const _origLoadRec = loadRec;
+loadRec = async function(){
+  await _origLoadRec();
+  await renderRecNotifications();
+};
+
+async function renderRecNotifications(){
+  if (A.role !== 'parent') return;
+  const cont = document.getElementById('rec-cont');
+  if (!cont) return;
+  const res = await apiNotifications().catch(() => ({ ok:false, notifications:[], summary:{ unread:0 } }));
+  if (!res.ok || !(res.notifications||[]).length) return;
+  const list = (res.notifications || []).slice(0, 5);
+  const block = document.createElement('div');
+  block.className = 'ts';
+  block.style.marginTop = '1rem';
+  block.innerHTML = `
+    <h3>การแจ้งเตือนล่าสุด ${res.summary?.unread ? `<span class="badge" style="background:#FEE2E2;color:#B91C1C">${res.summary.unread} ใหม่</span>` : ''}</h3>
+    ${list.map(item => `
+      <div style="padding:.6rem 0;border-bottom:1px solid #F1F5F9">
+        <div style="display:flex;justify-content:space-between;gap:.75rem">
+          <strong style="font-size:.82rem">${item.title}</strong>
+          <span style="font-size:.72rem;color:var(--mu)">${item.student_name || ''}</span>
+        </div>
+        <div style="font-size:.78rem;color:#475569">${item.message || ''}</div>
+      </div>`).join('')}
+    <div style="margin-top:.6rem;display:flex;justify-content:flex-end">
+      <button class="btn btn-sm" onclick="apiMarkNotifRead().then(()=>loadRec())" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE">ทำเครื่องหมายว่าอ่านแล้ว</button>
+    </div>`;
+  cont.appendChild(block);
+}
+
+const REC_UI_TEXT = {
+  loading: '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e42\u0e2b\u0e25\u0e14...',
+  noChildren: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e1a\u0e38\u0e15\u0e23\u0e2b\u0e25\u0e32\u0e19\u0e17\u0e35\u0e48\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e1a\u0e31\u0e0d\u0e0a\u0e35',
+  overview: '\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49',
+  priority: '\u0e2a\u0e34\u0e48\u0e07\u0e17\u0e35\u0e48\u0e04\u0e27\u0e23\u0e17\u0e33\u0e01\u0e48\u0e2d\u0e19',
+  notifications: '\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14',
+  recommendations: '\u0e04\u0e33\u0e41\u0e19\u0e30\u0e19\u0e33\u0e08\u0e32\u0e01\u0e1c\u0e25\u0e01\u0e32\u0e23\u0e40\u0e25\u0e48\u0e19',
+  subjectSummary: '\u0e2a\u0e23\u0e38\u0e1b\u0e15\u0e32\u0e21\u0e27\u0e34\u0e0a\u0e32',
+  openScores: '\u0e40\u0e1b\u0e34\u0e14\u0e2b\u0e19\u0e49\u0e32\u0e04\u0e30\u0e41\u0e19\u0e19',
+  markRead: '\u0e17\u0e33\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07\u0e2b\u0e21\u0e32\u0e22\u0e27\u0e48\u0e32\u0e2d\u0e48\u0e32\u0e19\u0e41\u0e25\u0e49\u0e27',
+  unread: '\u0e43\u0e2b\u0e21\u0e48',
+  noItems: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23',
+  playCount: '\u0e04\u0e23\u0e31\u0e49\u0e07',
+  avgScore: '\u0e40\u0e09\u0e25\u0e35\u0e48\u0e22',
+  totalPlans: '\u0e41\u0e1c\u0e19\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e40\u0e14\u0e34\u0e19',
+  reviewSoon: '\u0e04\u0e27\u0e23\u0e17\u0e1a\u0e17\u0e27\u0e19\u0e15\u0e48\u0e2d',
+  strongArea: '\u0e08\u0e38\u0e14\u0e41\u0e02\u0e47\u0e07',
+  needsHelp: '\u0e08\u0e38\u0e14\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e0a\u0e48\u0e27\u0e22',
+  noData: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e40\u0e1e\u0e35\u0e22\u0e07\u0e1e\u0e2d'
+};
+
+function recOpenScores(){ if(typeof sec==='function') sec('scores'); }
+
+loadRec = async function(){
+  if(A.role!=='parent') return;
+  const cont=document.getElementById('rec-cont');
+  if(!cont) return;
+  cont.innerHTML=`<div style="color:var(--mu);padding:1rem">${REC_UI_TEXT.loading}</div>`;
+
+  const cres=await apiMyChildren().catch(()=>({ok:false,children:[]}));
+  const kids=cres.ok ? (cres.children||[]) : [];
+  if(!kids.length){
+    cont.innerHTML=`<div style="text-align:center;padding:2.5rem 1rem;color:var(--mu)"><div style="font-size:2.5rem;margin-bottom:.75rem">👨‍👩‍👧</div><div style="font-weight:700;color:var(--tx);margin-bottom:.5rem">${REC_UI_TEXT.noChildren}</div></div>`;
+    return;
+  }
+
+  if(!A.selChild || !kids.find(k=>k.student_id==A.selChild)) A.selChild=kids[0].student_id;
+  const selectedChild=kids.find(k=>k.student_id==A.selChild) || kids[0];
+
+  const [recRes, scoreRes, notifRes, analyticsRes] = await Promise.all([
+    apiRecommendations(A.selChild).catch(()=>({ok:false,recs:[]})),
+    apiScores(A.selChild).catch(()=>({ok:false,scores:[]})),
+    apiNotifications().catch(()=>({ok:false,notifications:[],summary:{}})),
+    apiStudentAnalytics(A.selChild).catch(()=>({ok:false}))
+  ]);
+
+  const recs=recRes.ok ? (recRes.recs||[]) : [];
+  const scores=scoreRes.ok ? (scoreRes.scores||[]) : [];
+  const notifications=notifRes.ok ? (notifRes.notifications||[]).filter(n=>!A.selChild || +n.student_id===+A.selChild) : [];
+  const summary=notifRes.ok ? (notifRes.summary||{}) : {};
+  const analytics=analyticsRes.ok ? analyticsRes : null;
+
+  const bySubject={};
+  scores.forEach(s=>{
+    const name=s.subject_name || '\u0e2d\u0e37\u0e48\u0e19\u0e46';
+    if(!bySubject[name]) bySubject[name]={name,plays:0,total:0,max:0};
+    bySubject[name].plays += 1;
+    bySubject[name].total += +s.score||0;
+    bySubject[name].max += +s.max_score||100;
+  });
+  const subjectSummary=Object.values(bySubject).map(item=>({
+    ...item,
+    avg:item.max?Math.round((item.total/item.max)*100):0
+  })).sort((a,b)=>a.avg-b.avg);
+
+  const weakSubject=subjectSummary[0] || null;
+  const strongSubject=subjectSummary.slice().sort((a,b)=>b.avg-a.avg)[0] || null;
+  const plans=(analytics?.plans||[]).filter(p=>(p.total_items||0) > (p.completed_items||0));
+  const reviewItems=(analytics?.review_items||[]).slice(0,3);
+  const priorityItems=[];
+  if(weakSubject) priorityItems.push({title:REC_UI_TEXT.needsHelp, body:`${weakSubject.name} • ${REC_UI_TEXT.avgScore} ${weakSubject.avg}%`, tone:'#F97316'});
+  if(reviewItems[0]) priorityItems.push({title:REC_UI_TEXT.reviewSoon, body:`${reviewItems[0].skill_name || ''} • พลาด ${reviewItems[0].miss_count || 0} ครั้ง`, tone:'#DC2626'});
+  if(plans[0]) priorityItems.push({title:REC_UI_TEXT.totalPlans, body:`${plans[0].title} • ${plans[0].completed_items||0}/${plans[0].total_items||0}`, tone:'#2563EB'});
+  if(strongSubject) priorityItems.push({title:REC_UI_TEXT.strongArea, body:`${strongSubject.name} • ${REC_UI_TEXT.avgScore} ${strongSubject.avg}%`, tone:'#16A34A'});
+
+  const recCards=recs.length ? recs.slice(0,5).map(r=>`<div style="padding:.75rem;border:1px solid #E5E7EB;border-radius:14px;background:#fff"><div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.85rem">${r.subject_name||''}</strong><span style="font-size:.75rem;color:var(--mu)">${r.rec_type||''}</span></div><div style="font-size:.82rem;color:#475569;margin-top:.3rem">${r.message||''}</div></div>`).join('') : `<div style="color:var(--mu)">${REC_UI_TEXT.noItems}</div>`;
+  const notifCards=notifications.length ? notifications.slice(0,5).map(n=>`<div style="padding:.75rem;border-bottom:1px solid #F1F5F9"><div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.84rem">${n.title||''}</strong><span style="font-size:.74rem;color:var(--mu)">${n.student_name||''}</span></div><div style="font-size:.8rem;color:#475569;margin-top:.25rem">${n.message||''}</div></div>`).join('') : `<div style="color:var(--mu)">${REC_UI_TEXT.noItems}</div>`;
+
+  cont.innerHTML=`
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">${kids.map(k=>`<button class="child-btn${A.selChild==k.student_id?' active':''}" onclick="A.selChild=${k.student_id};loadRec()">${k.full_name}</button>`).join('')}</div>
+    <div class="ts" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <h3 style="margin:0 0 .25rem">${REC_UI_TEXT.overview}</h3>
+          <div style="font-size:.78rem;color:var(--mu)">${selectedChild.full_name||''}</div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-sm" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE" onclick="recOpenScores()">${REC_UI_TEXT.openScores}</button>
+          <button class="btn btn-sm" style="background:#F8FAFC;color:#334155;border:1px solid #CBD5E1" onclick="apiMarkNotifRead().then(()=>loadRec())">${REC_UI_TEXT.markRead}</button>
+        </div>
+      </div>
+      <div class="stats" style="margin-top:1rem">
+        <div class="stat"><div class="sv">${scores.length}</div><div class="sl2">${REC_UI_TEXT.playCount}</div></div>
+        <div class="stat"><div class="sv">${subjectSummary.length?Math.round(subjectSummary.reduce((sum,s)=>sum+s.avg,0)/subjectSummary.length):0}%</div><div class="sl2">${REC_UI_TEXT.avgScore}</div></div>
+        <div class="stat"><div class="sv">${plans.length}</div><div class="sl2">${REC_UI_TEXT.totalPlans}</div></div>
+        <div class="stat"><div class="sv">${summary.unread||0}</div><div class="sl2">${REC_UI_TEXT.unread}</div></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1rem">
+      <div class="ts" style="margin:0">
+        <h3>${REC_UI_TEXT.priority}</h3>
+        ${priorityItems.length?priorityItems.map(item=>`<div style="padding:.7rem 0;border-bottom:1px solid #F1F5F9"><div style="font-size:.78rem;font-weight:800;color:${item.tone}">${item.title}</div><div style="font-size:.82rem;color:#475569;margin-top:.25rem">${item.body}</div></div>`).join(''):`<div style="color:var(--mu)">${REC_UI_TEXT.noData}</div>`}
+      </div>
+      <div class="ts" style="margin:0">
+        <h3>${REC_UI_TEXT.notifications} ${summary.unread?`<span class="badge" style="background:#FEE2E2;color:#B91C1C">${summary.unread} ${REC_UI_TEXT.unread}</span>`:''}</h3>
+        ${notifCards}
+      </div>
+      <div class="ts" style="margin:0">
+        <h3>${REC_UI_TEXT.recommendations}</h3>
+        <div style="display:grid;gap:.6rem">${recCards}</div>
+      </div>
+    </div>
+    <div class="ts">
+      <h3>${REC_UI_TEXT.subjectSummary}</h3>
+      ${subjectSummary.length?subjectSummary.map(item=>`<div style="display:flex;align-items:center;gap:.75rem;padding:.7rem 0;border-bottom:1px solid #F1F5F9"><div style="width:110px;font-size:.82rem;font-weight:700;color:#0F172A">${item.name}</div><div style="flex:1;height:8px;background:#E2E8F0;border-radius:999px"><div style="width:${item.avg}%;height:100%;background:${item.avg>=80?'#10B981':item.avg>=60?'#F59E0B':'#EF4444'};border-radius:999px"></div></div><div style="width:58px;text-align:right;font-size:.82rem;font-weight:800;color:${item.avg>=80?'#166534':item.avg>=60?'#92400E':'#B91C1C'}">${item.avg}%</div><div style="width:58px;text-align:right;font-size:.75rem;color:var(--mu)">${item.plays} ${REC_UI_TEXT.playCount}</div></div>`).join(''):`<div style="color:var(--mu)">${REC_UI_TEXT.noData}</div>`}
+    </div>`;
+};
