@@ -148,4 +148,3 @@ VALUES (19, 1, 'Animals (สัตว์)', 'คำศัพท์สัตว�
 ')
 ON DUPLICATE KEY UPDATE title=VALUES(title), body=VALUES(body);
 ```
-es sebdjyybgs 
