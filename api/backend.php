@@ -2520,8 +2520,7 @@ function handleExecutiveUsers(): never {
 function handleExecutiveContent(): never {
     authRole('executive', 'admin');
     $db = DB::get();
-    
-    // เธ”เธถเธเธเนเธญเธกเธนเธฅเน€เธเธทเนเธญเธซเธฒเธเธ—เน€เธฃเธตเธขเธเธ—เธฑเนเธเธซเธกเธ” (View-only)
+
     $type = $_GET['type'] ?? 'all';
     
     if ($type === 'all' || $type === 'summary') {
