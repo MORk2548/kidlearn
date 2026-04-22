@@ -28,7 +28,6 @@ async function openModal(gid, lessonNo){
   document.getElementById('m-body').innerHTML=`
     <div style="font-size:.88rem;line-height:2.2;color:#374151">
       📚 <strong>${sub.name}</strong><br>
-      📖 บทเรียน: <strong>${lessonNo}/6 — ${lname}</strong><br>
       🎯 ประเภท: ${TYPE_LBL[gameType]||gameType}<br>
       ⏱ เวลา: ${timeLimit} วิ<br>
       🏆 คะแนนเต็ม: 100
