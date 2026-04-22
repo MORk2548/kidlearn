@@ -3,7 +3,7 @@ async function loadScores() {
   const childWrap = document.getElementById('child-sel-wrap');
   const tb = document.getElementById('score-tb');
   ensureScoreInsightsHost();
-  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2rem">กำลังโหลด...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">กำลังโหลด...</td></tr>';
 
   if (A.role === 'parent') {
     childWrap.style.display = 'block';
@@ -15,7 +15,7 @@ async function loadScores() {
     if (!kids.length) {
       btns.innerHTML = '<div style="color:var(--mu);font-size:.85rem">ยังไม่มีบุตรหลานที่เชื่อมบัญชี</div>';
       renderScoreInsights(null);
-      tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีข้อมูลคะแนน</td></tr>';
+      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีข้อมูลคะแนน</td></tr>';
       return;
     }
 
@@ -56,7 +56,7 @@ async function loadScores() {
 
   childWrap.style.display = 'none';
   renderScoreInsights(null);
-  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2rem">ครูดูคะแนนรวมได้ที่เมนูแผงครู</td></tr>';
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">ครูดูคะแนนรวมได้ที่เมนูแผงครู</td></tr>';
 }
 
 function ensureScoreInsightsHost() {
@@ -135,7 +135,7 @@ function renderScoreInsights(data) {
 function renderScoreTable(sc) {
   const tb = document.getElementById('score-tb');
   if (!sc || !sc.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีคะแนน</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีคะแนน</td></tr>';
     return;
   }
   const TYPE_LBL = { mcq: 'MCQ', truefalse: 'จริง/เท็จ', fill: 'เติมคำ', matching: 'จับคู่', sequence: 'เรียงลำดับ', wordsearch: 'ค้นหาคำ' };
@@ -147,11 +147,9 @@ function renderScoreTable(sc) {
     const stars = pct >= 80 ? '★★★' : pct >= 50 ? '★★' : pct > 0 ? '★' : '';
     const date = s.played_at ? new Date(s.played_at).toLocaleDateString('th-TH') : (s.date || '-');
     const time = s.time_spent ? `${s.time_spent}วิ` : (s.time || '-');
-    const lesson = parseInt(s.lesson_no, 10) > 0 ? `บท ${parseInt(s.lesson_no, 10)}` : '-';
     return `<tr>
       <td>${s.subject_name || s.sub || '-'}</td>
       <td>${s.game_name || s.game || '-'}</td>
-      <td>${lesson}</td>
       <td>${TYPE_LBL[s.game_type || s.type] || s.type || '-'}</td>
       <td><strong style="color:${c}">${score}</strong><span style="color:#9CA3AF">/${max}</span> ${stars}</td>
       <td>${time}</td>
@@ -258,11 +256,6 @@ function renderScoreInsights(data){
         <div class="stat"><div class="sv">${overview.total_plays||0}</div><div class="sl2">${SCORE_UI_TEXT.attempts}</div></div>
         <div class="stat"><div class="sv">${Math.round(overview.avg_score||0)}%</div><div class="sl2">${SCORE_UI_TEXT.avgScore}</div></div>
         <div class="stat"><div class="sv">${Math.round((overview.total_time||0)/60)}</div><div class="sl2">${SCORE_UI_TEXT.timeMinutes}</div></div>
-        <div class="stat"><div class="sv">${overview.badge_count||0}</div><div class="sl2">${SCORE_UI_TEXT.badges}</div></div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem">
-        <button class="child-btn${A.scoreSubjectFilter==='all'?' active':''}" onclick="setScoreSubjectFilter('all')">${SCORE_UI_TEXT.all}</button>
-        ${subjectCards.map(subject=>`<button class="child-btn${A.scoreSubjectFilter===subject.name?' active':''}" onclick="setScoreSubjectFilter('${String(subject.name).replace(/'/g,"\\'")}')">${subject.name} ${subject.avg}%</button>`).join('')}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1rem">
@@ -304,7 +297,7 @@ function renderScoreTable(sc){
   const tb=document.getElementById('score-tb');
   window.__scoreRows=sc||[];
   if(!sc || !sc.length){
-    tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
+    tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
     return;
   }
 
@@ -312,12 +305,12 @@ function renderScoreTable(sc){
   const filtered=A.scoreSubjectFilter==='all' ? sc : sc.filter(s=>(s.subject_name||s.sub||SCORE_UI_TEXT.all)===A.scoreSubjectFilter);
   const groups=buildScoreSubjectSummary(filtered);
   if(!groups.length){
-    tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
+    tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
     return;
   }
 
   tb.innerHTML=groups.map(group=>{
-    const header=`<tr><td colspan="7" style="background:#F8FAFC;padding:.85rem 1rem;border-bottom:1px solid #E2E8F0"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><strong style="font-size:.88rem">${group.name}</strong><div style="font-size:.74rem;color:var(--mu)">${SCORE_UI_TEXT.plays} ${group.plays} ${SCORE_UI_TEXT.attempts} • ${SCORE_UI_TEXT.avgScore} ${group.avg}% • Best ${group.best}%</div></div><div style="font-size:.76rem;color:#475569">${Math.round(group.time/60)} ${SCORE_UI_TEXT.timeMinutes}</div></div></td></tr>`;
+    const header=`<tr><td colspan="6" style="background:#F8FAFC;padding:.85rem 1rem;border-bottom:1px solid #E2E8F0"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><strong style="font-size:.88rem">${group.name}</strong><div style="font-size:.74rem;color:var(--mu)">${SCORE_UI_TEXT.plays} ${group.plays} ${SCORE_UI_TEXT.attempts} • ${SCORE_UI_TEXT.avgScore} ${group.avg}% • Best ${group.best}%</div></div><div style="font-size:.76rem;color:#475569">${Math.round(group.time/60)} ${SCORE_UI_TEXT.timeMinutes}</div></div></td></tr>`;
     const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
       const score=+s.score||0;
       const max=+s.max_score||100;
@@ -325,11 +318,9 @@ function renderScoreTable(sc){
       const c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
       const date=s.played_at ? new Date(s.played_at).toLocaleDateString('th-TH') : (s.date||'-');
       const time=s.time_spent ? `${s.time_spent} วินาที` : (s.time||'-');
-      const lesson=parseInt(s.lesson_no,10)>0 ? `${SCORE_UI_TEXT.lesson} ${parseInt(s.lesson_no,10)}` : '-';
       return `<tr>
         <td>${s.subject_name||s.sub||'-'}</td>
         <td>${s.game_name||s.game||'-'}</td>
-        <td>${lesson}</td>
         <td>${typeLabel[s.game_type||s.type] || s.type || '-'}</td>
         <td><strong style="color:${c}">${pct}%</strong><span style="color:#9CA3AF"> (${score}/${max})</span></td>
         <td>${time}</td>

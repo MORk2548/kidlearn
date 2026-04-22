@@ -1,11 +1,4 @@
 <?php
-// ============================================================
-// api/backend.php โ€” KidLearn PHP API
-// เนเธเนเธเธฑเธ database_normalized.sql (เนเธขเธเธ•เธฒเธฃเธฒเธ students/parents/teachers)
-// Docker: เธฃเธฑเธเธ”เนเธงเธข docker compose up -d
-// ============================================================
-
-// โ”€โ”€ CONFIG โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 define('DB_HOST', getenv('DB_HOST') ?: 'db');
 define('DB_USER', getenv('DB_USER') ?: 'kidlearn');
 define('DB_PASS', getenv('DB_PASS') ?: 'kidlearn123');
@@ -29,7 +22,6 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
-// โ”€โ”€ DATABASE โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 class DB {
     private static ?DB $i = null;
     private mysqli $c;
@@ -79,7 +71,6 @@ class DB {
     }
 }
 
-// โ”€โ”€ SESSION โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 if (session_status() === PHP_SESSION_NONE) {
     // session config เธกเธฒเธเธฒเธ docker/php.ini
     // เน€เธเธดเธ” session

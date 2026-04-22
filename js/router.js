@@ -40,8 +40,8 @@ function sec(name) {
 
 function applyRoleUI() {
   const u = A.user;
-  document.getElementById('sb-av').textContent  = u.name.charAt(0);
   document.getElementById('sb-av').className    = 'avatar ' + u.role;
+  applyAvatar(document.getElementById('sb-av'), u.name.charAt(0));
   document.getElementById('sb-nm').textContent  = u.name;
   document.getElementById('wn').textContent     = u.name.split(' ')[0];
 
