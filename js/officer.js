@@ -4,12 +4,65 @@
 
 let _ofUsers = [];
 let _ofFilter = 'all';
+let _ofTab = 'users'; // 'users' | 'lessons' | 'games'
 
 function _renderOfficerPanel(){
   const panel = document.getElementById('of-dashboard');
   if(!panel) return;
-  
   panel.innerHTML = `
+    <div class="rec-tabs" style="margin:0 0 1rem">
+      <button class="rec-tab${_ofTab==='users'?' active':''}" onclick="_ofSwitchTab('users')">👥 จัดการผู้ใช้</button>
+      <button class="rec-tab${_ofTab==='lessons'?' active':''}" onclick="_ofSwitchTab('lessons')">📝 แก้ไขบทเรียน</button>
+      <button class="rec-tab${_ofTab==='games'?' active':''}" onclick="_ofSwitchTab('games')">🎮 แก้ไขเกม</button>
+    </div>
+    <div id="of-tab-users"  style="display:${_ofTab==='users'?'block':'none'}"></div>
+    <div id="of-tab-lessons" style="display:${_ofTab==='lessons'?'block':'none'}"></div>
+    <div id="of-tab-games"  style="display:${_ofTab==='games'?'block':'none'}"></div>
+  `;
+  _ofRenderCurrentTab();
+}
+
+function _ofSwitchTab(tab) {
+  _ofTab = tab;
+  _renderOfficerPanel();
+}
+
+function _ofRenderCurrentTab() {
+  if (_ofTab === 'users') {
+    _ofRenderUsersTab();
+  } else if (_ofTab === 'lessons') {
+    const t = document.getElementById('of-tab-lessons');
+    if (!t) return;
+    // Create a temporary lesson panel inside officer tab
+    t.innerHTML = '<div id="of-lesson-panel"></div>';
+    const origId = 'tc-lesson-panel';
+    const el = document.getElementById(origId);
+    if (el) { el.id = 'of-lesson-panel'; }
+    else {
+      const div = document.createElement('div');
+      div.id = 'of-lesson-panel';
+      t.appendChild(div);
+    }
+    _renderLessonEditorIn('of-lesson-panel');
+  } else if (_ofTab === 'games') {
+    const t = document.getElementById('of-tab-games');
+    if (!t) return;
+    t.innerHTML = '<div id="of-game-panel"></div>';
+    const el = document.getElementById('tc-game-panel');
+    if (el) { el.id = 'of-game-panel'; }
+    else {
+      const div = document.createElement('div');
+      div.id = 'of-game-panel';
+      t.appendChild(div);
+    }
+    _renderGameEditorIn('of-game-panel');
+  }
+}
+
+function _ofRenderUsersTab() {
+  const wrap = document.getElementById('of-tab-users');
+  if(!wrap) return;
+  wrap.innerHTML = `
     <style>
       .of-user-card { border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem;
         background: #fff; transition: all .2s; }
@@ -399,4 +452,76 @@ async function ofSubmitCreateStaff() {
   } else {
     msg.innerHTML = `<span style="color:#EF4444">❌ ${res.error || 'สร้างไม่สำเร็จ'}</span>`;
   }
+}
+// ════════ TAB RENDERING ════════
+function _ofSwitchTab(tab) {
+  _ofTab = tab;
+  _renderOfficerPanel();
+}
+
+function _ofRenderCurrentTab() {
+  if (_ofTab === 'users') {
+    _ofRenderUsersTab();
+  } else if (_ofTab === 'lessons') {
+    const t = document.getElementById('of-tab-lessons');
+    if (!t) return;
+    t.innerHTML = '<div id="of-lesson-panel" style="display:block"></div>';
+    _renderLessonEditorIn('of-lesson-panel');
+  } else if (_ofTab === 'games') {
+    const t = document.getElementById('of-tab-games');
+    if (!t) return;
+    t.innerHTML = '<div id="of-game-panel" style="display:block"></div>';
+    _renderGameEditorIn('of-game-panel');
+  }
+}
+
+function _ofRenderUsersTab() {
+  const wrap = document.getElementById('of-tab-users');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <style>
+      .of-user-card{border:1.5px solid #E5E7EB;border-radius:12px;padding:1rem;margin-bottom:.75rem;background:#fff;transition:all .2s}
+      .of-user-card:hover{border-color:#C7D2FE;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+      .of-user-head{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+      .of-user-av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--s),#A5B4FC);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+      .of-user-info{flex:1}
+      .of-user-name{font-weight:700;font-size:.95rem}
+      .of-user-role{font-size:.82rem;color:var(--mu)}
+      .of-user-meta{display:grid;grid-template-columns:1fr auto;gap:.4rem;font-size:.8rem;color:#666}
+      .of-user-actions{display:flex;gap:.4rem;flex-wrap:wrap}
+      .of-btn-sm{padding:.4rem .7rem;font-size:.75rem;border:1px solid #E2E8F0;border-radius:6px;background:#fff;cursor:pointer;font-family:'Kanit',sans-serif;transition:all .15s}
+      .of-btn-sm:hover{background:#EEF2FF;border-color:#A5B4FC;color:var(--s)}
+      .of-btn-danger:hover{background:#FEE2E2;border-color:#FECACA;color:#DC2626}
+    </style>
+    <div style="display:grid;grid-template-columns:220px 1fr;gap:1rem;align-items:start" id="of-grid">
+      <div style="background:#fff;border-radius:14px;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06);max-height:76vh;overflow-y:auto">
+        <div style="font-weight:800;font-size:.88rem;color:var(--s);margin-bottom:.85rem">🔍 กรองตาม Role</div>
+        <div style="display:flex;flex-direction:column;gap:.4rem">
+          ${['all','student','parent','teacher','officer','executive'].map(r=>{
+            const labels={'all':'👥 ทั้งหมด','student':'👦 นักเรียน','parent':'👨‍👩 ผู้ปกครอง','teacher':'👩‍🏫 ครู','officer':'👔 เจ้าหน้าที่','executive':'💼 ผู้บริหาร'};
+            const active=_ofFilter===r;
+            return `<button class="of-btn-sm" onclick="ofSetFilter('${r}')"
+              style="border:${active?'2px solid var(--s)':'1px solid #E2E8F0'};background:${active?'#EEF2FF':'#fff'};color:${active?'var(--s)':'var(--tx)'};text-align:left">
+              ${labels[r]}</button>`;
+          }).join('')}
+        </div>
+      </div>
+      <div id="of-users-list" style="background:#fff;border-radius:14px;padding:1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding:.75rem 1rem;background:linear-gradient(135deg,#EEF2FF,#F0F9FF);border-radius:12px">
+          <span style="font-size:1.5rem">👔</span>
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:.95rem">จัดการข้อมูลผู้ใช้</div>
+            <div style="font-size:.73rem;color:var(--mu)">ดูแลและอัปเดตข้อมูลสมาชิก</div>
+          </div>
+          <button class="lp-btn-play" style="padding:.5rem 1.25rem;font-size:.85rem" onclick="ofReloadUsers()">🔄 รีโหลด</button>
+          <button class="lp-btn-play" style="padding:.5rem 1.25rem;font-size:.85rem;background:var(--g)" onclick="ofOpenCreateStaff()">➕ เพิ่มบุคลากร</button>
+        </div>
+        <div id="of-users-content" style="color:var(--mu);padding:2rem;text-align:center">⏳ กำลังโหลด...</div>
+      </div>
+    </div>`;
+  if (window.innerWidth < 768) {
+    const g = document.getElementById('of-grid');
+    if (g) g.style.gridTemplateColumns = '1fr';
+  }
+  ofLoadUsers();
 }

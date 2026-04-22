@@ -1300,14 +1300,34 @@ function handleMarkNotifRead(): never {
 // ============================================================
 
 function handleTeacherStats(): never {
-    authRole('teacher', 'admin');
-    $stats = DB::get()->all("SELECT * FROM v_teacher_stats ORDER BY subject_id");
-    $total = DB::get()->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=1");
+    authRole('teacher', 'admin', 'officer');
+    $db = DB::get();
+    // Try view first, fall back to direct query if view doesn't exist
+    $fallback_query = "SELECT sub.subject_id, sub.name AS subject_name, sub.color AS subject_color,
+                     sub.icon,
+                     COUNT(DISTINCT sc.student_id)        AS student_count,
+                     COUNT(sc.score_id)                   AS total_plays,
+                     ROUND(AVG(CASE WHEN sc.max_score > 0 THEN sc.score / sc.max_score * 100 ELSE sc.score END), 1) AS avg_score,
+                     MAX(sc.score)                        AS best_score
+              FROM subjects sub
+              LEFT JOIN scores sc ON sc.subject_id = sub.subject_id
+              GROUP BY sub.subject_id, sub.name, sub.color, sub.icon
+              ORDER BY sub.subject_id";
+    try {
+        $stats = $db->all("SELECT * FROM v_teacher_stats ORDER BY subject_id");
+        // If view exists but returns nothing, fall back to direct query
+        if (empty($stats)) {
+            $stats = $db->all($fallback_query);
+        }
+    } catch (\Exception $e) {
+        $stats = $db->all($fallback_query);
+    }
+    $total = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=1");
     DB::ok(['subjects' => $stats, 'total_students' => (int)$total['c']]);
 }
 
 function handleAllStudents(): never {
-    authRole('teacher', 'admin');
+    authRole('teacher', 'admin', 'officer');
     $db       = DB::get();
     $students = $db->all(
         "SELECT u.user_id, st.student_id, u.full_name, st.grade,
@@ -2781,4 +2801,3 @@ function handleCreatePlanV3(): never {
         'created_count' => count($createdPlans),
     ]);
 }
-
