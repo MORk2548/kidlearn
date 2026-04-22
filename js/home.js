@@ -61,9 +61,9 @@ function loadHome(){
   const r=A.role;
   let html='';
   if(r==='student'){
-    const sc=SCORES[A.user.id]||[],played=sc.length,avg=played?Math.round(sc.reduce((s,x)=>s+x.score,0)/played):0;
-    html=`<div class="stat"><div class="si">🎮</div><div><div class="sv">${played}</div><div class="sl2">เกมที่เล่น</div></div></div>
-          <div class="stat"><div class="si">⭐</div><div><div class="sv">${avg}</div><div class="sl2">คะแนนเฉลี่ย</div></div></div>
+    // แสดง placeholder ก่อน แล้ว fetch จาก API
+    html=`<div class="stat"><div class="si">🎮</div><div><div class="sv" id="home-stat-played">…</div><div class="sl2">เกมที่เล่น</div></div></div>
+          <div class="stat"><div class="si">⭐</div><div><div class="sv" id="home-stat-avg">…</div><div class="sl2">คะแนนเฉลี่ย</div></div></div>
           <div class="stat"><div class="si">📚</div><div><div class="sv">6</div><div class="sl2">วิชา</div></div></div>
           <div class="stat"><div class="si">🎯</div><div><div class="sv">36</div><div class="sl2">เกมทั้งหมด</div></div></div>`;
   } else if(r==='parent'){
@@ -75,8 +75,7 @@ function loadHome(){
           <div class="stat"><div class="si">📊</div><div><div class="sv">${allSc.length}</div><div class="sl2">เกมที่เล่นรวม</div></div></div>
           <div class="stat"><div class="si">💡</div><div><div class="sv">3</div><div class="sl2">คำแนะนำใหม่</div></div></div>`;
   } else {
-    const sts=USERS.filter(u=>u.role==='student');
-    html=`<div class="stat"><div class="si">👦</div><div><div class="sv">${sts.length}</div><div class="sl2">นักเรียน</div></div></div>
+    html=`<div class="stat"><div class="si">👦</div><div><div class="sv" id="home-stat-students">…</div><div class="sl2">นักเรียน</div></div></div>
           <div class="stat"><div class="si">📚</div><div><div class="sv">6</div><div class="sl2">วิชา</div></div></div>
           <div class="stat"><div class="si">🎮</div><div><div class="sv">36</div><div class="sl2">เกมทั้งหมด</div></div></div>
           <div class="stat"><div class="si">📊</div><div><div class="sv">77%</div><div class="sl2">คะแนนเฉลี่ย</div></div></div>`;
@@ -84,7 +83,35 @@ function loadHome(){
   document.getElementById('home-stats').innerHTML=html;
   // render ทันทีจาก cache (ถ้ามี) แล้ว fetch ใหม่ถ้า dirty
   renderSubCards('home-subs');
-  if (r === 'student') fetchProgCache().then(() => renderSubCards('home-subs'));
+  if (r !== 'student' && r !== 'parent') {
+    apiAllStudents().then(res => {
+      const el = document.getElementById('home-stat-students');
+      if (!el) return;
+      const count = res.ok && Array.isArray(res.students) ? res.students.length : 0;
+      el.textContent = count;
+    }).catch(() => {
+      const el = document.getElementById('home-stat-students');
+      if (el) el.textContent = '0';
+    });
+  }
+  if (r === 'student') {
+    fetchProgCache().then(() => renderSubCards('home-subs'));
+    apiScores().then(res => {
+      if (!res.ok || !res.scores) return;
+      const sc = res.scores;
+      const played = sc.length;
+      const avg = played ? Math.round(sc.reduce((a,s) => a + (+s.score / (+s.max_score||100)), 0) / played * 100) : 0;
+      const elPlayed = document.getElementById('home-stat-played');
+      const elAvg = document.getElementById('home-stat-avg');
+      if (elPlayed) elPlayed.textContent = played;
+      if (elAvg) elAvg.textContent = avg + '%';
+    }).catch(() => {
+      const elPlayed = document.getElementById('home-stat-played');
+      const elAvg = document.getElementById('home-stat-avg');
+      if (elPlayed) elPlayed.textContent = '0';
+      if (elAvg) elAvg.textContent = '0%';
+    });
+  }
 }
 
 function getSubProgress(uid, subId){ return getProgData(subId).pct; }
