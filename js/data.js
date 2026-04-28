@@ -71,7 +71,7 @@ function makePictureQuizImage(emoji, label, bgA='#DBEAFE', bgB='#BFDBFE') {
 const GAMES_DB = {
 
 // ╔═══════════════════════════════════════╗
-// ║  วิชา 1 — คณิตศาสตร์                   ║
+// ║  วิชา 1 — คณิตศาสตร์                     ║
 // ╚═══════════════════════════════════════╝
 '1_1':{ id:'1_1', sid:1, name:'บวกลบคล่อง',       type:'mcq',       icon:'➕', lvl:'easy',   time:60,
   qs:[
