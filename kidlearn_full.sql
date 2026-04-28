@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS games (
   level      ENUM('easy','medium','hard') NOT NULL DEFAULT 'easy',
   icon       VARCHAR(10) DEFAULT '🎮',
   time_limit INT         NOT NULL DEFAULT 60,
+  question_count INT     DEFAULT NULL,
   FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -123,9 +124,12 @@ CREATE TABLE IF NOT EXISTS answers (
   answer_id   INT AUTO_INCREMENT PRIMARY KEY,
   question_id INT          NOT NULL,
   answer_text VARCHAR(500) NOT NULL,
+  answer_img  MEDIUMTEXT   DEFAULT NULL,
   is_correct  TINYINT(1)   NOT NULL DEFAULT 0,
   pair_left   VARCHAR(300) DEFAULT NULL,
+  pair_left_img MEDIUMTEXT DEFAULT NULL,
   pair_right  VARCHAR(300) DEFAULT NULL,
+  pair_right_img MEDIUMTEXT DEFAULT NULL,
   seq_order   INT          DEFAULT NULL,
   FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

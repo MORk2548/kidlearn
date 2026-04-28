@@ -853,3 +853,207 @@ function renderWS(){
   };
   draw();
 }
+
+function gameChoiceText(opt){
+  return opt && typeof opt==='object' ? String(opt.text||'') : String(opt||'');
+}
+function gameChoiceImg(opt){
+  return opt && typeof opt==='object' ? String(opt.img||'') : '';
+}
+function gameChoiceAnswerLabel(opt){
+  const text=gameChoiceText(opt);
+  const img=gameChoiceImg(opt);
+  if(text && img) return `${text} [image]`;
+  if(text) return text;
+  if(img) return '[image]';
+  return '-';
+}
+function renderChoiceBody(opt){
+  const text=gameChoiceText(opt);
+  const img=gameChoiceImg(opt);
+  return `
+    <div class="ch-body${img?' has-image':''}">
+      ${img?`<img src="${img}" alt="${text||'choice image'}" class="ch-img">`:''}
+      ${text?`<span class="ch-text">${text}</span>`:''}
+      ${!text&&!img?`<span class="ch-text">-</span>`:''}
+    </div>`;
+}
+function matchSideLabel(pair, side){
+  const text=String(pair?.[side]||'').trim();
+  const img=String(pair?.[`${side}_img`]||'').trim();
+  if(text && img) return `${text} [image]`;
+  if(text) return text;
+  if(img) return '[image]';
+  return '-';
+}
+function renderMatchSide(pair, side){
+  const text=String(pair?.[side]||'').trim();
+  const img=String(pair?.[`${side}_img`]||'').trim();
+  return `
+    <div class="match-side${img?' media':''}">
+      ${img?`<img src="${img}" alt="${text||'match image'}" class="match-side-img">`:''}
+      ${text?`<span class="match-side-text">${text}</span>`:''}
+    </div>`;
+}
+
+function renderMCQ(){
+  const{qi,totalQ}=A.gs, q=A.curGame.qs[qi];
+  if(!q){finishGame();return;}
+  upQP(qi+1,totalQ);
+  const letters=['A','B','C','D','E','F'];
+  document.getElementById('g-content').innerHTML=`
+    ${renderQuestionImage(q)}
+    <div class="qt">${q.q}</div>
+    <div class="choices choices-media">
+      ${(q.opts||[]).map((opt,i)=>`
+        <button class="ch${gameChoiceImg(opt)?' ch-media':''}" onclick="ansMCQ(this,${i},${q.ans})" data-idx="${i}">
+          <span class="ch-letter">${letters[i]||i+1}</span>
+          ${renderChoiceBody(opt)}
+        </button>`).join('')}
+    </div>`;
+}
+
+function ansMCQ(btn,chose,correct){
+  document.querySelectorAll('.ch').forEach(b=>b.disabled=true);
+  const q = A.curGame.qs[A.gs.qi];
+  const chosenOpt=q?.opts?.[chose];
+  const correctOpt=q?.opts?.[correct];
+  const ok=chose===correct;
+  recordAttempt({
+    prompt: q?.q || '',
+    correctAnswer: gameChoiceAnswerLabel(correctOpt),
+    studentAnswer: gameChoiceAnswerLabel(chosenOpt),
+    isCorrect: ok,
+    wrongQuestion: ok || !q ? null : { ...q }
+  });
+  if(ok){
+    btn.classList.add('ok');
+    A.gs.earned+=Math.round(100/A.gs.totalQ);
+  } else {
+    btn.classList.add('no');
+    const cb=document.querySelectorAll('.ch')[correct];
+    cb?.classList.add('ok');
+  }
+  document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+  setTimeout(()=>{A.gs.qi++;renderMCQ();},1100);
+}
+
+function renderMatch(){
+  const pairs=A.curGame.pairs;
+  if(!pairs?.length){finishGame();return;}
+  const left=shuffleItems(pairs);
+  const right=shuffleItems(pairs);
+  let selLeftId=null, matched=0;
+  upQP(0,pairs.length);
+  document.getElementById('g-content').innerHTML=`
+    <div style="font-size:.83rem;color:var(--mu);margin-bottom:.8rem">เลือกการ์ดฝั่งซ้าย แล้วเลือกฝั่งขวาที่ตรงกัน</div>
+    <div class="mg">
+      <div class="mc" id="ml">${left.map(p=>`<div class="mi match-card" data-k="${p.id}" onclick="mL(this)">${renderMatchSide(p,'left')}</div>`).join('')}</div>
+      <div class="mc" id="mr">${right.map(p=>`<div class="mi match-card" data-k="${p.id}" onclick="mR(this)">${renderMatchSide(p,'right')}</div>`).join('')}</div>
+    </div>`;
+  window.mL=el=>{
+    document.querySelectorAll('#ml .mi:not(.matched)').forEach(e=>e.classList.remove('sel'));
+    el.classList.add('sel');
+    selLeftId=el.dataset.k;
+  };
+  window.mR=el=>{
+    if(!selLeftId||el.classList.contains('matched'))return;
+    const pair=pairs.find(p=>String(p.id)===String(selLeftId));
+    if(String(selLeftId)===String(el.dataset.k)){
+      document.querySelector(`#ml [data-k="${selLeftId}"]`)?.classList.replace('sel','matched');
+      el.classList.add('matched');
+      matched++;
+      recordAttempt({
+        prompt:'จับคู่ให้ถูกต้อง',
+        correctAnswer:matchSideLabel(pair,'right'),
+        studentAnswer:matchSideLabel(pair,'right'),
+        isCorrect:true
+      });
+      A.gs.earned=Math.round(matched/pairs.length*100);
+      document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+      upQP(matched,pairs.length);
+      if(matched===pairs.length){clearInterval(A.tmr);setTimeout(finishGame,600);}
+    } else {
+      const wrongPair=right.find(p=>String(p.id)===String(el.dataset.k));
+      recordAttempt({
+        prompt:'จับคู่ให้ถูกต้อง',
+        correctAnswer:matchSideLabel(pair,'right'),
+        studentAnswer:matchSideLabel(wrongPair,'right'),
+        isCorrect:false
+      });
+      el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),600);
+    }
+    selLeftId=null;
+    document.querySelectorAll('#ml .mi').forEach(e=>e.classList.remove('sel'));
+  };
+}
+
+function renderSeq(){
+  const items=A.curGame.items;
+  if(!items?.length){finishGame();return;}
+  cleanupGameInteraction();
+  const bank=shuffleItems(items);
+  const placed=Array(items.length).fill(null);
+  upQP(0,items.length);
+
+  const draw=()=>{
+    const remaining=bank.filter(item=>!placed.some(slot=>(slot?.id||slot?.text)===(item?.id||item?.text)));
+    document.getElementById('g-content').innerHTML=`
+      <div style="display:grid;gap:.85rem">
+        <div>
+          <div style="font-size:.82rem;color:var(--mu);margin-bottom:.45rem">คลิกคำจากกรอบนี้เพื่อย้ายไปเรียง</div>
+          <div class="dd-chips">
+            ${remaining.map(item=>`<button type="button" class="chip" onclick="seqPick('${item.id||item.text}')">${item.text}</button>`).join('')}
+            ${!remaining.length?'<div style="font-size:.78rem;color:var(--mu)">ย้ายครบแล้ว</div>':''}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.82rem;color:var(--mu);margin-bottom:.45rem">เรียงคำตอบในกรอบนี้จากข้อแรกไปข้อสุดท้าย</div>
+          <div class="dd-slots">
+            ${placed.map((item,idx)=>`
+              <button type="button" class="slot${item?' filled':''}" onclick="seqRemove(${idx})">
+                ${item?item.text:`ช่อง ${idx+1}`}
+              </button>`).join('')}
+          </div>
+        </div>
+        <button class="btn btn-p btn-sm" style="width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">ตรวจคำตอบ</button>
+      </div>`;
+  };
+
+  window.seqPick=id=>{
+    const nextIdx=placed.findIndex(slot=>!slot);
+    if(nextIdx<0) return;
+    const item=bank.find(entry=>String(entry.id||entry.text)===String(id));
+    if(!item) return;
+    placed[nextIdx]=item;
+    draw();
+  };
+  window.seqRemove=idx=>{
+    if(!placed[idx]) return;
+    placed[idx]=null;
+    draw();
+  };
+  window.chkSeq=()=>{
+    const correctItems=placed.filter((it,i)=>it&&(it.id||it.text)===(items[i].id||items[i].text)).length;
+    recordAttempt({
+      prompt:'เรียงลำดับให้ถูกต้อง',
+      correctAnswer:items.map(it=>it.text).join(' > '),
+      studentAnswer:placed.map(it=>it?.text||'_').join(' > '),
+      isCorrect:correctItems===items.length
+    });
+    document.querySelectorAll('.slot').forEach((el,i)=>{
+      if(!placed[i]){el.classList.add('no');return;}
+      el.classList.add((placed[i].id||placed[i].text)===(items[i].id||items[i].text)?'ok':'no');
+    });
+    A.gs.earned=Math.round(correctItems/items.length*100);
+    document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+    document.querySelector('#g-content .btn')?.remove();
+    setTimeout(finishGame,1500);
+  };
+  A.gameCleanup=()=>{
+    delete window.seqPick;
+    delete window.seqRemove;
+    delete window.chkSeq;
+  };
+  draw();
+}
