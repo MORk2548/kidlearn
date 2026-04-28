@@ -260,8 +260,33 @@ function ensureAdvancedSchema(): void {
     addColumnIfMissing('parent_notifications', 'event_key', "VARCHAR(80) DEFAULT NULL AFTER notif_type");
 }
 
+function ensureGameQuestionBankSchema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    addColumnIfMissing('games', 'question_count', "INT DEFAULT NULL AFTER time_limit");
+    addColumnIfMissing('answers', 'answer_img', "MEDIUMTEXT DEFAULT NULL AFTER answer_text");
+    addColumnIfMissing('answers', 'pair_left_img', "MEDIUMTEXT DEFAULT NULL AFTER pair_left");
+    addColumnIfMissing('answers', 'pair_right_img', "MEDIUMTEXT DEFAULT NULL AFTER pair_right");
+}
+
 function jsonEncodeSafe(array $data): string {
     return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function arrayShuffleStable(array $rows): array {
+    if (count($rows) < 2) return array_values($rows);
+    $copy = array_values($rows);
+    shuffle($copy);
+    return $copy;
+}
+
+function arrayTakeRandom(array $rows, int $count): array {
+    $rows = array_values($rows);
+    if ($count <= 0 || count($rows) <= $count) return $rows;
+    shuffle($rows);
+    return array_slice($rows, 0, $count);
 }
 
 function logAudit(string $actionType, string $entityType, string $entityId = '', string $summary = '', array $meta = []): void {
@@ -434,7 +459,7 @@ match ($action) {
     'save_lesson'     => handleSaveLessonV2(),
     'lesson_history'  => handleLessonHistory(),
     'delete_lesson'   => handleDeleteLesson(),
-    'save_game_settings' => handleSaveGameSettings(),
+    'save_game_settings' => handleSaveGameSettingsV2(),
     'student_analytics' => handleStudentAnalytics(),
     'student_plans'     => handleStudentPlansV2(),
     'create_plan'       => handleCreatePlanV3(),
@@ -448,9 +473,9 @@ match ($action) {
     'save_subject'       => handleSaveSubject(),
     'toggle_subject'     => handleToggleSubject(),
     // 4.0 game questions
-    'game_questions'     => handleGetGameQuestions(),
-    'play_questions'     => handlePlayQuestions(),   // เนเธซเธฅเธ”เธเธณเธ–เธฒเธกเธชเธณเธซเธฃเธฑเธเน€เธฅเนเธเน€เธเธก
-    'save_question'      => handleSaveQuestion(),
+    'game_questions'     => handleGetGameQuestionsV2(),
+    'play_questions'     => handlePlayQuestionsV2(),
+    'save_question'      => handleSaveQuestionV2(),
     'delete_question'    => handleDeleteQuestion(),
     // 8.0 reports
     'report'             => handleReportV2(),
@@ -1300,14 +1325,34 @@ function handleMarkNotifRead(): never {
 // ============================================================
 
 function handleTeacherStats(): never {
-    authRole('teacher', 'admin');
-    $stats = DB::get()->all("SELECT * FROM v_teacher_stats ORDER BY subject_id");
-    $total = DB::get()->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=1");
+    authRole('teacher', 'admin', 'officer');
+    $db = DB::get();
+    // Try view first, fall back to direct query if view doesn't exist
+    $fallback_query = "SELECT sub.subject_id, sub.name AS subject_name, sub.color AS subject_color,
+                     sub.icon,
+                     COUNT(DISTINCT sc.student_id)        AS student_count,
+                     COUNT(sc.score_id)                   AS total_plays,
+                     ROUND(AVG(CASE WHEN sc.max_score > 0 THEN sc.score / sc.max_score * 100 ELSE sc.score END), 1) AS avg_score,
+                     MAX(sc.score)                        AS best_score
+              FROM subjects sub
+              LEFT JOIN scores sc ON sc.subject_id = sub.subject_id
+              GROUP BY sub.subject_id, sub.name, sub.color, sub.icon
+              ORDER BY sub.subject_id";
+    try {
+        $stats = $db->all("SELECT * FROM v_teacher_stats ORDER BY subject_id");
+        // If view exists but returns nothing, fall back to direct query
+        if (empty($stats)) {
+            $stats = $db->all($fallback_query);
+        }
+    } catch (\Exception $e) {
+        $stats = $db->all($fallback_query);
+    }
+    $total = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=1");
     DB::ok(['subjects' => $stats, 'total_students' => (int)$total['c']]);
 }
 
 function handleAllStudents(): never {
-    authRole('teacher', 'admin');
+    authRole('teacher', 'admin', 'officer');
     $db       = DB::get();
     $students = $db->all(
         "SELECT u.user_id, st.student_id, u.full_name, st.grade,
@@ -2378,6 +2423,314 @@ function handlePlayQuestions(): never {
     DB::ok(array_merge(['game' => $game, 'type' => $type], $formatted));
 }
 
+function handleSaveGameSettingsV2(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    ensureGameQuestionBankSchema();
+
+    $db        = DB::get();
+    $gameId    = (int)($body['game_id'] ?? 0);
+    $timeLimit = (int)($body['time_limit'] ?? 0);
+    $questionCountRaw = isset($body['question_count']) ? (int)$body['question_count'] : 0;
+
+    if (!$gameId) DB::fail('Missing game_id', 400);
+    if ($timeLimit < 10 || $timeLimit > 3600) DB::fail('Time limit must be between 10 and 3600 seconds', 400);
+    if ($questionCountRaw < 0 || $questionCountRaw > 100) DB::fail('Question count must be between 0 and 100', 400);
+
+    $game = $db->one("SELECT game_id, game_type FROM games WHERE game_id=? LIMIT 1", [$gameId], 'i');
+    if (!$game) DB::fail('Game not found', 404);
+
+    $questionCount = $questionCountRaw > 0 ? $questionCountRaw : null;
+    if (($game['game_type'] ?? '') === 'wordsearch' && $questionCount !== null) {
+        $questionCount = max(1, min(10, $questionCount));
+    }
+
+    $db->run(
+        "UPDATE games SET time_limit=?, question_count=? WHERE game_id=?",
+        [$timeLimit, $questionCount, $gameId],
+        'iii'
+    );
+
+    DB::ok([
+        'message' => 'Game settings saved',
+        'time_limit' => $timeLimit,
+        'question_count' => $questionCount,
+    ]);
+}
+
+function handleGetGameQuestionsV2(): never {
+    auth();
+    ensureQuestionImageColumnCapacity();
+    ensureGameQuestionBankSchema();
+
+    $gid = (int)($_GET['game_id'] ?? 0);
+    if (!$gid) DB::fail('Missing game_id', 400);
+
+    $db = DB::get();
+    $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
+    if (!$game) DB::fail('Game not found', 404);
+
+    $questions = $db->all(
+        "SELECT * FROM questions WHERE game_id=? ORDER BY order_no, question_id",
+        [$gid],
+        'i'
+    );
+
+    foreach ($questions as &$question) {
+        $question['answers'] = $db->all(
+            "SELECT answer_id, question_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order
+             FROM answers
+             WHERE question_id=?
+             ORDER BY COALESCE(seq_order, 999999), answer_id",
+            [$question['question_id']],
+            'i'
+        );
+    }
+    unset($question);
+
+    DB::ok(['game' => $game, 'questions' => $questions]);
+}
+
+function handleSaveQuestionV2(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    ensureQuestionImageColumnCapacity();
+    ensureGameQuestionBankSchema();
+
+    $db   = DB::get();
+    $qid  = (int)($body['question_id'] ?? 0);
+    $gid  = (int)($body['game_id'] ?? 0);
+    $text = trim((string)($body['question_text'] ?? ''));
+    $hint = trim((string)($body['hint'] ?? ''));
+    $questionImg = trim((string)($body['question_img'] ?? ''));
+    $order = (int)($body['order_no'] ?? 1);
+    $answers = is_array($body['answers'] ?? null) ? $body['answers'] : [];
+
+    if (!$gid || $text === '') DB::fail('Missing game_id or question_text', 400);
+
+    if ($qid) {
+        $db->run(
+            "UPDATE questions SET question_text=?, question_img=?, hint=?, order_no=? WHERE question_id=?",
+            [$text, $questionImg ?: null, $hint ?: null, $order, $qid],
+            'sssii'
+        );
+        $db->run("DELETE FROM answers WHERE question_id=?", [$qid], 'i');
+    } else {
+        $db->run(
+            "INSERT INTO questions (game_id, question_text, question_img, hint, order_no) VALUES (?,?,?,?,?)",
+            [$gid, $text, $questionImg ?: null, $hint ?: null, $order],
+            'isssi'
+        );
+        $qid = $db->insertId();
+    }
+
+    foreach ($answers as $answer) {
+        if (!is_array($answer)) continue;
+        $answerText = trim((string)($answer['answer_text'] ?? ''));
+        $answerImg = trim((string)($answer['answer_img'] ?? ''));
+        $pairLeft = trim((string)($answer['pair_left'] ?? ''));
+        $pairLeftImg = trim((string)($answer['pair_left_img'] ?? ''));
+        $pairRight = trim((string)($answer['pair_right'] ?? ''));
+        $pairRightImg = trim((string)($answer['pair_right_img'] ?? ''));
+        $isCorrect = !empty($answer['is_correct']) ? 1 : 0;
+        $seqOrder = array_key_exists('seq_order', $answer) ? (int)$answer['seq_order'] : null;
+
+        $hasAnswer = ($answerText !== '' || $answerImg !== '');
+        $hasPair = ($pairLeft !== '' || $pairLeftImg !== '' || $pairRight !== '' || $pairRightImg !== '');
+        if (!$hasAnswer && !$hasPair) continue;
+
+        $db->run(
+            "INSERT INTO answers (question_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order)
+             VALUES (?,?,?,?,?,?,?,?,?)",
+            [
+                $qid,
+                $answerText,
+                $answerImg ?: null,
+                $isCorrect,
+                $pairLeft ?: null,
+                $pairLeftImg ?: null,
+                $pairRight ?: null,
+                $pairRightImg ?: null,
+                $seqOrder
+            ],
+            'ississssi'
+        );
+    }
+
+    DB::ok(['question_id' => $qid]);
+}
+
+function handlePlayQuestionsV2(): never {
+    ensureQuestionImageColumnCapacity();
+    ensureGameQuestionBankSchema();
+
+    $db  = DB::get();
+    $gid = (int)($_GET['game_id'] ?? 0);
+    if (!$gid) DB::fail('Missing game_id', 400);
+
+    $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
+    if (!$game) DB::fail('Game not found', 404);
+
+    $type = (string)($game['game_type'] ?? '');
+    $requestedCount = (int)($game['question_count'] ?? 0);
+    $questions = $db->all(
+        "SELECT question_id, question_text, question_img, hint, question_type, order_no
+         FROM questions
+         WHERE game_id=?
+         ORDER BY order_no, question_id",
+        [$gid],
+        'i'
+    );
+
+    if (in_array($type, ['mcq', 'truefalse', 'fill'], true) && $requestedCount > 0) {
+        $questions = arrayTakeRandom($questions, $requestedCount);
+    }
+
+    $result = [];
+    foreach ($questions as $question) {
+        $answers = $db->all(
+            "SELECT answer_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order
+             FROM answers
+             WHERE question_id=?
+             ORDER BY COALESCE(seq_order, 999999), answer_id",
+            [$question['question_id']],
+            'i'
+        );
+
+        if ($type === 'mcq') {
+            $options = [];
+            $correctIndex = 0;
+            foreach ($answers as $idx => $answer) {
+                $options[] = [
+                    'text' => (string)($answer['answer_text'] ?? ''),
+                    'img' => (string)($answer['answer_img'] ?? ''),
+                ];
+                if (!empty($answer['is_correct'])) $correctIndex = $idx;
+            }
+            if ($options) {
+                $result[] = [
+                    'q' => $question['question_text'],
+                    'img' => $question['question_img'],
+                    'hint' => $question['hint'] ?? '',
+                    'opts' => $options,
+                    'ans' => $correctIndex,
+                ];
+            }
+            continue;
+        }
+
+        if ($type === 'truefalse') {
+            $correctValue = true;
+            foreach ($answers as $answer) {
+                if (empty($answer['is_correct'])) continue;
+                $normalized = mb_strtolower(trim((string)($answer['answer_text'] ?? '')), 'UTF-8');
+                $correctValue = in_array($normalized, ['true', 'yes', 'ถูก', 'จริง'], true);
+                break;
+            }
+            $result[] = [
+                'q' => $question['question_text'],
+                'img' => $question['question_img'],
+                'ans' => $correctValue,
+            ];
+            continue;
+        }
+
+        if ($type === 'fill') {
+            $correctText = '';
+            foreach ($answers as $answer) {
+                if (!empty($answer['is_correct'])) {
+                    $correctText = (string)($answer['answer_text'] ?? '');
+                    break;
+                }
+            }
+            $result[] = [
+                'q' => $question['question_text'],
+                'img' => $question['question_img'],
+                'hint' => $question['hint'] ?? '',
+                'ans' => $correctText,
+            ];
+            continue;
+        }
+
+        if ($type === 'matching') {
+            foreach ($answers as $idx => $answer) {
+                $leftText = trim((string)($answer['pair_left'] ?? ''));
+                $leftImg = trim((string)($answer['pair_left_img'] ?? ''));
+                $rightText = trim((string)($answer['pair_right'] ?? ''));
+                $rightImg = trim((string)($answer['pair_right_img'] ?? ''));
+
+                if ($leftText === '' && $leftImg === '' && $idx === 0) {
+                    $leftText = trim((string)($question['question_text'] ?? ''));
+                    $leftImg = trim((string)($question['question_img'] ?? ''));
+                }
+                if ($rightText === '' && $rightImg === '') {
+                    $rightText = trim((string)($answer['answer_text'] ?? ''));
+                    $rightImg = trim((string)($answer['answer_img'] ?? ''));
+                }
+
+                if ($leftText === '' && $leftImg === '') continue;
+                if ($rightText === '' && $rightImg === '') continue;
+
+                $result[] = [
+                    'id' => 'm' . $question['question_id'] . '_' . ($answer['answer_id'] ?? $idx),
+                    'left' => $leftText,
+                    'left_img' => $leftImg,
+                    'right' => $rightText,
+                    'right_img' => $rightImg,
+                ];
+            }
+            continue;
+        }
+
+        if ($type === 'sequence') {
+            foreach ($answers as $idx => $answer) {
+                $text = trim((string)($answer['answer_text'] ?? ''));
+                if ($text === '') continue;
+                $result[] = [
+                    'id' => 's' . $question['question_id'] . '_' . ($answer['answer_id'] ?? $idx),
+                    'text' => $text,
+                    'order' => (int)($answer['seq_order'] ?? ($idx + 1)),
+                ];
+            }
+            continue;
+        }
+
+        if ($type === 'wordsearch') {
+            foreach ($answers as $answer) {
+                $word = trim((string)($answer['answer_text'] ?? ''));
+                if ($word !== '') $result[] = $word;
+            }
+            if (!$answers) {
+                $word = trim((string)($question['question_text'] ?? ''));
+                if ($word !== '') $result[] = $word;
+            }
+        }
+    }
+
+    if ($type === 'matching') {
+        $pairCount = $requestedCount > 0 ? $requestedCount : count($result);
+        $result = arrayTakeRandom($result, $pairCount);
+        DB::ok(['game' => $game, 'type' => $type, 'pairs' => $result]);
+    }
+
+    if ($type === 'sequence') {
+        if ($requestedCount > 0 && count($result) > $requestedCount) {
+            $result = arrayTakeRandom($result, $requestedCount);
+        }
+        usort($result, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+        DB::ok(['game' => $game, 'type' => $type, 'items' => $result]);
+    }
+
+    if ($type === 'wordsearch') {
+        $result = array_values(array_unique(array_filter($result, fn($word) => trim((string)$word) !== '')));
+        $wordCount = $requestedCount > 0 ? min(10, $requestedCount) : 10;
+        $result = arrayTakeRandom($result, $wordCount);
+        DB::ok(['game' => $game, 'type' => $type, 'words' => $result]);
+    }
+
+    DB::ok(['game' => $game, 'type' => $type, 'qs' => $result]);
+}
+
 // ============================================================
 // OFFICER HANDLERS โ€” เน€เธเนเธฒเธซเธเนเธฒเธ—เธตเนเธเธฑเธ”เธเธฒเธฃเธเธนเนเนเธเน
 // ============================================================
@@ -2781,4 +3134,3 @@ function handleCreatePlanV3(): never {
         'created_count' => count($createdPlans),
     ]);
 }
-

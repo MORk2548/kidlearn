@@ -131,16 +131,16 @@ async function selectTcStudent(sid){
     return;
   }
 
-  const TYPE_LBL={mcq:'MCQ',truefalse:'à¸ˆà¸£à¸´à¸‡/à¹€à¸—à¹‡à¸ˆ',fill:'à¹€à¸•à¸´à¸¡à¸„à¸³',matching:'à¸ˆà¸±à¸šà¸„à¸¹à¹ˆ',sequence:'à¹€à¸£à¸µà¸¢à¸‡à¸¥à¸³à¸”à¸±à¸š',wordsearch:'à¸„à¹‰à¸™à¸«à¸²à¸„à¸³'};
+  const TYPE_LBL={mcq:'MCQ',truefalse:'à¸ˆà¸£à¸´à¸‡/à¹€à¸—à¹‡à¸ˆ',fill:'à¹€à¸•à¸´à¸¡à¸„à¸³',matching:'à¸ˆà¸±à¸šà¸„à¸¹à¹ˆ',sequence:'à¹€à¸£à¸µà¸¢à¸‡à¸¥à¸³à¸”à¸±à¸š',wordsearch:'Search'};
   // à¸ªà¸£à¸¸à¸›à¸£à¸²à¸¢à¸§à¸´à¸Šà¸²
   const bySub={};
   sc.forEach(s=>{
     const k=s.subject_name||'à¸­à¸·à¹ˆà¸™à¹†';
-    if(!bySub[k])bySub[k]={plays:0,total:0};
-    bySub[k].plays++;bySub[k].total+=(+s.score||0);
+    if(!bySub[k])bySub[k]={plays:0,total:0,totalMax:0};
+    bySub[k].plays++;bySub[k].total+=(+s.score||0);bySub[k].totalMax+=(+s.max_score||100);
   });
   const sumHtml=Object.entries(bySub).map(([n,d])=>{
-    const avg=Math.round(d.total/d.plays),c=avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
+    const avg=d.totalMax?Math.round(d.total/d.totalMax*100):0,c=avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
     return `<div style="display:flex;align-items:center;gap:.6rem;padding:.3rem 0">
       <div style="font-size:.8rem;color:#374151;min-width:100px">${n}</div>
       <div style="flex:1;height:7px;background:#E2E8F0;border-radius:4px">
@@ -149,6 +149,40 @@ async function selectTcStudent(sid){
       <div style="font-weight:700;color:${c};font-size:.82rem;min-width:40px;text-align:right">${avg}%</div>
       <div style="font-size:.72rem;color:var(--mu);min-width:48px">${d.plays} à¸„à¸£à¸±à¹‰à¸‡</div>
     </div>`;
+  }).join('');
+
+  // Group by subject for table
+  const groups={};
+  sc.forEach(s=>{
+    const k=s.subject_name||'à¸­à¸·à¹ˆà¸™à¹†';
+    if(!groups[k])groups[k]={name:k,plays:0,totalScore:0,totalMax:0,time:0,best:0,rows:[]};
+    const score=+s.score||0,max=+s.max_score||100;
+    groups[k].plays++;groups[k].totalScore+=score;groups[k].totalMax+=max;
+    groups[k].time+=+s.time_spent||0;
+    groups[k].best=Math.max(groups[k].best,Math.round(score/max*100));
+    groups[k].rows.push(s);
+  });
+  const tableRows=Object.values(groups).map(g=>({...g,avg:g.totalMax?Math.round(g.totalScore/g.totalMax*100):0})).map(group=>{
+    const header=`<tr><td colspan="4" style="background:#F8FAFC;padding:.75rem 1rem;border-bottom:1px solid #E2E8F0">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <div><strong style="font-size:.88rem">${group.name}</strong>
+          <div style="font-size:.73rem;color:var(--mu)">à¹€à¸¥à¹ˆà¸™ ${group.plays} à¸„à¸£à¸±à¹‰à¸‡ â€¢ à¹€à¸‰à¸¥à¸µà¹ˆà¸¢ ${group.avg}% â€¢ Best ${group.best}%</div>
+        </div>
+        <div style="font-size:.76rem;color:#475569">${Math.round(group.time/60)} à¸™à¸²à¸—à¸µ</div>
+      </div></td></tr>`;
+    const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
+      const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
+      return `<tr style="border-bottom:1px solid #F1F5F9">
+        <td style="padding:.5rem .75rem">${s.game_name||'â€”'}<br><span style="font-size:.7rem;color:var(--mu)">${TYPE_LBL[s.game_type]||''}</span></td>
+        <td style="padding:.5rem .75rem;text-align:center">
+          <strong style="color:${c}">${pct}%</strong><span style="color:#9CA3AF"> (${s.score}/${s.max_score||100})</span>
+          ${pct>=80?' â­â­â­':pct>=50?' â­â­':pct>0?' â­':''}
+        </td>
+        <td style="padding:.5rem .75rem;text-align:center;color:var(--mu)">${s.time_spent?s.time_spent+'à¸§à¸´':'â€”'}</td>
+        <td style="padding:.5rem .75rem">${s.played_at?new Date(s.played_at).toLocaleDateString('th-TH'):'â€”'}</td>
+      </tr>`;
+    }).join('');
+    return header+rows;
   }).join('');
 
   hist.innerHTML=`
@@ -160,30 +194,14 @@ async function selectTcStudent(sid){
       <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.4rem">à¸ªà¸£à¸¸à¸›à¸£à¸²à¸¢à¸§à¸´à¸Šà¸²</div>${sumHtml}</div>`:''}
     <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.4rem">à¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸” ${sc.length} à¸„à¸£à¸±à¹‰à¸‡</div>
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:400px">
-      <thead><tr style="background:#F1F5F9">
-        <th style="padding:.5rem .75rem;text-align:left">à¸§à¸´à¸Šà¸²</th>
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:350px">
+      <thead><tr style="background:#1E3A5F;color:#fff">
         <th style="padding:.5rem .75rem;text-align:left">à¹€à¸à¸¡</th>
-        <th style="padding:.5rem .75rem;text-align:center">à¸šà¸—</th>
         <th style="padding:.5rem .75rem;text-align:center">à¸„à¸°à¹à¸™à¸™</th>
         <th style="padding:.5rem .75rem;text-align:center">à¹€à¸§à¸¥à¸²</th>
         <th style="padding:.5rem .75rem;text-align:left">à¸§à¸±à¸™à¸—à¸µà¹ˆ</th>
       </tr></thead>
-      <tbody>${sc.slice(0,30).map(s=>{
-        const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
-        const lesson=parseInt(s.lesson_no,10)>0?`à¸šà¸— ${parseInt(s.lesson_no,10)}`:'â€”';
-        return `<tr style="border-bottom:1px solid #F1F5F9">
-          <td style="padding:.5rem .75rem">${s.subject_name||'â€”'}</td>
-          <td style="padding:.5rem .75rem">${s.game_name||'â€”'}<br><span style="font-size:.7rem;color:var(--mu)">${TYPE_LBL[s.game_type]||''}</span></td>
-          <td style="padding:.5rem .75rem;text-align:center">${lesson}</td>
-          <td style="padding:.5rem .75rem;text-align:center">
-            <strong style="color:${c}">${s.score}</strong><span style="color:#9CA3AF">/${s.max_score||100}</span>
-            ${pct>=80?' â­â­â­':pct>=50?' â­â­':pct>0?' â­':''}
-          </td>
-          <td style="padding:.5rem .75rem;text-align:center;color:var(--mu)">${s.time_spent||'â€”'}à¸§à¸´</td>
-          <td style="padding:.5rem .75rem">${s.played_at?new Date(s.played_at).toLocaleDateString('th-TH'):'â€”'}</td>
-        </tr>`;
-      }).join('')}</tbody>
+      <tbody>${tableRows}</tbody>
     </table></div>`;
 }
 
@@ -192,9 +210,11 @@ function renderTcSubTable(subjects=[]){
   if(!tb)return;
   if(!subjects.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:1.5rem">à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰à¸­à¸¡à¸¹à¸¥</td></tr>';return;}
   tb.innerHTML=subjects.map(s=>{
+    const localSub=(typeof SUBS!=='undefined')?SUBS.find(x=>x.id==s.subject_id):null;
+    const icon=s.icon||localSub?.icon||'ğŸ“š';
     const avg=Math.round(+s.avg_score||0),c=avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
     return `<tr style="cursor:pointer;border-bottom:1px solid #F1F5F9" onclick="selectTcSubject(${s.subject_id})">
-      <td style="padding:.65rem .75rem;font-weight:600">${s.icon||'ğŸ“š'} ${s.subject_name}</td>
+      <td style="padding:.65rem .75rem;font-weight:600">${icon} ${s.subject_name}</td>
       <td style="padding:.65rem .75rem;text-align:center">${s.student_count||0}</td>
       <td style="padding:.65rem .75rem;text-align:center">${s.total_plays||0}</td>
       <td style="padding:.65rem .75rem;min-width:130px">
@@ -739,17 +759,17 @@ async function renderTcPlanPanel(){
 
   panel.innerHTML=`
     <div class="ts">
-      <h3>ÁÍºËÁÒÂá¼¹¡ÒÃàÃÕÂ¹/ÀÒÃ¡Ô¨ÃÒÂÊÑ»´ÒËì</h3>
+      <h3>ï¿½Íºï¿½ï¿½ï¿½ï¿½á¼¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¹/ï¿½ï¿½Ã¡Ô¨ï¿½ï¿½ï¿½ï¿½Ñ»ï¿½ï¿½ï¿½ï¿½</h3>
       <div style="margin-bottom:.75rem;padding:.75rem;border-radius:14px;background:#F8FAFC;border:1px solid #E2E8F0">
         <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
           <div>
-            <div style="font-size:.82rem;font-weight:800;color:#0F172A">àÅ×Í¡¹Ñ¡àÃÕÂ¹ã¹Ë¹éÒ¹Õéä´éàÅÂ</div>
-            <div style="font-size:.76rem;color:#64748B">àÅ×Í¡·ÕÅĞ¤¹ËÃ×ÍËÅÒÂ¤¹¡çä´é áÅéÇãªéá¼¹à´ÕÂÇ¡Ñ¹Êè§¾ÃéÍÁ¡Ñ¹</div>
+            <div style="font-size:.82rem;font-weight:800;color:#0F172A">ï¿½ï¿½ï¿½Í¡ï¿½Ñ¡ï¿½ï¿½ï¿½Â¹ï¿½Ë¹ï¿½Ò¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</div>
+            <div style="font-size:.76rem;color:#64748B">ï¿½ï¿½ï¿½Í¡ï¿½ï¿½ï¿½Ğ¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¤ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¼¹ï¿½ï¿½ï¿½Ç¡Ñ¹ï¿½è§¾ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¹</div>
           </div>
           <div style="display:flex;gap:.45rem;flex-wrap:wrap">
-            <button class="btn btn-sm" onclick="selectAllTcPlanStudents()">àÅ×Í¡·Ñé§ËÁ´</button>
-            <button class="btn btn-sm" onclick="clearTcPlanStudents()">ÅéÒ§·ÕèàÅ×Í¡</button>
-            <button class="btn btn-sm" onclick="setTcPlanFilter(null)">´Ù·Ø¡á¼¹</button>
+            <button class="btn btn-sm" onclick="selectAllTcPlanStudents()">ï¿½ï¿½ï¿½Í¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</button>
+            <button class="btn btn-sm" onclick="clearTcPlanStudents()">ï¿½ï¿½Ò§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¡</button>
+            <button class="btn btn-sm" onclick="setTcPlanFilter(null)">ï¿½Ù·Ø¡á¼¹</button>
           </div>
         </div>
         <div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:.5rem">
@@ -761,21 +781,21 @@ async function renderTcPlanPanel(){
               <label style="display:flex;align-items:center;gap:.45rem;padding:.55rem .75rem;border:1px solid ${active?'#818CF8':'#CBD5E1'};border-radius:999px;background:${active?'#EEF2FF':'#fff'};cursor:pointer">
                 <input type="checkbox" class="tc-plan-student" value="${sid}" ${checked?'checked':''} onchange="toggleTcPlanStudent(${sid}, this.checked)">
                 <span style="font-weight:700;color:#0F172A">${student.full_name}</span>
-                <button type="button" class="btn btn-sm" style="padding:.2rem .5rem" onclick="event.preventDefault();event.stopPropagation();selectOnlyTcPlanStudent(${sid})">´Ùá¼¹</button>
+                <button type="button" class="btn btn-sm" style="padding:.2rem .5rem" onclick="event.preventDefault();event.stopPropagation();selectOnlyTcPlanStudent(${sid})">ï¿½ï¿½á¼¹</button>
               </label>`;
-          }).join('') || '<div style="color:var(--mu)">ÂÑ§äÁè¾º¹Ñ¡àÃÕÂ¹</div>'}
+          }).join('') || '<div style="color:var(--mu)">ï¿½Ñ§ï¿½ï¿½è¾ºï¿½Ñ¡ï¿½ï¿½ï¿½Â¹</div>'}
         </div>
         <div style="margin-top:.7rem;font-size:.78rem;color:${selectedStudentIds.length?'#166534':'#92400E'};font-weight:700">
-          ${selectedStudentIds.length ? `¾ÃéÍÁÁÍºËÁÒÂãËé ${selectedStudentIds.length} ¤¹: ${selectedStudentNames.join(', ')}` : 'ÂÑ§äÁèä´éàÅ×Í¡¹Ñ¡àÃÕÂ¹ÊÓËÃÑºÁÍºËÁÒÂ'}
+          ${selectedStudentIds.length ? `ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ${selectedStudentIds.length} ï¿½ï¿½: ${selectedStudentNames.join(', ')}` : 'ï¿½Ñ§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¡ï¿½Ñ¡ï¿½ï¿½ï¿½Â¹ï¿½ï¿½ï¿½ï¿½Ñºï¿½Íºï¿½ï¿½ï¿½ï¿½'}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.75rem">
-        <input id="tc-plan-title" class="fc" placeholder="àªè¹ ·º·Ç¹¤³ÔµÊÑ»´ÒËì¹Õé">
+        <input id="tc-plan-title" class="fc" placeholder="ï¿½ï¿½ ï¿½ï¿½ï¿½Ç¹ï¿½ï¿½Ôµï¿½Ñ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½">
         <input id="tc-plan-week" class="fc" type="date" value="${new Date().toISOString().slice(0,10)}">
         <input id="tc-plan-due" class="fc" type="datetime-local">
       </div>
-      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="Í¸ÔºÒÂà»éÒËÁÒÂËÃ×Í¤Óá¹Ğ¹ÓÊÓËÃÑº¼Ùé»¡¤ÃÍ§"></textarea>
-      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">àÅ×Í¡à¡ÁÊÓËÃÑºá¼¹</div>
+      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="Í¸Ôºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¤ï¿½ï¿½Ğ¹ï¿½ï¿½ï¿½ï¿½ï¿½Ñºï¿½ï¿½é»¡ï¿½ï¿½Í§"></textarea>
+      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">ï¿½ï¿½ï¿½Í¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñºá¼¹</div>
       <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
         ${selectedGames.map(g=>`
           <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .75rem;border:1px solid #E5E7EB;border-radius:999px;background:#fff">
@@ -784,18 +804,18 @@ async function renderTcPlanPanel(){
           </label>`).join('')}
       </div>
       <div style="margin-top:.85rem;display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
-        <div style="font-size:.76rem;color:var(--mu)">${filterId ? `¡ÓÅÑ§´Ùá¼¹¢Í§ ${(A.tcStudents||[]).find(s=>+s.student_id===+filterId)?.full_name || '¹Ñ¡àÃÕÂ¹·ÕèàÅ×Í¡'}` : '¡ÓÅÑ§´Ùá¼¹¢Í§¹Ñ¡àÃÕÂ¹·Ñé§ËÁ´'}</div>
-        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${selectedStudentIds.length?'':'disabled style="opacity:.55;cursor:not-allowed"'}>ÁÍºËÁÒÂá¼¹</button>
+        <div style="font-size:.76rem;color:var(--mu)">${filterId ? `ï¿½ï¿½ï¿½Ñ§ï¿½ï¿½á¼¹ï¿½Í§ ${(A.tcStudents||[]).find(s=>+s.student_id===+filterId)?.full_name || 'ï¿½Ñ¡ï¿½ï¿½ï¿½Â¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¡'}` : 'ï¿½ï¿½ï¿½Ñ§ï¿½ï¿½á¼¹ï¿½Í§ï¿½Ñ¡ï¿½ï¿½ï¿½Â¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½'}</div>
+        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${selectedStudentIds.length?'':'disabled style="opacity:.55;cursor:not-allowed"'}>ï¿½Íºï¿½ï¿½ï¿½ï¿½á¼¹</button>
       </div>
     </div>
     <div class="ts">
-      <h3>á¼¹·ÕèÁÍºËÁÒÂáÅéÇ</h3>
+      <h3>á¼¹ï¿½ï¿½ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</h3>
       ${planList.length?planList.map(plan=>`
         <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
           <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start">
             <div>
               <strong>${plan.title}</strong>
-              <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${plan.student_name||'¹Ñ¡àÃÕÂ¹'} • ÊÑ»´ÒËì ${plan.week_start||'-'} ${plan.due_at?`• ¤Ãº¡ÓË¹´ ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
+              <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${plan.student_name||'ï¿½Ñ¡ï¿½ï¿½ï¿½Â¹'} ï¿½ ï¿½Ñ»ï¿½ï¿½ï¿½ï¿½ ${plan.week_start||'-'} ${plan.due_at?`ï¿½ ï¿½Ãºï¿½ï¿½Ë¹ï¿½ ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
             </div>
             <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.items.filter(i=>(+i.best_score||0) >= (+i.target_score||80)).length}/${plan.items.length}</span>
           </div>
@@ -803,30 +823,30 @@ async function renderTcPlanPanel(){
           <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.35rem">
             ${plan.items.map(item=>`<span class="badge" style="background:${(+item.best_score||0) >= (+item.target_score||80)?'#DCFCE7':'#FEF3C7'};color:${(+item.best_score||0) >= (+item.target_score||80)?'#166534':'#92400E'}">${item.game_name} ${item.best_score||0}/${item.target_score||80}</span>`).join('')}
           </div>
-        </div>`).join(''):'<div style="color:var(--mu)">ÂÑ§äÁèÁÕá¼¹·ÕèÁÍºËÁÒÂ</div>'}
+        </div>`).join(''):'<div style="color:var(--mu)">ï¿½Ñ§ï¿½ï¿½ï¿½ï¿½ï¿½á¼¹ï¿½ï¿½ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½</div>'}
     </div>`;
 }
 
 async function submitWeeklyPlan(){
   const selectedStudentIds=[...new Set([...[...document.querySelectorAll('.tc-plan-student:checked')].map(el=>+el.value), ...getSelectedTcPlanStudents()])].filter(Boolean);
-  if(!selectedStudentIds.length){ alert('àÅ×Í¡¹Ñ¡àÃÕÂ¹ÍÂèÒ§¹éÍÂ 1 ¤¹'); return; }
-  const title=document.getElementById('tc-plan-title')?.value.trim() || 'á¼¹ÃÒÂÊÑ»´ÒËì';
+  if(!selectedStudentIds.length){ alert('ï¿½ï¿½ï¿½Í¡ï¿½Ñ¡ï¿½ï¿½ï¿½Â¹ï¿½ï¿½ï¿½Ò§ï¿½ï¿½ï¿½ï¿½ 1 ï¿½ï¿½'); return; }
+  const title=document.getElementById('tc-plan-title')?.value.trim() || 'á¼¹ï¿½ï¿½ï¿½ï¿½Ñ»ï¿½ï¿½ï¿½ï¿½';
   const description=document.getElementById('tc-plan-desc')?.value.trim() || '';
   const weekStart=document.getElementById('tc-plan-week')?.value || new Date().toISOString().slice(0,10);
   const dueAt=document.getElementById('tc-plan-due')?.value || '';
   const items=[...document.querySelectorAll('.tc-plan-game:checked')].map((el,idx)=>({ game_id:+el.value, lesson_no:1, target_score:80, sort_order:idx+1 }));
-  if(!items.length){ alert('àÅ×Í¡à¡ÁÍÂèÒ§¹éÍÂ 1 à¡Á'); return; }
+  if(!items.length){ alert('ï¿½ï¿½ï¿½Í¡ï¿½ï¿½ï¿½ï¿½ï¿½Ò§ï¿½ï¿½ï¿½ï¿½ 1 ï¿½ï¿½'); return; }
 
   A.tcPlanStudents=selectedStudentIds;
   const payload={ title, description, week_start:weekStart, due_at:dueAt, items };
   if(selectedStudentIds.length===1) payload.student_id=selectedStudentIds[0];
   else payload.student_ids=selectedStudentIds;
 
-  const res=await apiCreatePlan(payload).catch(()=>({ok:false,error:'àª×èÍÁµèÍäÁèä´é'}));
-  if(!res.ok){ alert(res.error||'ÊÃéÒ§á¼¹äÁèÊÓàÃç¨'); return; }
+  const res=await apiCreatePlan(payload).catch(()=>({ok:false,error:'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½'}));
+  if(!res.ok){ alert(res.error||'ï¿½ï¿½ï¿½Ò§á¼¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½'); return; }
 
   A.tcPlanFilter=selectedStudentIds.length===1 ? selectedStudentIds[0] : null;
-  alert(`ÁÍºËÁÒÂá¼¹ÊÓàÃç¨ ${res.created_count || selectedStudentIds.length} ¤¹`);
+  alert(`ï¿½Íºï¿½ï¿½ï¿½ï¿½á¼¹ï¿½ï¿½ï¿½ï¿½ï¿½ ${res.created_count || selectedStudentIds.length} ï¿½ï¿½`);
   renderTcPlanPanel();
 }
 
@@ -973,4 +993,30 @@ async function submitWeeklyPlan(){
   A.tcPlanFilter=selectedStudentIds.length===1 ? selectedStudentIds[0] : null;
   alert(`${TC_PLAN_TEXT.createdPrefix} ${res.created_count || selectedStudentIds.length} ${TC_PLAN_TEXT.people}`);
   renderTcPlanPanel();
+}
+
+// â•â•â•â•â•â•â•â• LESSON/GAME EDITOR WRAPPERS FOR OFFICER â•â•â•â•â•â•â•â•
+function _renderLessonEditorIn(targetPanelId) {
+  // Temporarily alias the target panel as tc-lesson-panel, render, then restore id
+  const target = document.getElementById(targetPanelId);
+  if (!target) return;
+  const orig = document.getElementById('tc-lesson-panel');
+  if (orig && orig !== target) orig.id = '_tc-lesson-panel-hidden';
+  target.id = 'tc-lesson-panel';
+  _renderLessonEditor();
+  target.id = targetPanelId;
+  if (document.getElementById('_tc-lesson-panel-hidden'))
+    document.getElementById('_tc-lesson-panel-hidden').id = 'tc-lesson-panel';
+}
+
+function _renderGameEditorIn(targetPanelId) {
+  const target = document.getElementById(targetPanelId);
+  if (!target) return;
+  const orig = document.getElementById('tc-game-panel');
+  if (orig && orig !== target) orig.id = '_tc-game-panel-hidden';
+  target.id = 'tc-game-panel';
+  _renderGameEditor();
+  target.id = targetPanelId;
+  if (document.getElementById('_tc-game-panel-hidden'))
+    document.getElementById('_tc-game-panel-hidden').id = 'tc-game-panel';
 }

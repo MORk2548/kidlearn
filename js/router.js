@@ -61,14 +61,14 @@ function applyRoleUI() {
   document.getElementById('nli-teach').style.display    = isTc ? 'block' : 'none';
   document.getElementById('nli-officer').style.display  = isOf || isAd ? 'block' : 'none';
   document.getElementById('nli-executive').style.display = isEx || isAd ? 'block' : 'none';
-  document.getElementById('nli-scores').style.display   = isTc ? 'none'  : 'block';
+  document.getElementById('nli-scores').style.display   = (isTc || isOf) ? 'none'  : 'block';
   // Sidebar
   document.getElementById('sl-rec').style.display       = isPa ? 'flex'  : 'none';
   document.getElementById('sl-children').style.display  = isPa ? 'flex'  : 'none';
   document.getElementById('sl-teach').style.display     = isTc ? 'flex'  : 'none';
   document.getElementById('sl-officer').style.display   = isOf || isAd ? 'flex' : 'none';
   document.getElementById('sl-executive').style.display = isEx || isAd ? 'flex' : 'none';
-  document.getElementById('sl-scores').style.display    = isTc ? 'none'  : 'flex';
+  document.getElementById('sl-scores').style.display    = (isTc || isOf) ? 'none'  : 'flex';
   // Admin nav
   ['nli-admin','sl-admin'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=isAd?'block':'none';});
   ['sl-admin'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=isAd?'flex':'none';});

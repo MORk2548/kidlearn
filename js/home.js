@@ -322,6 +322,57 @@ async function openGameContent(gameId) {
     </div>`;
 }
 
+async function openSub(id){
+  A.curSub=SUBS.find(s=>s.id===id);
+  document.getElementById('games-hd').innerHTML=`${A.curSub.icon} ${A.curSub.name}`;
+  document.getElementById('games-back-btn').textContent='← กลับ';
+  document.getElementById('games-badge').style.display='none';
+  const grid=document.getElementById('games-grid');
+  grid.innerHTML='';
+  const TYPE_LBL={mcq:'🅰️ ตอบปรนัย',truefalse:'✅ จริง/เท็จ',fill:'✏️ เติมคำ',matching:'🔗 จับคู่',sequence:'📋 เรียงลำดับ',wordsearch:'🔍 ค้นหาคำ'};
+  const TYPE_BG={mcq:'#FFF3E0',truefalse:'#E8F5E9',fill:'#EDE7F6',matching:'#E3F2FD',sequence:'#FFF8E1',wordsearch:'#FCE4EC'};
+  const TYPE_COL={mcq:'#E65100',truefalse:'#1B5E20',fill:'#4527A0',matching:'#0D47A1',sequence:'#F57F17',wordsearch:'#880E4F'};
+  const lvlLbl={easy:'ง่าย',medium:'ปานกลาง',hard:'ยาก'};
+  const myGames=Object.values(GAMES_DB).filter(g=>g.sid===id);
+
+  let dbGamesMap={};
+  try{
+    const res=await apiGames(id);
+    if(res?.ok && Array.isArray(res.games)){
+      dbGamesMap=Object.fromEntries(res.games.map(game=>[String(game.game_id),game]));
+    }
+  }catch(e){
+    console.warn('[openSub] failed to load dynamic game meta',e);
+  }
+
+  myGames.forEach((gm,i)=>{
+    const dbMeta=dbGamesMap[String(jsKeyToDbId(gm.id))]||{};
+    const timeLimit=parseInt(dbMeta.time_limit,10)>0?parseInt(dbMeta.time_limit,10):(parseInt(gm.time,10)||60);
+    const tbg=TYPE_BG[gm.type]||'#F3F4F6';
+    const tc=TYPE_COL[gm.type]||'#374151';
+    grid.innerHTML+=`<div class="gc" style="animation-delay:${i*.07}s">
+      <div class="gc-thumb" style="background:linear-gradient(135deg,${A.curSub.color}25,${A.curSub.color}50)">
+        <span style="font-size:2.6rem">${gm.icon}</span>
+        <span class="gc-tag" style="background:${tbg};color:${tc}">${TYPE_LBL[gm.type]||gm.type}</span>
+      </div>
+      <div class="gc-body">
+        <div class="gc-title">${gm.name}</div>
+        <div class="gc-meta">
+          <span class="badge ${gm.lvl==='easy'?'be':gm.lvl==='medium'?'bm':'bh'}">${lvlLbl[gm.lvl]}</span>
+          <span>⏱ ${timeLimit} วิ</span>
+        </div>
+        ${A.role==='student'
+          ?`<div class="gc-lesson-btns">
+              <button class="lp-btn-read" onclick="openGameContent('${gm.id}')">📖 อ่านบทเรียน</button>
+              <button class="lp-btn-play" onclick="startLesson('${gm.id}',1)">🎮 เล่นเกม</button>
+            </div>`
+          :'<div style="font-size:.78rem;color:var(--mu);text-align:center;padding:.4rem 0">เฉพาะนักเรียนเล่นได้</div>'}
+      </div>
+    </div>`;
+  });
+  sec('games');
+}
+
 function closeLessons() {
   const wrap = document.getElementById('lesson-wrap');
   if (wrap) wrap.style.display = 'none';
