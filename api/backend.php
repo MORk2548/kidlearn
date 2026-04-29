@@ -2373,20 +2373,27 @@ function handlePlayQuestions(): never {
             }
         } elseif ($type === 'sequence') {
             if ($answers) {
+                $seqItems = [];
                 foreach ($answers as $i => $a) {
                     $text = trim((string)$a['answer_text']);
                     if ($text === '') continue;
-                    $result[] = [
+                    $seqItems[] = [
                         'id'    => 'q' . $qid . '_a' . ($a['answer_id'] ?? $i),
                         'text'  => $text,
                         'order' => (int)($a['seq_order'] ?? ($i + 1)),
                     ];
                 }
+                if (!empty($seqItems)) {
+                    usort($seqItems, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+                    $result[] = [
+                        'prompt' => trim((string)($q['question_text'] ?? '')),
+                        'items'  => $seqItems,
+                    ];
+                }
             } elseif (trim((string)$q['question_text']) !== '') {
                 $result[] = [
-                    'id'    => 'q' . $qid,
-                    'text'  => trim((string)$q['question_text']),
-                    'order' => (int)($q['order_no'] ?? 1),
+                    'prompt' => trim((string)$q['question_text']),
+                    'items'  => [['id' => 'q' . $qid, 'text' => trim((string)$q['question_text']), 'order' => 1]],
                 ];
             }
         } elseif ($type === 'wordsearch') {
@@ -2413,7 +2420,7 @@ function handlePlayQuestions(): never {
     if ($type === 'matching') {
         $formatted = ['pairs' => $result];
     } elseif ($type === 'sequence') {
-        $formatted = ['items' => $result];
+        $formatted = ['qs' => $result];
     } elseif ($type === 'wordsearch') {
         $formatted = ['words' => $result];
     } else {
@@ -2683,13 +2690,21 @@ function handlePlayQuestionsV2(): never {
         }
 
         if ($type === 'sequence') {
+            $seqItems = [];
             foreach ($answers as $idx => $answer) {
                 $text = trim((string)($answer['answer_text'] ?? ''));
                 if ($text === '') continue;
-                $result[] = [
+                $seqItems[] = [
                     'id' => 's' . $question['question_id'] . '_' . ($answer['answer_id'] ?? $idx),
                     'text' => $text,
                     'order' => (int)($answer['seq_order'] ?? ($idx + 1)),
+                ];
+            }
+            if (!empty($seqItems)) {
+                usort($seqItems, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+                $result[] = [
+                    'prompt' => trim((string)($question['question_text'] ?? '')),
+                    'items' => $seqItems,
                 ];
             }
             continue;
@@ -2714,11 +2729,7 @@ function handlePlayQuestionsV2(): never {
     }
 
     if ($type === 'sequence') {
-        if ($requestedCount > 0 && count($result) > $requestedCount) {
-            $result = arrayTakeRandom($result, $requestedCount);
-        }
-        usort($result, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
-        DB::ok(['game' => $game, 'type' => $type, 'items' => $result]);
+        DB::ok(['game' => $game, 'type' => $type, 'qs' => $result]);
     }
 
     if ($type === 'wordsearch') {

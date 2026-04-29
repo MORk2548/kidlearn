@@ -484,45 +484,6 @@ function renderMatch(){
 }
 
 /* ── SEQUENCE ── */
-function renderSeq(){
-  const items=A.curGame.items;
-  if(!items?.length){finishGame();return;}
-  let cur=[...items].sort(()=>Math.random()-.5);
-  upQP(0,items.length);
-  const draw=()=>{
-    document.getElementById('g-content').innerHTML=`
-      <div style="font-size:.83rem;color:var(--mu);margin-bottom:.75rem">กดลูกศรเพื่อเรียงจากบนไปล่าง</div>
-      <div class="seq">${cur.map((it,i)=>`
-        <div class="si2" data-id="${it.id||it.text}">
-          <div class="sn">${i+1}</div>
-          <div style="flex:1">${it.text}</div>
-          <div style="display:flex;flex-direction:column;gap:.15rem">
-            <button onclick="mvSeq('${it.id||it.text}',-1)" style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">⬆</button>
-            <button onclick="mvSeq('${it.id||it.text}',1)"  style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">⬇</button>
-          </div>
-        </div>`).join('')}
-      </div>
-      <button class="btn btn-p btn-sm" style="margin-top:.75rem;width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">✔ ตรวจคำตอบ</button>`;
-  };
-  window.mvSeq=(id,dir)=>{const idx=cur.findIndex(it=>(it.id||it.text)===id),n=idx+dir;if(n<0||n>=cur.length)return;[cur[idx],cur[n]]=[cur[n],cur[idx]];draw();};
-  window.chkSeq=()=>{
-    const correctItems = cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length;
-    recordAttempt({
-      prompt: 'เรียงลำดับให้ถูกต้อง',
-      correctAnswer: items.map(it=>it.text).join(' > '),
-      studentAnswer: cur.map(it=>it.text).join(' > '),
-      isCorrect: correctItems === items.length
-    });
-    document.querySelectorAll('.si2').forEach((el,i)=>el.classList.add(
-      (cur[i].id||cur[i].text)===(items[i].id||items[i].text)?'ok':'no'
-    ));
-    A.gs.earned=Math.round(correctItems/items.length*100);
-    document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
-    document.querySelector('#g-content .btn')?.remove();
-    setTimeout(finishGame,1500);
-  };
-  draw();
-}
 
 /* ── WORD SEARCH ── */
 function renderWS(){
@@ -653,110 +614,6 @@ function practiceWeakness(){
   document.getElementById('g-content').style.display='block';
   runTimer();
   renderGame();
-}
-
-function renderSeq(){
-  const items=A.curGame.items;
-  if(!items?.length){finishGame();return;}
-  cleanupGameInteraction();
-  let cur=shuffleItems(items);
-  const drag={active:false,id:null,pointerId:null};
-  upQP(0,items.length);
-
-  const draw=()=>{
-    document.getElementById('g-content').innerHTML=`
-      <div style="font-size:.83rem;color:var(--mu);margin-bottom:.75rem">\u0e25\u0e32\u0e01\u0e14\u0e49\u0e27\u0e22\u0e19\u0e34\u0e49\u0e27\u0e2b\u0e23\u0e37\u0e2d\u0e40\u0e21\u0e32\u0e2a\u0e4c\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e40\u0e23\u0e35\u0e22\u0e07\u0e25\u0e33\u0e14\u0e31\u0e1a \u0e41\u0e25\u0e30\u0e43\u0e0a\u0e49\u0e1b\u0e38\u0e48\u0e21\u0e02\u0e36\u0e49\u0e19\u0e25\u0e07\u0e44\u0e14\u0e49\u0e16\u0e49\u0e32\u0e15\u0e49\u0e2d\u0e07\u0e01\u0e32\u0e23</div>
-      <div class="seq">${cur.map((it,i)=>`
-        <div class="si2${drag.active&&drag.id===(it.id||it.text)?' dragging':''}" data-id="${it.id||it.text}">
-          <div class="sn">${i+1}</div>
-          <div class="si2-text">${it.text}</div>
-          <div class="si2-tools">
-            <span class="si2-grip" aria-hidden="true">::</span>
-            <div style="display:flex;flex-direction:column;gap:.15rem">
-              <button type="button" onclick="mvSeq('${it.id||it.text}',-1)" style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">\u2191</button>
-              <button type="button" onclick="mvSeq('${it.id||it.text}',1)"  style="border:none;background:#EEF2FF;border-radius:6px;cursor:pointer;padding:.15rem .5rem;font-size:.85rem;color:#3730A3">\u2193</button>
-            </div>
-          </div>
-        </div>`).join('')}
-      </div>
-      <button class="btn btn-p btn-sm" style="margin-top:.75rem;width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">\u2714 \u0e15\u0e23\u0e27\u0e08\u0e04\u0e33\u0e15\u0e2d\u0e1a</button>`;
-
-    document.querySelectorAll('.si2').forEach(el=>{
-      el.addEventListener('pointerdown',ev=>{
-        if(ev.target.closest('button')) return;
-        drag.active=true;
-        drag.id=el.dataset.id;
-        drag.pointerId=ev.pointerId;
-        el.setPointerCapture?.(ev.pointerId);
-        ev.preventDefault();
-        draw();
-      });
-    });
-  };
-
-  window.mvSeq=(id,dir)=>{
-    const idx=cur.findIndex(it=>(it.id||it.text)===id);
-    const nextIdx=idx+dir;
-    if(idx<0 || nextIdx<0 || nextIdx>=cur.length) return;
-    [cur[idx],cur[nextIdx]]=[cur[nextIdx],cur[idx]];
-    draw();
-  };
-  window.chkSeq=()=>{
-    const correctItems=cur.filter((it,i)=>(it.id||it.text)===(items[i].id||items[i].text)).length;
-    recordAttempt({
-      prompt:'เรียงลำดับให้ถูกต้อง',
-      correctAnswer:items.map(it=>it.text).join(' > '),
-      studentAnswer:cur.map(it=>it.text).join(' > '),
-      isCorrect:correctItems===items.length
-    });
-    document.querySelectorAll('.si2').forEach((el,i)=>el.classList.add(
-      (cur[i].id||cur[i].text)===(items[i].id||items[i].text)?'ok':'no'
-    ));
-    A.gs.earned=Math.round(correctItems/items.length*100);
-    document.getElementById('g-live').textContent='\u0e04\u0e30\u0e41\u0e19\u0e19: '+A.gs.earned;
-    document.querySelector('#g-content .btn')?.remove();
-    setTimeout(finishGame,1500);
-  };
-
-  const moveDragged=(clientX,clientY)=>{
-    if(!drag.active) return;
-    const target=document.elementFromPoint(clientX,clientY)?.closest('.si2');
-    if(!target || target.dataset.id===drag.id) return;
-    const fromIdx=cur.findIndex(it=>(it.id||it.text)===drag.id);
-    const targetIdx=cur.findIndex(it=>(it.id||it.text)===target.dataset.id);
-    if(fromIdx<0 || targetIdx<0) return;
-    const rect=target.getBoundingClientRect();
-    let insertIdx=targetIdx+(clientY>(rect.top+rect.height/2)?1:0);
-    if(fromIdx<insertIdx) insertIdx--;
-    if(insertIdx===fromIdx) return;
-    const [moved]=cur.splice(fromIdx,1);
-    cur.splice(insertIdx,0,moved);
-    draw();
-  };
-  const onPointerMove=ev=>{
-    if(!drag.active || (drag.pointerId!==null && ev.pointerId!==drag.pointerId)) return;
-    ev.preventDefault();
-    moveDragged(ev.clientX,ev.clientY);
-  };
-  const onPointerUp=ev=>{
-    if(!drag.active || (drag.pointerId!==null && ev.pointerId!==drag.pointerId)) return;
-    drag.active=false;
-    drag.id=null;
-    drag.pointerId=null;
-    draw();
-  };
-
-  window.addEventListener('pointermove',onPointerMove,{passive:false});
-  window.addEventListener('pointerup',onPointerUp);
-  window.addEventListener('pointercancel',onPointerUp);
-  A.gameCleanup=()=>{
-    window.removeEventListener('pointermove',onPointerMove);
-    window.removeEventListener('pointerup',onPointerUp);
-    window.removeEventListener('pointercancel',onPointerUp);
-    delete window.mvSeq;
-    delete window.chkSeq;
-  };
-  draw();
 }
 
 function renderWS(){
@@ -989,71 +846,98 @@ function renderMatch(){
 }
 
 function renderSeq(){
-  const items=A.curGame.items;
-  if(!items?.length){finishGame();return;}
-  cleanupGameInteraction();
-  const bank=shuffleItems(items);
-  const placed=Array(items.length).fill(null);
-  upQP(0,items.length);
+  // รองรับ 2 format: qs=[{prompt,items},...] หรือ items=[...] (legacy/static)
+  const seqQs = A.curGame.qs?.length
+    ? A.curGame.qs
+    : (A.curGame.items?.length ? [{prompt:'เรียงลำดับให้ถูกต้อง', items:A.curGame.items}] : []);
 
-  const draw=()=>{
-    const remaining=bank.filter(item=>!placed.some(slot=>(slot?.id||slot?.text)===(item?.id||item?.text)));
-    document.getElementById('g-content').innerHTML=`
-      <div style="display:grid;gap:.85rem">
-        <div>
-          <div style="font-size:.82rem;color:var(--mu);margin-bottom:.45rem">คลิกคำจากกรอบนี้เพื่อย้ายไปเรียง</div>
-          <div class="dd-chips">
-            ${remaining.map(item=>`<button type="button" class="chip" onclick="seqPick('${item.id||item.text}')">${item.text}</button>`).join('')}
-            ${!remaining.length?'<div style="font-size:.78rem;color:var(--mu)">ย้ายครบแล้ว</div>':''}
-          </div>
-        </div>
-        <div>
-          <div style="font-size:.82rem;color:var(--mu);margin-bottom:.45rem">เรียงคำตอบในกรอบนี้จากข้อแรกไปข้อสุดท้าย</div>
-          <div class="dd-slots">
-            ${placed.map((item,idx)=>`
-              <button type="button" class="slot${item?' filled':''}" onclick="seqRemove(${idx})">
-                ${item?item.text:`ช่อง ${idx+1}`}
-              </button>`).join('')}
-          </div>
-        </div>
-        <button class="btn btn-p btn-sm" style="width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">ตรวจคำตอบ</button>
-      </div>`;
-  };
+  if(!seqQs?.length){finishGame();return;}
 
-  window.seqPick=id=>{
-    const nextIdx=placed.findIndex(slot=>!slot);
-    if(nextIdx<0) return;
-    const item=bank.find(entry=>String(entry.id||entry.text)===String(id));
-    if(!item) return;
-    placed[nextIdx]=item;
+  const totalQ = seqQs.length;
+  let qi = A.gs.qi || 0;
+
+  function renderOneSeq(){
+    if(qi>=totalQ){finishGame();return;}
+    cleanupGameInteraction();
+    const q = seqQs[qi];
+    const items = q.items||[];
+    if(!items.length){qi++;renderOneSeq();return;}
+
+    const bank=shuffleItems(items);
+    const placed=Array(items.length).fill(null);
+    upQP(qi+1,totalQ);
+
+    const draw=()=>{
+      const remaining=bank.filter(item=>!placed.some(slot=>(slot?.id||slot?.text)===(item?.id||item?.text)));
+      document.getElementById('g-content').innerHTML=`
+        <div style="display:grid;gap:.85rem">
+          ${q.prompt?`<div style="font-weight:700;font-size:1rem;color:var(--txt);margin-bottom:.1rem">${q.prompt}</div>`:''}
+          <div>
+            <div style="font-size:.82rem;color:var(--mu);margin-bottom:.45rem">คลิกคำจากกรอบนี้เพื่อย้ายไปเรียง</div>
+            <div class="dd-chips">
+              ${remaining.map(item=>`<button type="button" class="chip" onclick="seqPick('${item.id||item.text}')">${item.text}</button>`).join('')}
+              ${!remaining.length?'<div style="font-size:.78rem;color:var(--mu)">ย้ายครบแล้ว</div>':''}
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.82rem;color:var(--mu);margin-bottom:.45rem">เรียงคำตอบในกรอบนี้จากข้อแรกไปข้อสุดท้าย</div>
+            <div class="dd-slots">
+              ${placed.map((item,idx)=>`
+                <button type="button" class="slot${item?' filled':''}" onclick="seqRemove(${idx})">
+                  ${item?item.text:`ช่อง ${idx+1}`}
+                </button>`).join('')}
+            </div>
+          </div>
+          <button class="btn btn-p btn-sm" style="width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">ตรวจคำตอบ</button>
+        </div>`;
+    };
+
+    window.seqPick=id=>{
+      const nextIdx=placed.findIndex(slot=>!slot);
+      if(nextIdx<0) return;
+      const item=bank.find(entry=>String(entry.id||entry.text)===String(id));
+      if(!item) return;
+      placed[nextIdx]=item;
+      draw();
+    };
+    window.seqRemove=idx=>{
+      if(!placed[idx]) return;
+      placed[idx]=null;
+      draw();
+    };
+    window.chkSeq=()=>{
+      const correctItems=placed.filter((it,i)=>it&&(it.id||it.text)===(items[i].id||items[i].text)).length;
+      const isCorrect=correctItems===items.length;
+      const pts=Math.round(correctItems/items.length*(100/totalQ));
+      recordAttempt({
+        prompt:q.prompt||'เรียงลำดับให้ถูกต้อง',
+        correctAnswer:items.map(it=>it.text).join(' > '),
+        studentAnswer:placed.map(it=>it?.text||'_').join(' > '),
+        isCorrect
+      });
+      document.querySelectorAll('.slot').forEach((el,i)=>{
+        if(!placed[i]){el.classList.add('no');return;}
+        el.classList.add((placed[i].id||placed[i].text)===(items[i].id||items[i].text)?'ok':'no');
+      });
+      A.gs.earned=(A.gs.earned||0)+pts;
+      document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+      document.querySelector('#g-content .btn')?.remove();
+      setTimeout(()=>{
+        qi++;
+        A.gs.qi=qi;
+        delete window.seqPick;
+        delete window.seqRemove;
+        delete window.chkSeq;
+        renderOneSeq();
+      },1500);
+    };
+    A.gameCleanup=()=>{
+      delete window.seqPick;
+      delete window.seqRemove;
+      delete window.chkSeq;
+    };
     draw();
-  };
-  window.seqRemove=idx=>{
-    if(!placed[idx]) return;
-    placed[idx]=null;
-    draw();
-  };
-  window.chkSeq=()=>{
-    const correctItems=placed.filter((it,i)=>it&&(it.id||it.text)===(items[i].id||items[i].text)).length;
-    recordAttempt({
-      prompt:'เรียงลำดับให้ถูกต้อง',
-      correctAnswer:items.map(it=>it.text).join(' > '),
-      studentAnswer:placed.map(it=>it?.text||'_').join(' > '),
-      isCorrect:correctItems===items.length
-    });
-    document.querySelectorAll('.slot').forEach((el,i)=>{
-      if(!placed[i]){el.classList.add('no');return;}
-      el.classList.add((placed[i].id||placed[i].text)===(items[i].id||items[i].text)?'ok':'no');
-    });
-    A.gs.earned=Math.round(correctItems/items.length*100);
-    document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
-    document.querySelector('#g-content .btn')?.remove();
-    setTimeout(finishGame,1500);
-  };
-  A.gameCleanup=()=>{
-    delete window.seqPick;
-    delete window.seqRemove;
-    delete window.chkSeq;
-  };
-  draw();
+  }
+
+  renderOneSeq();
 }
