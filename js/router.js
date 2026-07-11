@@ -54,8 +54,10 @@ function applyRoleUI() {
   const isOf = u.role === 'officer';
   const isEx = u.role === 'executive';
   const isAd = u.role === 'admin';
+  const isSt = u.role === 'student';
 
   // Navbar
+  document.getElementById('nl-subs').style.display       = isSt ? 'block' : 'none';
   document.getElementById('nli-rec').style.display      = isPa ? 'block' : 'none';
   document.getElementById('nli-children').style.display = isPa ? 'block' : 'none';
   document.getElementById('nli-teach').style.display    = isTc ? 'block' : 'none';
@@ -63,6 +65,7 @@ function applyRoleUI() {
   document.getElementById('nli-executive').style.display = isEx || isAd ? 'block' : 'none';
   document.getElementById('nli-scores').style.display   = (isTc || isOf) ? 'none'  : 'block';
   // Sidebar
+  document.getElementById('sl-subs').style.display      = isSt ? 'flex' : 'none';
   document.getElementById('sl-rec').style.display       = isPa ? 'flex'  : 'none';
   document.getElementById('sl-children').style.display  = isPa ? 'flex'  : 'none';
   document.getElementById('sl-teach').style.display     = isTc ? 'flex'  : 'none';
@@ -79,6 +82,8 @@ function applyRoleUI() {
   const bnChildren = document.getElementById('bn-children');
   const bnTeach    = document.getElementById('bn-teach');
   const bnScores   = document.getElementById('bn-scores');
+  const bnSubs     = document.getElementById('bn-subs');
+  if (bnSubs)     bnSubs.style.display      = isSt ? 'flex' : 'none';
   if (bnRec)      bnRec.style.display      = isPa ? 'flex' : 'none';
   if (bnChildren) bnChildren.style.display = isPa ? 'flex' : 'none';
   if (bnTeach)    bnTeach.style.display    = isTc ? 'flex' : 'none';

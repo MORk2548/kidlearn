@@ -20,7 +20,7 @@ async function loadTeach() {
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
 
-  const total  =A.tcStudents.length;
+  const total  = statsRes.ok ? (+statsRes.total_students || A.tcStudents.length) : A.tcStudents.length;
   const allPlay=A.tcStudents.reduce((s,x)=>s+(+x.games_played||0),0);
   const avgAll =total?Math.round(A.tcStudents.reduce((s,x)=>s+(+x.avg_score||0),0)/total):0;
 
@@ -190,8 +190,6 @@ async function selectTcStudent(sid){
       <div class="sa" style="width:32px;height:32px;font-size:.85rem">${(stu?.full_name||'?').charAt(0)}</div>
       ${stu?.full_name||''} — ประวัติคะแนน
     </div>
-    ${sumHtml?`<div style="background:#F8FAFF;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem">
-      <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.4rem">สรุปรายวิชา</div>${sumHtml}</div>`:''}
     <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.4rem">ประวัติทั้งหมด ${sc.length} ครั้ง</div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:350px">

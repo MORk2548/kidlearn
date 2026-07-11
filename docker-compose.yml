@@ -6,10 +6,10 @@ services:
     container_name: kidlearn_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: kidlearn_root
-      MYSQL_DATABASE: kidlearn_db
-      MYSQL_USER: kidlearn
-      MYSQL_PASSWORD: kidlearn123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-kidlearn_local_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-kidlearn_db}
+      MYSQL_USER: ${MYSQL_USER:-kidlearn}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-kidlearn_local_password}
     ports:
       - "3306:3306"
     volumes:
@@ -17,7 +17,7 @@ services:
       - ./kidlearn_full.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
       - ./content/questions_seed.sql:/docker-entrypoint-initdb.d/02_questions.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ukidlearn", "-pkidlearn123"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -30,20 +30,14 @@ services:
       dockerfile: docker/Dockerfile
     container_name: kidlearn_web
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+    env_file:
+      - .env
     ports:
       - "8080:80"
     volumes:
       - ./:/var/www/html
       - ./docker/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
       - ./docker/apache.conf:/etc/apache2/sites-enabled/000-default.conf:ro
-    environment:
-      DB_HOST: db
-      DB_USER: kidlearn
-      DB_PASS: kidlearn123
-      DB_NAME: kidlearn_db
 
   # ── phpMyAdmin ─────────────────────────────────────────────
   phpmyadmin:
@@ -56,8 +50,8 @@ services:
       - "8081:80"
     environment:
       PMA_HOST: db
-      PMA_USER: kidlearn
-      PMA_PASSWORD: kidlearn123
+      PMA_USER: ${MYSQL_USER:-kidlearn}
+      PMA_PASSWORD: ${MYSQL_PASSWORD:-kidlearn_local_password}
       UPLOAD_LIMIT: 50M
 
 volumes:

@@ -222,9 +222,10 @@ const GAMES_DB = {
     {id:'e',text:'❓ คำถาม (Question word)',      order:5},
     {id:'f',text:'🔚 เครื่องหมายวรรคตอน',         order:6},
   ]},
-'3_6':{ id:'3_6', sid:3, name:'ค้นหาคำภาษาไทย',     type:'wordsearch', icon:'🔍', lvl:'easy', time:120,
-  words:['กิน','นอน','วิ่ง','เล่น','เรียน','อ่าน'],
-  gridData:wsGrid(['กิน','นอน','วิ่ง','เล่น','เรียน','อ่าน'])},
+'3_6':{ id:'3_6', sid:3, name:'เรียงตัวอักษรภาษาไทย', type:'letterorder', icon:'🔤', lvl:'easy', time:120,
+  items:[
+    {id:'a',text:'ห',order:1},{id:'b',text:'นั',order:2},{id:'c',text:'ง',order:3},{id:'d',text:'สื',order:4},{id:'e',text:'อ',order:5}
+  ]},
 
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 4 — ภาษาอังกฤษ                  ║
@@ -388,17 +389,17 @@ const GAMES_DB = {
 // ══════════════════════════════════════════════════════
 GAMES_DB['4_1'] = {
   ...GAMES_DB['4_1'],
-  name:'เติมคำจากภาพ',
-  type:'fill',
-  icon:'🖼️',
+  name:'คำศัพท์สัตว์',
+  type:'mcq',
+  icon:'🐾',
   preferStatic:true,
   qs:[
-    {q:'Look at the picture and type the English word.', img:makePictureQuizImage('🐘','Elephant'), hint:'Starts with e', ans:'elephant'},
-    {q:'Look at the picture and type the English word.', img:makePictureQuizImage('🐕','Dog','#DCFCE7','#BBF7D0'), hint:'Starts with d', ans:'dog'},
-    {q:'Look at the picture and type the English word.', img:makePictureQuizImage('🦁','Lion','#FEF3C7','#FDE68A'), hint:'Starts with l', ans:'lion'},
-    {q:'Look at the picture and type the English word.', img:makePictureQuizImage('🐟','Fish','#E0F2FE','#BAE6FD'), hint:'Starts with f', ans:'fish'},
-    {q:'Look at the picture and type the English word.', img:makePictureQuizImage('🐦','Bird','#F3E8FF','#E9D5FF'), hint:'Starts with b', ans:'bird'},
-    {q:'Look at the picture and type the English word.', img:makePictureQuizImage('🐇','Rabbit','#FCE7F3','#FBCFE8'), hint:'Starts with r', ans:'rabbit'},
+    {q:'What animal is this?', img:makePictureQuizImage('🐘','Elephant'), opts:['Lion','Dog','Elephant','Rabbit'], ans:2},
+    {q:'What animal is this?', img:makePictureQuizImage('🐕','Dog','#DCFCE7','#BBF7D0'), opts:['Cat','Dog','Fish','Bird'], ans:1},
+    {q:'What animal is this?', img:makePictureQuizImage('🦁','Lion','#FEF3C7','#FDE68A'), opts:['Tiger','Bear','Rabbit','Lion'], ans:3},
+    {q:'What animal is this?', img:makePictureQuizImage('🐟','Fish','#E0F2FE','#BAE6FD'), opts:['Bird','Frog','Fish','Snake'], ans:2},
+    {q:'What animal is this?', img:makePictureQuizImage('🐦','Bird','#F3E8FF','#E9D5FF'), opts:['Bee','Butterfly','Bird','Bat'], ans:2},
+    {q:'What animal is this?', img:makePictureQuizImage('🐇','Rabbit','#FCE7F3','#FBCFE8'), opts:['Squirrel','Mouse','Hamster','Rabbit'], ans:3},
   ]
 };
 

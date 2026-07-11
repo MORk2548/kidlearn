@@ -753,7 +753,7 @@ function renderMatchSide(pair, side){
     </div>`;
 }
 
-function renderMCQ(){
+function renderMCQ(){ 
   const{qi,totalQ}=A.gs, q=A.curGame.qs[qi];
   if(!q){finishGame();return;}
   upQP(qi+1,totalQ);

@@ -3,6 +3,10 @@
 // ══════════════════════════════════════════════════════
 let _geGid=null, _geDbGid=null, _geQuestions=[], _geAnsCount=4, _geGameMeta=null;
 
+function geCurrentType(){
+  return _geGameMeta?.game_type || GAMES_DB[_geGid]?.type || 'mcq';
+}
+
 function _renderGameEditor(){
   const panel=document.getElementById('tc-game-panel');
   if(!panel)return;
@@ -73,9 +77,10 @@ async function selectGeGame(jsKey){
   _geGameMeta=res.game||null;
 
   const gm=GAMES_DB[jsKey],sub=SUBS.find(s=>s.id===gm.sid);
-  const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'ค้นหาคำ'};
+  const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',letterorder:'เรียงตัวอักษร',wordsearch:'ค้นหาคำ'};
+  const activeType=geCurrentType();
   const timeLimit=parseInt(_geGameMeta?.time_limit,10)>0?parseInt(_geGameMeta.time_limit,10):(parseInt(gm?.time,10)||60);
-  const defaultCount = gm.type==='wordsearch' ? 10 : (_geQuestions.length || 10);
+  const defaultCount = activeType==='wordsearch' ? 10 : (_geQuestions.length || 10);
   const questionCount = parseInt(_geGameMeta?.question_count,10)>0 ? parseInt(_geGameMeta.question_count,10) : defaultCount;
 
   ed.innerHTML=`
@@ -85,14 +90,18 @@ async function selectGeGame(jsKey){
         <span style="font-size:1.6rem">${gm.icon}</span>
         <div style="flex:1">
           <div style="font-weight:800;font-size:.95rem">${gm.name}</div>
-          <div style="font-size:.73rem;color:var(--mu)">${sub?.name} · ${TYPE_LBL[gm.type]||gm.type} · <span id="ge-qcount">${_geQuestions.length}</span> คำถาม</div>
+          <div style="font-size:.73rem;color:var(--mu)">${sub?.name} · ${TYPE_LBL[activeType]||activeType} · <span id="ge-qcount">${_geQuestions.length}</span> คำถาม</div>
         </div>
         <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;justify-content:flex-end">
           <label for="ge-time-limit" style="font-size:.75rem;color:var(--mu);font-weight:700">เวลาเล่น</label>
           <input id="ge-time-limit" type="number" min="10" max="3600" value="${timeLimit}"
             style="width:88px;padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
-          <label for="ge-question-count" style="font-size:.75rem;color:var(--mu);font-weight:700">${gm.type==='wordsearch'?'คำ/รอบ':'จำนวนข้อสุ่ม'}</label>
-          <input id="ge-question-count" type="number" min="1" max="${gm.type==='wordsearch'?'10':'100'}" value="${questionCount}" ${gm.type==='wordsearch'?'disabled':''}
+          <label for="ge-game-type" style="font-size:.75rem;color:var(--mu);font-weight:700">ชนิดเกม</label>
+          <select id="ge-game-type" style="padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
+            ${Object.entries(TYPE_LBL).map(([type,label])=>`<option value="${type}" ${activeType===type?'selected':''}>${label}</option>`).join('')}
+          </select>
+          <label for="ge-question-count" style="font-size:.75rem;color:var(--mu);font-weight:700">${activeType==='wordsearch'?'คำ/รอบ':'จำนวนข้อสุ่ม'}</label>
+          <input id="ge-question-count" type="number" min="1" max="${activeType==='wordsearch'?'10':'100'}" value="${questionCount}"
             style="width:88px;padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
           <span style="font-size:.75rem;color:var(--mu)">วินาที</span>
           <button class="btn btn-sm" style="background:#F8FAFC;border:1px solid #CBD5E1;font-size:.75rem"
@@ -101,7 +110,7 @@ async function selectGeGame(jsKey){
         <button class="lp-btn-play" style="padding:.5rem 1.25rem;font-size:.85rem" onclick="geOpenForm(-1)">+ เพิ่มคำถาม</button>
       </div>
       <div id="ge-game-msg" style="min-height:1.1rem;font-size:.8rem;margin:-.35rem 0 .75rem;text-align:right"></div>
-      <div id="ge-q-list">${_geRenderQList(gm.type)}</div>
+      <div id="ge-q-list">${_geRenderQList(activeType)}</div>
     </div>`;
 }
 
@@ -143,8 +152,7 @@ function _geRenderQList(type){
 
 function geOpenForm(idx){
   const q=idx>=0?_geQuestions[idx]:null;
-  const gm=GAMES_DB[_geGid];
-  const type=gm?.type||'mcq';
+  const type=geCurrentType();
   _geAnsCount=4;
 
   const formHtml=_geFormHtml(type,q);
@@ -420,8 +428,7 @@ async function geSaveQ(idx){
   const msg=document.getElementById('ge-form-msg');
   if(!text){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ กรุณาใส่คำถาม</span>';return;}
 
-  const gm=GAMES_DB[_geGid];
-  const type=gm?.type||'mcq';
+  const type=geCurrentType();
   const q=idx>=0?_geQuestions[idx]:null;
   const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
   const hint=document.getElementById('ge-hint')?.value.trim()||'';
@@ -608,7 +615,7 @@ function _geFormHtml(type, q){
     const pairs = answers.length ? answers : [{pair_left:'',pair_right:'',pair_left_img:'',pair_right_img:''}];
     pairs.forEach((a,i)=>{ html+=_gePairRow(i,a.pair_left||'',a.pair_right||'',a.pair_left_img||'',a.pair_right_img||''); _geAnsCount=i+1; });
     html+='</div>';
-  } else if(type==='sequence'){
+  } else if(type==='sequence' || type==='letterorder'){
     html+=`<label style="font-weight:700;font-size:.82rem">รายการเรียงลำดับ</label>
       <button type="button" onclick="geAddSeqRow()"
         style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
@@ -637,20 +644,23 @@ function _geFormHtml(type, q){
 async function geSaveGameSettings(){
   const input=document.getElementById('ge-time-limit');
   const countInput=document.getElementById('ge-question-count');
+  const typeInput=document.getElementById('ge-game-type');
   const msg=document.getElementById('ge-game-msg');
   const timeLimit=parseInt(input?.value,10);
+  const gameType=typeInput?.value||geCurrentType();
   let questionCount=parseInt(countInput?.value,10);
   if(!Number.isFinite(timeLimit)||timeLimit<10||timeLimit>3600){
     if(msg) msg.innerHTML='<span style="color:#EF4444">โ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
     return;
   }
-  if(!Number.isFinite(questionCount) || questionCount<1) questionCount = _geGameMeta?.game_type==='wordsearch' ? 10 : Math.max(1,_geQuestions.length||10);
-  if(_geGameMeta?.game_type==='wordsearch') questionCount=Math.min(10,questionCount);
+  if(!Number.isFinite(questionCount) || questionCount<1) questionCount = gameType==='wordsearch' ? 10 : Math.max(1,_geQuestions.length||10);
+  if(gameType==='wordsearch') questionCount=Math.min(10,questionCount);
   if(msg) msg.innerHTML='<span style="color:var(--mu)">กำลังบันทึกการตั้งค่า...</span>';
-  const res=await apiSaveGameSettings({game_id:_geDbGid,time_limit:timeLimit,question_count:questionCount}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
+  const res=await apiSaveGameSettings({game_id:_geDbGid,time_limit:timeLimit,question_count:questionCount,game_type:gameType}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
   if(res.ok){
-    if(_geGameMeta){ _geGameMeta.time_limit=timeLimit; _geGameMeta.question_count=questionCount; }
+    if(_geGameMeta){ _geGameMeta.time_limit=timeLimit; _geGameMeta.question_count=questionCount; _geGameMeta.game_type=gameType; }
     if(msg) msg.innerHTML='<span style="color:#10B981">บันทึกการตั้งค่าเรียบร้อย</span>';
+    setTimeout(()=>selectGeGame(_geGid),450);
     setTimeout(()=>{ if(msg) msg.innerHTML=''; },3000);
   }else{
     if(msg) msg.innerHTML=`<span style="color:#EF4444">โ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
@@ -662,8 +672,7 @@ async function geSaveQ(idx){
   const msg=document.getElementById('ge-form-msg');
   if(!text){if(msg)msg.innerHTML='<span style="color:#EF4444">กรุณาใส่คำถาม</span>';return;}
 
-  const gm=GAMES_DB[_geGid];
-  const type=gm?.type||'mcq';
+  const type=geCurrentType();
   const q=idx>=0?_geQuestions[idx]:null;
   const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
   const hint=document.getElementById('ge-hint')?.value.trim()||'';
@@ -695,7 +704,7 @@ async function geSaveQ(idx){
         answers.push({answer_text:right||left,pair_left:left,pair_right:right,pair_left_img:leftImg,pair_right_img:rightImg,is_correct:1});
       }
     });
-  } else if(type==='sequence'){
+  } else if(type==='sequence' || type==='letterorder'){
     document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach((row,i)=>{
       const id=row.id.replace('ge-ar-','');
       const t=document.getElementById(`ge-at-${id}`)?.value.trim()||'';
@@ -883,7 +892,7 @@ function _geFormHtml(type, q){
     pairs.forEach((a,i)=>{ html+=_gePairRow(i,a.pair_left||'',a.pair_right||'',a.pair_left_img||'',a.pair_right_img||''); _geAnsCount=i+1; });
     html+='</div>';
   } else if(type==='sequence'){
-    html+=`<label style="font-weight:700;font-size:.82rem">รายการเรียงลำดับ</label><button type="button" onclick="geAddSeqRow()" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มรายการ</button>`;
+    html+=`<label style="font-weight:700;font-size:.82rem">${type==='letterorder'?'ตัวอักษรตามลำดับคำตอบ':'รายการเรียงลำดับ'}</label><button type="button" onclick="geAddSeqRow()" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มรายการ</button>`;
     html+='</div><div id="ge-ans-wrap">';
     const items = answers.length ? answers : [{answer_text:'',seq_order:1}];
     items.sort((a,b)=>(a.seq_order||0)-(b.seq_order||0));
@@ -905,8 +914,7 @@ async function geSaveQ(idx){
   const text=document.getElementById('ge-qtext')?.value.trim();
   const msg=document.getElementById('ge-form-msg');
   if(!text){if(msg)msg.innerHTML='<span style="color:#EF4444">กรุณาใส่คำถาม</span>';return;}
-  const gm=GAMES_DB[_geGid];
-  const type=gm?.type||'mcq';
+  const type=geCurrentType();
   const q=idx>=0?_geQuestions[idx]:null;
   const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
   const hint=document.getElementById('ge-hint')?.value.trim()||'';
@@ -938,7 +946,7 @@ async function geSaveQ(idx){
       const rightImg=document.getElementById(`ge-pri-${id}`)?.value.trim()||'';
       if(left || right || leftImg || rightImg) answers.push({answer_text:right||left,pair_left:left,pair_right:right,pair_left_img:leftImg,pair_right_img:rightImg,is_correct:1});
     });
-  } else if(type==='sequence'){
+  } else if(type==='sequence' || type==='letterorder'){
     document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach((row,i)=>{
       const id=row.id.replace('ge-ar-','');
       const t=document.getElementById(`ge-at-${id}`)?.value.trim()||'';

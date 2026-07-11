@@ -1,5 +1,7 @@
 # KidLearn
 
+> โครงสร้างไฟล์ล่าสุดดูได้ที่ `PROJECT_STRUCTURE.md`
+
 KidLearn เป็นเว็บเกมการเรียนรู้สำหรับนักเรียน ครู ผู้ปกครอง และผู้ดูแลระบบ โดยโปรเจกต์นี้ใช้หน้าเว็บแบบ HTML/CSS/JavaScript และ backend PHP + MySQL
 
 ## สิ่งที่ระบบทำได้ตอนนี้
@@ -62,11 +64,11 @@ KidLearn เป็นเว็บเกมการเรียนรู้ส�
   seed คำถามเพิ่มเติม
 - `images/`
   รูปภาพตัวอย่าง
-- `scripts/backup-db.ps1`
+- `scripts/db/backup-db.ps1`
   สำรองฐานข้อมูล
-- `scripts/restore-db.ps1`
+- `scripts/db/restore-db.ps1`
   กู้คืนฐานข้อมูล
-- `scripts/smoke-test.ps1`
+- `scripts/db/smoke-test.ps1`
   ทดสอบระบบแบบเร็ว
 - `backups/`
   ที่เก็บไฟล์ backup ในเครื่อง
@@ -87,7 +89,7 @@ KidLearn เป็นเว็บเกมการเรียนรู้ส�
 
 - `js/admin.js`, `js/officer.js`, `js/executive.js`
   รวมเป็นโฟลเดอร์ `js/roles/` หรือใช้ helper กลางร่วมกันได้ เพราะเป็น dashboard role-based คล้ายกัน
-- `scripts/backup-db.ps1` และ `scripts/restore-db.ps1`
+- `scripts/db/backup-db.ps1` และ `scripts/db/restore-db.ps1`
   รวมเป็น script เดียวที่รับ mode `backup` / `restore` ได้
 - `CONTENT_GUIDE.md`, `DOCKER.md`, `UPDATE_DOCKER.md`
   รวมเป็นเอกสาร deployment/setup เดียวได้

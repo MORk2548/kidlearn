@@ -1,8 +1,40 @@
 <?php
-define('DB_HOST', getenv('DB_HOST') ?: 'db');
-define('DB_USER', getenv('DB_USER') ?: 'kidlearn');
-define('DB_PASS', getenv('DB_PASS') ?: 'kidlearn123');
-define('DB_NAME', getenv('DB_NAME') ?: 'kidlearn_db');
+$envFile = dirname(__DIR__) . '/.env';
+if (file_exists($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $_ENV[trim($key)] = trim($value);
+    }
+}
+
+function envValue(string $key, mixed $default = null): mixed {
+    $value = $_ENV[$key] ?? getenv($key);
+    return ($value === false || $value === null || $value === '') ? $default : $value;
+}
+
+function envBool(string $key, bool $default = false): bool {
+    $value = envValue($key, null);
+    if ($value === null) return $default;
+    return in_array(strtolower((string)$value), ['1', 'true', 'yes', 'on'], true);
+}
+
+function appEnv(): string {
+    return strtolower((string)envValue('APP_ENV', 'local'));
+}
+
+function isProduction(): bool {
+    return appEnv() === 'production';
+}
+
+define('DB_HOST', $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'db.xxxx.supabase.co');
+define('DB_PORT', $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '5432');
+define('DB_USER', $_ENV['DB_USER'] ?? getenv('DB_USER') ?: 'postgres');
+define('DB_PASS', $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '');
+define('DB_NAME', $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'postgres');
 
 header('Content-Type: application/json; charset=utf-8');
 // เธฃเธญเธเธฃเธฑเธเธ—เธฑเนเธ localhost เนเธฅเธฐ 127.0.0.1
@@ -19,49 +51,70 @@ if (empty($origin)) {
 }
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') { http_response_code(200); exit; }
 
 class DB {
     private static ?DB $i = null;
-    private mysqli $c;
+    private PDO $c;
+    private ?PDOStatement $lastStmt = null;
 
     private function __construct() {
-        $this->c = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        $this->c->set_charset('utf8mb4');
-        if ($this->c->connect_error) self::fail('DB error: ' . $this->c->connect_error);
+        $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s;sslmode=require', DB_HOST, DB_PORT, DB_NAME);
+        try {
+            $this->c = new PDO($dsn, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+        } catch (PDOException $e) {
+            error_log('[KidLearn DB connect] ' . $e->getMessage());
+            self::fail(isProduction() ? 'Database connection failed' : 'DB error: ' . $e->getMessage());
+        }
     }
 
     public static function get(): self { if (!self::$i) self::$i = new self(); return self::$i; }
 
-    public function run(string $sql, array $p = [], string $t = ''): mysqli_stmt {
-        $stmt = $this->c->prepare($sql);
-        if (!$stmt) self::fail('Query: ' . $this->c->error . ' | SQL: ' . $sql);
-        if ($p) $stmt->bind_param($t ?: str_repeat('s', count($p)), ...$p);
-        $stmt->execute();
-        return $stmt;
+    public function run(string $sql, array $p = [], string $t = ''): PDOStatement {
+        try {
+            $stmt = $this->c->prepare($sql);
+            $stmt->execute($p ?: []);
+            $this->lastStmt = $stmt;
+            return $stmt;
+        } catch (PDOException $e) {
+            error_log('[KidLearn DB query] ' . $e->getMessage() . ' | SQL: ' . $sql);
+            self::fail(isProduction() ? 'Database query failed' : 'Query error: ' . $e->getMessage() . ' | SQL: ' . $sql);
+        }
     }
 
     public function all(string $sql, array $p = [], string $t = ''): array {
-        $r = $this->run($sql, $p, $t)->get_result();
-        return $r ? $r->fetch_all(MYSQLI_ASSOC) : [];
+        return $this->run($sql, $p, $t)->fetchAll() ?: [];
     }
 
     public function one(string $sql, array $p = [], string $t = ''): ?array {
-        $r = $this->run($sql, $p, $t)->get_result();
-        return $r ? ($r->fetch_assoc() ?: null) : null;
+        $row = $this->run($sql, $p, $t)->fetch();
+        return $row ?: null;
     }
 
-    public function insertId(): int { return $this->c->insert_id; }
-    public function affected(): int { return $this->c->affected_rows; }
+    public function insertId(): int { return (int)$this->c->lastInsertId(); }
+    public function affected(): int { return $this->lastStmt?->rowCount() ?? 0; }
 
     // rawQuery โ€” เนเธกเน throw/exit เน€เธกเธทเนเธญ error (เนเธเนเธเธฑเธ CALL SP)
     public function rawQuery(string $sql): bool {
-        return $this->c->query($sql) !== false;
+        try {
+            $this->c->exec($sql);
+            return true;
+        } catch (PDOException) {
+            return false;
+        }
     }
 
     public static function ok(mixed $data = []): never {
-        echo json_encode(array_merge(['ok' => true], is_array($data) ? $data : ['data' => $data]),
+        $payload = array_merge(['ok' => true], is_array($data) ? $data : ['data' => $data]);
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
+            $payload['csrf_token'] = csrfToken();
+        }
+        echo json_encode($payload,
             JSON_UNESCAPED_UNICODE); exit;
     }
 
@@ -74,6 +127,14 @@ class DB {
 if (session_status() === PHP_SESSION_NONE) {
     // session config เธกเธฒเธเธฒเธ docker/php.ini
     // เน€เธเธดเธ” session
+    $secureCookie = envBool('SESSION_COOKIE_SECURE', isProduction());
+    session_set_cookie_params([
+        'lifetime' => 86400,
+        'path' => '/',
+        'secure' => $secureCookie,
+        'httponly' => true,
+        'samesite' => isProduction() ? 'Strict' : 'Lax',
+    ]);
     session_start();
 }
 function me(): ?array   { return $_SESSION['user'] ?? null; }
@@ -82,59 +143,95 @@ function myRole(): string { return $_SESSION['user']['role'] ?? ''; }
 function auth(): void   { if (!me()) DB::fail('Unauthorized', 401); }
 function authRole(string ...$roles): void {
     auth();
-    if (!in_array(myRole(), $roles)) DB::fail('Forbidden', 403);
+    if (!in_array(myRole(), $roles, true)) DB::fail('Forbidden', 403);
+}
+
+function csrfToken(): string {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function parseRequestBody(): array {
+    $raw = file_get_contents('php://input');
+    if ($raw === false || trim($raw) === '') return [];
+    $contentType = strtolower($_SERVER['CONTENT_TYPE'] ?? '');
+    $looksLikeJson = str_starts_with(ltrim($raw), '{') || str_starts_with(ltrim($raw), '[');
+    if (!str_contains($contentType, 'application/json') && !$looksLikeJson) {
+        return [];
+    }
+    $data = json_decode($raw, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+        DB::fail('Invalid JSON request body', 400);
+    }
+    return $data;
+}
+
+function enforceRequestPolicy(string $action, array $body): void {
+    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    $postActions = [
+        'login', 'logout', 'register', 'update_profile', 'change_password',
+        'save_score', 'link_child', 'auto_link', 'unlink_child', 'mark_notif_read',
+        'save_lesson', 'delete_lesson', 'save_game_settings', 'create_plan',
+        'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
+        'save_subject', 'toggle_subject', 'save_question', 'delete_question',
+        'forgot_password', 'reset_password',
+        'officer_update_user', 'officer_delete_user', 'officer_create_staff',
+        'admin_create_staff',
+    ];
+    if (in_array($action, $postActions, true) && $method !== 'POST') {
+        DB::fail('Method not allowed', 405);
+    }
+
+    $csrfProtected = array_diff($postActions, ['login', 'register', 'forgot_password', 'reset_password']);
+    if (!in_array($action, $csrfProtected, true)) return;
+
+    auth();
+    $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($body['csrf_token'] ?? '');
+    if (!is_string($sent) || !hash_equals(csrfToken(), $sent)) {
+        DB::fail('Invalid CSRF token', 403);
+    }
 }
 
 function tableColumnExists(string $table, string $column): bool {
     $row = DB::get()->one(
         "SELECT 1
-         FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = ? AND column_name = ?
          LIMIT 1",
-        [DB_NAME, $table, $column],
-        'sss'
+        [$table, $column]
     );
 
     return $row !== null;
 }
 
+function normalizeColumnDefinition(string $definition): string {
+    $definition = preg_replace('/\s+AFTER\s+\w+/i', '', $definition);
+    $definition = preg_replace('/\bMEDIUMTEXT\b/i', 'TEXT', $definition);
+    $definition = preg_replace('/\bLONGTEXT\b/i', 'TEXT', $definition);
+    $definition = preg_replace('/\bDATETIME\b/i', 'TIMESTAMPTZ', $definition);
+    $definition = preg_replace('/\bTINYINT\b/i', 'SMALLINT', $definition);
+    return trim((string)$definition);
+}
+
 function addColumnIfMissing(string $table, string $column, string $definition): void {
     if (tableColumnExists($table, $column)) return;
-    try {
-        DB::get()->rawQuery("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
-    } catch (mysqli_sql_exception $e) {
-        if ((int)$e->getCode() !== 1060) {
-            throw $e;
-        }
-    }
+    $definition = normalizeColumnDefinition($definition);
+    DB::get()->rawQuery("ALTER TABLE {$table} ADD COLUMN IF NOT EXISTS {$column} {$definition}");
 }
 
 function ensureQuestionImageColumnCapacity(): void {
-    static $done = false;
-    if ($done) return;
-    $done = true;
-
-    $row = DB::get()->one(
-        "SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
-         FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'questions' AND COLUMN_NAME = 'question_img'
-         LIMIT 1",
-        [DB_NAME],
-        's'
-    );
-
-    if (!$row) return;
-    $dataType = strtolower((string)($row['DATA_TYPE'] ?? ''));
-    $maxLen = (int)($row['CHARACTER_MAXIMUM_LENGTH'] ?? 0);
-    if ($dataType !== 'mediumtext' || $maxLen > 0) {
-        DB::get()->rawQuery("ALTER TABLE questions MODIFY COLUMN question_img MEDIUMTEXT NULL");
-    }
+    // PostgreSQL text columns do not need the MySQL MEDIUMTEXT upgrade path.
 }
 
 function ensureAdvancedSchema(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+
+    // Schema is managed via kidlearn_supabase_schema.sql on Supabase.
+    return;
 
     $db = DB::get();
 
@@ -265,10 +362,12 @@ function ensureGameQuestionBankSchema(): void {
     if ($done) return;
     $done = true;
 
-    addColumnIfMissing('games', 'question_count', "INT DEFAULT NULL AFTER time_limit");
-    addColumnIfMissing('answers', 'answer_img', "MEDIUMTEXT DEFAULT NULL AFTER answer_text");
-    addColumnIfMissing('answers', 'pair_left_img', "MEDIUMTEXT DEFAULT NULL AFTER pair_left");
-    addColumnIfMissing('answers', 'pair_right_img', "MEDIUMTEXT DEFAULT NULL AFTER pair_right");
+    addColumnIfMissing('subjects', 'is_active', 'BOOLEAN NOT NULL DEFAULT TRUE');
+    addColumnIfMissing('games', 'is_active', 'BOOLEAN NOT NULL DEFAULT TRUE');
+    addColumnIfMissing('games', 'question_count', 'INT DEFAULT NULL');
+    addColumnIfMissing('answers', 'answer_img', 'TEXT DEFAULT NULL');
+    addColumnIfMissing('answers', 'pair_left_img', 'TEXT DEFAULT NULL');
+    addColumnIfMissing('answers', 'pair_right_img', 'TEXT DEFAULT NULL');
 }
 
 function jsonEncodeSafe(array $data): string {
@@ -430,9 +529,13 @@ function recalcStudentBadges(int $studentId): void {
 
 // โ”€โ”€ ROUTER โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
 $action = $_GET['action'] ?? '';
-$body   = json_decode(file_get_contents('php://input'), true) ?? [];
+$body   = parseRequestBody();
 
-ensureAdvancedSchema();
+enforceRequestPolicy($action, $body);
+
+if ($action !== 'health') {
+    ensureAdvancedSchema();
+}
 
 match ($action) {
     'login'           => handleLogin(),
@@ -506,7 +609,7 @@ function handleLogin(): never {
     $db   = DB::get();
     $u    = trim($body['username'] ?? $_POST['username'] ?? '');
     $pass = $body['password'] ?? $_POST['password'] ?? '';
-    if (!$u || !$pass) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
+    if (!$u || !$pass) DB::fail('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 400);
 
     $user = $db->one(
         "SELECT u.*, s.student_id, s.grade, s.parent_phone,
@@ -520,11 +623,11 @@ function handleLogin(): never {
          LEFT JOIN teachers t ON t.user_id = u.user_id
          LEFT JOIN officers o ON o.user_id = u.user_id
          LEFT JOIN executives e ON e.user_id = u.user_id
-         WHERE (u.username=? OR u.email=?) AND u.is_active=1",
+         WHERE (u.username=? OR u.email=?) AND u.is_active=TRUE",
         [$u, $u], 'ss'
     );
     if (!$user || !password_verify($pass, $user['password']))
-        DB::fail('เธเธทเนเธญเธเธนเนเนเธเนเธซเธฃเธทเธญเธฃเธซเธฑเธชเธเนเธฒเธเนเธกเนเธ–เธนเธเธ•เนเธญเธ', 401);
+        DB::fail('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 401);
 
     unset($user['password']);
 
@@ -539,11 +642,18 @@ function handleLogin(): never {
         $user['children'] = [];
     }
 
+    session_regenerate_id(true);
     $_SESSION['user'] = $user;
+    unset($_SESSION['csrf_token']);
     DB::ok(['user' => $user]);
 }
 
 function handleLogout(): never {
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'] ?? '', $params['secure'], $params['httponly']);
+    }
     session_destroy();
     DB::ok();
 }
@@ -591,7 +701,7 @@ function handleRegister(): never {
         // auto-link parent
         $parent = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$pp], 's');
         if ($parent) {
-            $db->run("INSERT IGNORE INTO parent_student (parent_id,student_id) VALUES (?,?)",
+            $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
                 [$parent['parent_id'], $sid], 'ii');
         }
     }
@@ -610,7 +720,7 @@ function handleRegister(): never {
             [$phone, $phone9], 'ss'
         );
         foreach ($students as $s) {
-            $db->run("INSERT IGNORE INTO parent_student (parent_id,student_id) VALUES (?,?)",
+            $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
                 [$pid, $s['student_id']], 'ii');
         }
     }
@@ -688,7 +798,7 @@ function handleUpdateProfile(): never {
                 $db->run("DELETE FROM parent_student WHERE student_id=?", [$st['student_id']], 'i');
                 $p2 = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$pp], 's');
                 if ($p2) {
-                    $db->run("INSERT IGNORE INTO parent_student (parent_id,student_id) VALUES (?,?)",
+                    $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
                         [$p2['parent_id'], $st['student_id']], 'ii');
                 }
             }
@@ -706,7 +816,7 @@ function handleUpdateProfile(): never {
             if ($p) {
                 $students = $db->all("SELECT student_id FROM students WHERE parent_phone=?", [$phone], 's');
                 foreach ($students as $s) {
-                    $db->run("INSERT IGNORE INTO parent_student (parent_id,student_id) VALUES (?,?)",
+                    $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
                         [$p['parent_id'], $s['student_id']], 'ii');
                 }
             }
@@ -728,10 +838,10 @@ function handleChangePassword(): never {
     auth();
     $old = $body['old_password'] ?? '';
     $new = $body['new_password'] ?? '';
-    if (!$old || !$new) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
-    if (strlen($new) < 6) DB::fail('เธฃเธซเธฑเธชเธเนเธฒเธเนเธซเธกเนเธ•เนเธญเธเธกเธตเธญเธขเนเธฒเธเธเนเธญเธข 6 เธ•เธฑเธงเธญเธฑเธเธฉเธฃ', 400);
+    if (!$old || !$new) DB::fail('กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่', 400);
+    if (strlen($new) < 6) DB::fail('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร', 400);
     $user = DB::get()->one("SELECT password FROM users WHERE user_id=?", [myId()], 'i');
-    if (!password_verify($old, $user['password'])) DB::fail('เธฃเธซเธฑเธชเธเนเธฒเธเน€เธ”เธดเธกเนเธกเนเธ–เธนเธเธ•เนเธญเธ', 401);
+    if (!password_verify($old, $user['password'])) DB::fail('รหัสผ่านเดิมไม่ถูกต้อง', 401);
     DB::get()->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($new, PASSWORD_BCRYPT), myId()], 'si');
     DB::ok();
@@ -1089,7 +1199,7 @@ function handleLinkChild(): never {
 
     $linked = 0;
     foreach ($students as $s) {
-        $db->run("INSERT IGNORE INTO parent_student (parent_id,student_id) VALUES (?,?)",
+        $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
             [$p['parent_id'], $s['student_id']], 'ii');
         if ($db->affected() > 0) $linked++;
     }
@@ -1112,7 +1222,7 @@ function handleAutoLink(): never {
     );
     $linked = 0;
     foreach ($students as $s) {
-        $db->run("INSERT IGNORE INTO parent_student (parent_id,student_id) VALUES (?,?)",
+        $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
             [$p['parent_id'], $s['student_id']], 'ii');
         if ($db->affected() > 0) $linked++;
     }
@@ -1152,7 +1262,8 @@ function generateRecommendations(int $studentId, int $userId): void {
         $db->run(
             "INSERT INTO recommendations (student_id,subject_id,message,rec_type)
              VALUES (?,?,?,?)
-             ON DUPLICATE KEY UPDATE message=VALUES(message),rec_type=VALUES(rec_type),created_at=NOW()",
+             ON CONFLICT (student_id, subject_id)
+             DO UPDATE SET message=EXCLUDED.message, rec_type=EXCLUDED.rec_type, created_at=NOW()",
             [$studentId, $sub['subject_id'], $msg, $type], 'iiss'
         );
     }
@@ -1245,7 +1356,8 @@ function generateRecommendationsV2(int $studentId, int $userId): void {
         $db->run(
             "INSERT INTO recommendations (student_id,subject_id,message,rec_type)
              VALUES (?,?,?,?)
-             ON DUPLICATE KEY UPDATE message=VALUES(message),rec_type=VALUES(rec_type),created_at=NOW()",
+             ON CONFLICT (student_id, subject_id)
+             DO UPDATE SET message=EXCLUDED.message, rec_type=EXCLUDED.rec_type, created_at=NOW()",
             [$studentId, $sub['subject_id'], $msg, $type], 'iiss'
         );
     }
@@ -1311,10 +1423,10 @@ function handleMarkNotifRead(): never {
     if (!$p) DB::ok();
     $nid = (int)($body['notif_id'] ?? 0);
     if ($nid) {
-        DB::get()->run("UPDATE parent_notifications SET is_read=1 WHERE notif_id=? AND parent_id=?",
+        DB::get()->run("UPDATE parent_notifications SET is_read=TRUE WHERE notif_id=? AND parent_id=?",
             [$nid, $p['parent_id']], 'ii');
     } else {
-        DB::get()->run("UPDATE parent_notifications SET is_read=1 WHERE parent_id=?",
+        DB::get()->run("UPDATE parent_notifications SET is_read=TRUE WHERE parent_id=?",
             [$p['parent_id']], 'i');
     }
     DB::ok();
@@ -1347,7 +1459,7 @@ function handleTeacherStats(): never {
     } catch (\Exception $e) {
         $stats = $db->all($fallback_query);
     }
-    $total = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=1");
+    $total = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=TRUE");
     DB::ok(['subjects' => $stats, 'total_students' => (int)$total['c']]);
 }
 
@@ -1362,8 +1474,9 @@ function handleAllStudents(): never {
          FROM students st
          JOIN users u ON u.user_id=st.user_id
          LEFT JOIN scores sc ON sc.student_id=st.student_id
-         WHERE u.is_active=1
-         GROUP BY st.student_id ORDER BY st.grade, u.full_name"
+         WHERE u.is_active=TRUE
+         GROUP BY u.user_id, st.student_id, u.full_name, st.grade
+         ORDER BY st.grade, u.full_name"
     );
     DB::ok(['students' => $students]);
 }
@@ -1563,7 +1676,7 @@ function handleStudentAnalytics(): never {
     $reviewItems = $db->all(
         "SELECT prompt_text, correct_answer, student_answer, skill_name, COUNT(*) AS miss_count
          FROM score_attempt_details
-         WHERE student_id=? AND is_correct=0
+         WHERE student_id=? AND is_correct=FALSE
          GROUP BY prompt_text, correct_answer, student_answer, skill_name
          ORDER BY miss_count DESC
          LIMIT 10",
@@ -1578,7 +1691,7 @@ function handleStudentAnalytics(): never {
     $plans = $db->all(
         "SELECT lp.plan_id, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
                 COUNT(lpi.item_id) AS total_items,
-                SUM(CASE WHEN IFNULL(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
+                SUM(CASE WHEN COALESCE(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
          FROM learning_plans lp
          LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
          LEFT JOIN (
@@ -1629,7 +1742,7 @@ function handleStudentPlans(): never {
         "SELECT lp.plan_id, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
                 lpi.item_id, lpi.game_id, lpi.lesson_no, lpi.target_score, lpi.sort_order,
                 g.name AS game_name, g.icon AS game_icon, sub.name AS subject_name,
-                IFNULL(best.best_score, 0) AS best_score
+                COALESCE(best.best_score, 0) AS best_score
          FROM learning_plans lp
          LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
          LEFT JOIN games g ON g.game_id = lpi.game_id
@@ -1705,7 +1818,7 @@ function createParentNotificationUnique(int $studentId, string $title, string $m
             if ($exists) {
                 $db->run(
                     "UPDATE parent_notifications
-                     SET title=?, message=?, notif_type=?, ico=?, created_at=NOW(), is_read=0
+                    SET title=?, message=?, notif_type=?, ico=?, created_at=NOW(), is_read=FALSE
                      WHERE notif_id=?",
                     [$title, $message, $type, $icon, $exists['notif_id']],
                     'ssssi'
@@ -1748,7 +1861,7 @@ function refreshStudentNotifications(int $studentId): void {
     $activePlan = $db->one(
         "SELECT lp.plan_id, lp.title,
                 COUNT(lpi.item_id) AS total_items,
-                SUM(CASE WHEN IFNULL(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
+                SUM(CASE WHEN COALESCE(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
          FROM learning_plans lp
          LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
          LEFT JOIN (
@@ -1791,7 +1904,7 @@ function handleNotificationsV2(): never {
         [$p['parent_id']], 'i'
     );
     $summary = DB::get()->one(
-        "SELECT COUNT(*) AS total, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS unread
+        "SELECT COUNT(*) AS total, SUM(CASE WHEN is_read=FALSE THEN 1 ELSE 0 END) AS unread
          FROM parent_notifications WHERE parent_id=?",
         [$p['parent_id']], 'i'
     ) ?: ['total' => 0, 'unread' => 0];
@@ -1856,17 +1969,13 @@ function handleCreatePlanV2(): never {
 }
 
 function handleHealthCheck(): never {
-    ensureAdvancedSchema();
     $db = DB::get();
     $dbCheck = $db->one("SELECT 1 AS ok");
-    $students = $db->one("SELECT COUNT(*) AS c FROM students");
-    $scores = $db->one("SELECT COUNT(*) AS c FROM scores");
     DB::ok([
         'status' => 'healthy',
         'db' => (bool)($dbCheck['ok'] ?? false),
-        'counts' => [
-            'students' => (int)($students['c'] ?? 0),
-            'scores' => (int)($scores['c'] ?? 0),
+        'checks' => [
+            'database' => (bool)($dbCheck['ok'] ?? false),
         ],
         'timestamp' => date('c'),
     ]);
@@ -1885,7 +1994,7 @@ function handleReportV2(): never {
                     ROUND(AVG(sc.time_spent),1) AS avg_time,
                     COUNT(DISTINCT sc.student_id) AS active_students
              FROM scores sc
-             WHERE sc.played_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+             WHERE sc.played_at >= NOW() - INTERVAL '30 days'
              GROUP BY DATE(sc.played_at)
              ORDER BY day ASC"
         );
@@ -1898,7 +2007,7 @@ function handleReportV2(): never {
                     ROUND(AVG(sc.score),1) AS avg_score,
                     MAX(sc.played_at) AS last_active,
                     COALESCE(MIN(sm.mastery_score), 0) AS weakest_mastery,
-                    DATEDIFF(NOW(), MAX(sc.played_at)) AS inactive_days
+                    COALESCE(DATE_PART('day', NOW() - MAX(sc.played_at)), 999999) AS inactive_days
              FROM students st
              JOIN users u ON u.user_id = st.user_id
              LEFT JOIN scores sc ON sc.student_id = st.student_id
@@ -1929,7 +2038,7 @@ function handleReportV2(): never {
             "SELECT lp.plan_id, lp.title, lp.week_start, lp.due_at, lp.status,
                     u.full_name AS student_name,
                     COUNT(lpi.item_id) AS total_items,
-                    SUM(CASE WHEN IFNULL(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
+                    SUM(CASE WHEN COALESCE(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
              FROM learning_plans lp
              JOIN students st ON st.student_id = lp.student_id
              JOIN users u ON u.user_id = st.user_id
@@ -1947,7 +2056,7 @@ function handleReportV2(): never {
 
     if ($type === 'notifications') {
         $rows = $db->all(
-            "SELECT notif_type, COUNT(*) AS total, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS unread
+            "SELECT notif_type, COUNT(*) AS total, SUM(CASE WHEN is_read=FALSE THEN 1 ELSE 0 END) AS unread
              FROM parent_notifications
              GROUP BY notif_type
              ORDER BY total DESC"
@@ -1995,7 +2104,7 @@ function handleAdminToggleUser(): never {
     if (!$uid || $uid === myId()) DB::fail('เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธ”เน', 400);
     $u = DB::get()->one("SELECT is_active FROM users WHERE user_id=?", [$uid], 'i');
     if (!$u) DB::fail('เนเธกเนเธเธเธเธนเนเนเธเน', 404);
-    $newState = $u['is_active'] ? 0 : 1;
+    $newState = !$u['is_active'];
     DB::get()->run("UPDATE users SET is_active=? WHERE user_id=?", [$newState, $uid], 'ii');
     DB::ok(['is_active' => $newState]);
 }
@@ -2013,8 +2122,9 @@ function handleAdminResetPassword(): never {
     global $body;
     authRole('admin');
     $uid  = (int)($body['user_id'] ?? 0);
-    $pass = $body['new_password'] ?? 'kidlearn123';
+    $pass = $body['new_password'] ?? '';
     if (!$uid) DB::fail('เธ•เนเธญเธเธชเนเธ user_id', 400);
+    if (strlen($pass) < 8) DB::fail('New password must be at least 8 characters', 400);
     DB::get()->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($pass, PASSWORD_BCRYPT), $uid], 'si');
     DB::ok(['message' => 'เธฃเธตเน€เธเนเธ•เธฃเธซเธฑเธชเธเนเธฒเธเธชเธณเน€เธฃเนเธ']);
@@ -2052,8 +2162,9 @@ function handleToggleSubject(): never {
     if (!$sid) DB::fail('เธ•เนเธญเธเธชเนเธ subject_id', 400);
     $s = DB::get()->one("SELECT is_active FROM subjects WHERE subject_id=?", [$sid], 'i');
     if (!$s) DB::fail('เนเธกเนเธเธเธงเธดเธเธฒ', 404);
-    DB::get()->run("UPDATE subjects SET is_active=? WHERE subject_id=?", [$s['is_active']?0:1, $sid], 'ii');
-    DB::ok(['is_active' => $s['is_active'] ? 0 : 1]);
+    $newState = !$s['is_active'];
+    DB::get()->run("UPDATE subjects SET is_active=? WHERE subject_id=?", [$newState, $sid], 'ii');
+    DB::ok(['is_active' => $newState]);
 }
 
 // ============================================================
@@ -2133,9 +2244,9 @@ function handleReport(): never {
     $type = $_GET['type'] ?? 'summary';
 
     if ($type === 'summary') {
-        $students = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=1");
-        $parents  = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='parent'  AND is_active=1");
-        $teachers = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='teacher' AND is_active=1");
+        $students = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=TRUE");
+        $parents  = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='parent'  AND is_active=TRUE");
+        $teachers = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='teacher' AND is_active=TRUE");
         $games    = $db->one("SELECT COUNT(*) AS c FROM scores");
         $avgScore = $db->one("SELECT ROUND(AVG(score),1) AS a FROM scores");
         DB::ok([
@@ -2165,7 +2276,7 @@ function handleReport(): never {
             MAX(sc.played_at) AS last_active
             FROM students st JOIN users u ON u.user_id=st.user_id
             LEFT JOIN scores sc ON sc.student_id=st.student_id
-            WHERE u.is_active=1
+            WHERE u.is_active=TRUE
             GROUP BY st.student_id ORDER BY avg_score DESC LIMIT 100");
         DB::ok(['students' => $rows]);
     }
@@ -2185,7 +2296,7 @@ function handleReport(): never {
         $rows = $db->all("SELECT DATE(played_at) AS day, COUNT(*) AS plays,
             ROUND(AVG(score),1) AS avg_score,
             COUNT(DISTINCT student_id) AS active_students
-            FROM scores WHERE played_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+            FROM scores WHERE played_at >= NOW() - (CAST(? AS INT) * INTERVAL '1 day')
             GROUP BY DATE(played_at) ORDER BY day ASC",
             [$days], 'i');
         DB::ok(['daily' => $rows]);
@@ -2204,7 +2315,7 @@ function handleForgotPassword(): never {
     $email = trim($body['email'] ?? '');
     if (!$email) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธญเธตเน€เธกเธฅ', 400);
 
-    $user = $db->one("SELECT user_id, full_name FROM users WHERE email=? AND is_active=1", [$email], 's');
+    $user = $db->one("SELECT user_id, full_name FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
     // เนเธกเนเธเธญเธเธงเนเธฒเธญเธตเน€เธกเธฅเธกเธตเธซเธฃเธทเธญเนเธกเน (security)
     if (!$user) DB::ok(['message' => 'เธซเธฒเธเธญเธตเน€เธกเธฅเธเธตเนเธกเธตเนเธเธฃเธฐเธเธ เธเธฐเนเธ”เนเธฃเธฑเธเธฃเธซเธฑเธชเธฃเธตเน€เธเนเธ•']);
 
@@ -2235,12 +2346,12 @@ function handleResetPassword(): never {
     if (!$email || !$token || !$pass) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
     if (strlen($pass) < 6)           DB::fail('เธฃเธซเธฑเธชเธเนเธฒเธเธ•เนเธญเธเธกเธตเธญเธขเนเธฒเธเธเนเธญเธข 6 เธ•เธฑเธงเธญเธฑเธเธฉเธฃ', 400);
 
-    $user = $db->one("SELECT user_id FROM users WHERE email=? AND is_active=1", [$email], 's');
+    $user = $db->one("SELECT user_id FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
     if (!$user) DB::fail('เนเธกเนเธเธเธญเธตเน€เธกเธฅเธเธตเนเนเธเธฃเธฐเธเธ', 404);
 
     $reset = $db->one(
         "SELECT reset_id FROM password_resets
-         WHERE user_id=? AND token=? AND expires_at>NOW() AND used=0",
+         WHERE user_id=? AND token=? AND expires_at>NOW() AND used=FALSE",
         [$user['user_id'], $token], 'is'
     );
     if (!$reset) DB::fail('เธฃเธซเธฑเธช OTP เนเธกเนเธ–เธนเธเธ•เนเธญเธเธซเธฃเธทเธญเธซเธกเธ”เธญเธฒเธขเธธเนเธฅเนเธง', 400);
@@ -2248,7 +2359,7 @@ function handleResetPassword(): never {
     // เธญเธฑเธเน€เธ”เธ•เธฃเธซเธฑเธชเธเนเธฒเธ
     $db->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($pass, PASSWORD_BCRYPT), $user['user_id']], 'si');
-    $db->run("UPDATE password_resets SET used=1 WHERE reset_id=?", [$reset['reset_id']], 'i');
+    $db->run("UPDATE password_resets SET used=TRUE WHERE reset_id=?", [$reset['reset_id']], 'i');
 
     DB::ok(['message' => 'เน€เธเธฅเธตเนเธขเธเธฃเธซเธฑเธชเธเนเธฒเธเธชเธณเน€เธฃเนเธ']);
 }
@@ -2439,29 +2550,34 @@ function handleSaveGameSettingsV2(): never {
     $gameId    = (int)($body['game_id'] ?? 0);
     $timeLimit = (int)($body['time_limit'] ?? 0);
     $questionCountRaw = isset($body['question_count']) ? (int)$body['question_count'] : 0;
+    $gameType = trim((string)($body['game_type'] ?? ''));
 
     if (!$gameId) DB::fail('Missing game_id', 400);
     if ($timeLimit < 10 || $timeLimit > 3600) DB::fail('Time limit must be between 10 and 3600 seconds', 400);
     if ($questionCountRaw < 0 || $questionCountRaw > 100) DB::fail('Question count must be between 0 and 100', 400);
+    $allowedTypes = ['mcq', 'truefalse', 'fill', 'matching', 'sequence', 'wordsearch', 'letterorder'];
+    if ($gameType !== '' && !in_array($gameType, $allowedTypes, true)) DB::fail('Invalid game type', 400);
 
     $game = $db->one("SELECT game_id, game_type FROM games WHERE game_id=? LIMIT 1", [$gameId], 'i');
     if (!$game) DB::fail('Game not found', 404);
+    if ($gameType === '') $gameType = (string)($game['game_type'] ?? '');
 
     $questionCount = $questionCountRaw > 0 ? $questionCountRaw : null;
-    if (($game['game_type'] ?? '') === 'wordsearch' && $questionCount !== null) {
+    if ($gameType === 'wordsearch' && $questionCount !== null) {
         $questionCount = max(1, min(10, $questionCount));
     }
 
     $db->run(
-        "UPDATE games SET time_limit=?, question_count=? WHERE game_id=?",
-        [$timeLimit, $questionCount, $gameId],
-        'iii'
+        "UPDATE games SET time_limit=?, question_count=?, game_type=? WHERE game_id=?",
+        [$timeLimit, $questionCount, $gameType, $gameId],
+        'iisi'
     );
 
     DB::ok([
         'message' => 'Game settings saved',
         'time_limit' => $timeLimit,
         'question_count' => $questionCount,
+        'game_type' => $gameType,
     ]);
 }
 
@@ -2689,7 +2805,7 @@ function handlePlayQuestionsV2(): never {
             continue;
         }
 
-        if ($type === 'sequence') {
+        if ($type === 'sequence' || $type === 'letterorder') {
             $seqItems = [];
             foreach ($answers as $idx => $answer) {
                 $text = trim((string)($answer['answer_text'] ?? ''));
@@ -2728,7 +2844,7 @@ function handlePlayQuestionsV2(): never {
         DB::ok(['game' => $game, 'type' => $type, 'pairs' => $result]);
     }
 
-    if ($type === 'sequence') {
+    if ($type === 'sequence' || $type === 'letterorder') {
         DB::ok(['game' => $game, 'type' => $type, 'qs' => $result]);
     }
 
@@ -2840,8 +2956,8 @@ function handleExecutiveDashboard(): never {
     $db = DB::get();
     
     // เธชเธฃเธธเธเธเนเธญเธกเธนเธฅเธฃเธงเธก
-    $students = $db->one("SELECT COUNT(*) AS c FROM students WHERE user_id IN (SELECT user_id FROM users WHERE is_active=1)");
-    $teachers = $db->one("SELECT COUNT(*) AS c FROM teachers WHERE user_id IN (SELECT user_id FROM users WHERE is_active=1)");
+    $students = $db->one("SELECT COUNT(*) AS c FROM students WHERE user_id IN (SELECT user_id FROM users WHERE is_active=TRUE)");
+    $teachers = $db->one("SELECT COUNT(*) AS c FROM teachers WHERE user_id IN (SELECT user_id FROM users WHERE is_active=TRUE)");
     $totalPlays = $db->one("SELECT COUNT(*) AS c FROM scores");
     $avgScore = $db->one("SELECT ROUND(AVG(score),1) AS a FROM scores");
     
@@ -2859,13 +2975,13 @@ function handleExecutiveUsers(): never {
     
     // เธ”เธถเธเธเนเธญเธกเธนเธฅเธเธนเนเนเธเนเธ—เธฑเนเธเธซเธกเธ” (View-only)
     $users = $db->all(
-        "SELECT u.user_id, u.username, u.full_name, u.role, u.is_active, u.created_at,
+        "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at,
                 s.grade, p.phone, t.department
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
          LEFT JOIN parents p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
-         WHERE u.is_active = 1
+         WHERE u.is_active = TRUE
          ORDER BY u.role, u.full_name"
     );
     
@@ -2917,6 +3033,67 @@ function handleExecutiveContent(): never {
             'games' => $games
         ]);
     }
+
+    if ($type === 'scores') {
+        $scores = $db->all(
+            "SELECT sc.score_id, sc.score, 100 AS max_score, sc.time_spent, sc.played_at,
+                    u.full_name AS student_name,
+                    g.name AS game_name,
+                    sub.name AS subject_name,
+                    sub.icon AS subject_icon
+             FROM scores sc
+             JOIN students st ON st.student_id = sc.student_id
+             JOIN users u ON u.user_id = st.user_id
+             LEFT JOIN games g ON g.game_id = sc.game_id
+             LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
+             ORDER BY sc.played_at DESC
+             LIMIT 120"
+        );
+        DB::ok(['type' => 'scores', 'scores' => $scores]);
+    }
+
+    if ($type === 'lessons') {
+        $lessons = $db->all(
+            "SELECT lc.content_id, lc.game_id, lc.lesson_no, lc.title, lc.summary, lc.read_time,
+                    g.name AS game_name,
+                    sub.name AS subject_name,
+                    sub.icon AS subject_icon
+             FROM lesson_content lc
+             LEFT JOIN games g ON g.game_id = lc.game_id
+             LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
+             ORDER BY sub.subject_id, lc.game_id, lc.lesson_no"
+        );
+        DB::ok(['type' => 'lessons', 'lessons' => $lessons]);
+    }
+
+    if ($type === 'questions') {
+        $questions = $db->all(
+            "SELECT q.question_id, q.game_id, q.order_no, q.question_type, q.question_text,
+                    g.name AS game_name,
+                    sub.name AS subject_name,
+                    sub.icon AS subject_icon,
+                    COALESCE(
+                        STRING_AGG(
+                            TRIM(
+                                COALESCE(a.answer_text, '') ||
+                                CASE WHEN COALESCE(a.is_correct, FALSE) THEN ' [correct]' ELSE '' END
+                            ),
+                            ' | ' ORDER BY a.answer_id
+                        ),
+                        ''
+                    ) AS answers_summary
+             FROM questions q
+             LEFT JOIN games g ON g.game_id = q.game_id
+             LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
+             LEFT JOIN answers a ON a.question_id = q.question_id
+             GROUP BY q.question_id, q.game_id, q.order_no, q.question_type, q.question_text,
+                      g.name, sub.name, sub.icon, sub.subject_id
+             ORDER BY sub.subject_id, q.game_id, q.order_no, q.question_id"
+        );
+        DB::ok(['type' => 'questions', 'questions' => $questions]);
+    }
+
+    DB::ok(['type' => $type, 'items' => []]);
 }
 
 
@@ -2944,7 +3121,7 @@ function _doCreateStaff(array $body): never {
     $role       = $body['role']       ?? '';
     $username   = trim($body['username']   ?? '');
     $email      = trim($body['email']      ?? '');
-    $password   = $body['password']   ?? 'kidlearn123';
+    $password   = $body['password']   ?? '';
     $full_name  = trim($body['full_name']  ?? '');
     $department = trim($body['department'] ?? '');
     $title      = trim($body['title']      ?? '');      // executive เน€เธ—เนเธฒเธเธฑเนเธ
@@ -2961,6 +3138,9 @@ function _doCreateStaff(array $body): never {
         DB::fail("username '$username' เธกเธตเธญเธขเธนเนเนเธฅเนเธง", 409);
     if ($db->one("SELECT user_id FROM users WHERE email=?", [$email], 's'))
         DB::fail("email '$email' เธกเธตเธญเธขเธนเนเนเธฅเนเธง", 409);
+
+    if (strlen($password) < 8)
+        DB::fail('Password must be at least 8 characters', 400);
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
     $db->run(
@@ -2996,7 +3176,7 @@ function handleStudentPlansV2(): never {
                 "SELECT lp.plan_id, lp.student_id, u.full_name AS student_name, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
                         lpi.item_id, lpi.game_id, lpi.lesson_no, lpi.target_score, lpi.sort_order,
                         g.name AS game_name, g.icon AS game_icon, sub.name AS subject_name,
-                        IFNULL(best.best_score, 0) AS best_score
+                        COALESCE(best.best_score, 0) AS best_score
                  FROM learning_plans lp
                  JOIN students st ON st.student_id = lp.student_id
                  JOIN users u ON u.user_id = st.user_id
@@ -3018,7 +3198,7 @@ function handleStudentPlansV2(): never {
                 "SELECT lp.plan_id, lp.student_id, u.full_name AS student_name, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
                         lpi.item_id, lpi.game_id, lpi.lesson_no, lpi.target_score, lpi.sort_order,
                         g.name AS game_name, g.icon AS game_icon, sub.name AS subject_name,
-                        IFNULL(best.best_score, 0) AS best_score
+                        COALESCE(best.best_score, 0) AS best_score
                  FROM learning_plans lp
                  JOIN students st ON st.student_id = lp.student_id
                  JOIN users u ON u.user_id = st.user_id
@@ -3044,7 +3224,7 @@ function handleStudentPlansV2(): never {
         "SELECT lp.plan_id, lp.student_id, u.full_name AS student_name, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
                 lpi.item_id, lpi.game_id, lpi.lesson_no, lpi.target_score, lpi.sort_order,
                 g.name AS game_name, g.icon AS game_icon, sub.name AS subject_name,
-                IFNULL(best.best_score, 0) AS best_score
+                COALESCE(best.best_score, 0) AS best_score
          FROM learning_plans lp
          JOIN students st ON st.student_id = lp.student_id
          JOIN users u ON u.user_id = st.user_id
