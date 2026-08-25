@@ -195,11 +195,11 @@ function openSub(id){
   document.getElementById('games-badge').style.display='none';
   const grid=document.getElementById('games-grid'); grid.innerHTML='';
   const TYPE_LBL={mcq:'🅰 ตอบปรนัย',truefalse:'✅ จริง/เท็จ',fill:'✏️ เติมคำ',
-    matching:'🔗 จับคู่',sequence:'📋 เรียงลำดับ',wordsearch:'🔍 ค้นหาคำ'};
+    matching:'🔗 จับคู่',sequence:'📋 เรียงลำดับ',letterorder:'🔤 เรียงตัวอักษร',wordsearch:'🔍 ค้นหาคำ'};
   const TYPE_BG={mcq:'#FFF3E0',truefalse:'#E8F5E9',fill:'#EDE7F6',
-    matching:'#E3F2FD',sequence:'#FFF8E1',wordsearch:'#FCE4EC'};
+    matching:'#E3F2FD',sequence:'#FFF8E1',letterorder:'#EEF2FF',wordsearch:'#FCE4EC'};
   const TYPE_COL={mcq:'#E65100',truefalse:'#1B5E20',fill:'#4527A0',
-    matching:'#0D47A1',sequence:'#F57F17',wordsearch:'#880E4F'};
+    matching:'#0D47A1',sequence:'#F57F17',letterorder:'#3730A3',wordsearch:'#880E4F'};
   const lvlLbl={easy:'ง่าย',medium:'ปานกลาง',hard:'ยาก'};
   const myGames=Object.values(GAMES_DB).filter(g=>g.sid===id);
   myGames.forEach((gm,i)=>{
@@ -329,23 +329,18 @@ async function openSub(id){
   document.getElementById('games-badge').style.display='none';
   const grid=document.getElementById('games-grid');
   grid.innerHTML='';
-  const TYPE_LBL={mcq:'🅰️ ตอบปรนัย',truefalse:'✅ จริง/เท็จ',fill:'✏️ เติมคำ',matching:'🔗 จับคู่',sequence:'📋 เรียงลำดับ',wordsearch:'🔍 ค้นหาคำ'};
-  const TYPE_BG={mcq:'#FFF3E0',truefalse:'#E8F5E9',fill:'#EDE7F6',matching:'#E3F2FD',sequence:'#FFF8E1',wordsearch:'#FCE4EC'};
-  const TYPE_COL={mcq:'#E65100',truefalse:'#1B5E20',fill:'#4527A0',matching:'#0D47A1',sequence:'#F57F17',wordsearch:'#880E4F'};
+  const wrap = document.getElementById('lesson-wrap');
+  if(wrap) wrap.style.display='none';
+  grid.style.display='';
+  const TYPE_LBL={mcq:'🅰️ ตอบปรนัย',truefalse:'✅ จริง/เท็จ',fill:'✏️ เติมคำ',matching:'🔗 จับคู่',sequence:'📋 เรียงลำดับ',letterorder:'🔤 เรียงตัวอักษร',wordsearch:'🔍 ค้นหาคำ'};
+  const TYPE_BG={mcq:'#FFF3E0',truefalse:'#E8F5E9',fill:'#EDE7F6',matching:'#E3F2FD',sequence:'#FFF8E1',letterorder:'#EEF2FF',wordsearch:'#FCE4EC'};
+  const TYPE_COL={mcq:'#E65100',truefalse:'#1B5E20',fill:'#4527A0',matching:'#0D47A1',sequence:'#F57F17',letterorder:'#3730A3',wordsearch:'#880E4F'};
   const lvlLbl={easy:'ง่าย',medium:'ปานกลาง',hard:'ยาก'};
   const myGames=Object.values(GAMES_DB).filter(g=>g.sid===id);
 
-  let dbGamesMap={};
-  try{
-    const res=await apiGames(id);
-    if(res?.ok && Array.isArray(res.games)){
-      dbGamesMap=Object.fromEntries(res.games.map(game=>[String(game.game_id),game]));
-    }
-  }catch(e){
-    console.warn('[openSub] failed to load dynamic game meta',e);
-  }
-
-  myGames.forEach((gm,i)=>{
+  const renderGameCards=(dbGamesMap={})=>{
+    grid.innerHTML='';
+    myGames.forEach((gm,i)=>{
     const dbMeta=dbGamesMap[String(jsKeyToDbId(gm.id))]||{};
     const timeLimit=parseInt(dbMeta.time_limit,10)>0?parseInt(dbMeta.time_limit,10):(parseInt(gm.time,10)||60);
     const tbg=TYPE_BG[gm.type]||'#F3F4F6';
@@ -369,8 +364,22 @@ async function openSub(id){
           :'<div style="font-size:.78rem;color:var(--mu);text-align:center;padding:.4rem 0">เฉพาะนักเรียนเล่นได้</div>'}
       </div>
     </div>`;
-  });
+    });
+  };
+
   sec('games');
+  renderGameCards();
+
+  try{
+    const res=await apiGames(id);
+    if(A.curSub?.id!==id) return;
+    if(res?.ok && Array.isArray(res.games)){
+      const dbGamesMap=Object.fromEntries(res.games.map(game=>[String(game.game_id),game]));
+      renderGameCards(dbGamesMap);
+    }
+  }catch(e){
+    console.warn('[openSub] failed to load dynamic game meta',e);
+  }
 }
 
 function closeLessons() {

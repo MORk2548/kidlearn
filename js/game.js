@@ -5,34 +5,39 @@ let pendingGid=null, pendingLesson=1;
 async function openModal(gid, lessonNo){
   pendingGid=gid; pendingLesson=lessonNo||1;
   const gm=GAMES_DB[gid], sub=SUBS.find(s=>s.id===gm.sid);
-  const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'ค้นหาคำ'};
+  const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',letterorder:'เรียงตัวอักษร',wordsearch:'ค้นหาคำ'};
   const lessonNames=LESSON_NAMES||{};
   const lname=(lessonNames[gid]||[])[lessonNo-1]||`บทที่ ${lessonNo}`;
   let gameName=gm.name;
   let gameType=gm.type;
   let timeLimit=gm.time;
   const dbGameId=A.curDbGameId || (typeof jsKeyToDbId==='function' ? jsKeyToDbId(gid) : parseInt(gid));
+  renderGameModal(gm, sub, TYPE_LBL, gameName, gameType, timeLimit);
+  document.getElementById('gmodal').classList.add('show');
+
   if (dbGameId) {
-    try {
-      const res = await apiPlayQuestions(dbGameId);
+    loadPlayQuestionsFast(dbGameId, gm).then(res=>{
       if (res?.ok) {
+        if (pendingGid !== gid) return;
         gameName = res.game?.name || gameName;
         gameType = res.game?.game_type || gameType;
         timeLimit = parseInt(res.game?.time_limit, 10) > 0 ? parseInt(res.game.time_limit, 10) : timeLimit;
+        renderGameModal(gm, sub, TYPE_LBL, gameName, gameType, timeLimit);
       }
-    } catch(e) {
+    }).catch(e=>{
       console.warn('[openModal] failed to load DB game meta', e);
-    }
+    });
   }
+}
+function renderGameModal(gm, sub, typeLabel, gameName, gameType, timeLimit){
   document.getElementById('m-title').textContent=`${gm.icon} ${gameName}`;
   document.getElementById('m-body').innerHTML=`
     <div style="font-size:.88rem;line-height:2.2;color:#374151">
       📚 <strong>${sub.name}</strong><br>
-      🎯 ประเภท: ${TYPE_LBL[gameType]||gameType}<br>
+      🎯 ประเภท: ${typeLabel[gameType]||gameType}<br>
       ⏱ เวลา: ${timeLimit} วิ<br>
       🏆 คะแนนเต็ม: 100
     </div>`;
-  document.getElementById('gmodal').classList.add('show');
 }
 function closeModal(){
   document.getElementById('gmodal').classList.remove('show');
@@ -56,10 +61,10 @@ async function startGame(gid){
   document.getElementById('g-content').innerHTML =
     '<div style="text-align:center;padding:3rem;color:var(--mu)">⏳ กำลังโหลดคำถาม...</div>';
 
-  // โหลดคำถามจาก DB
+  // โหลดคำถามจาก DB แต่ fallback ให้เร็วถ้า API ช้า เพื่อไม่ให้เกมค้างที่ loading
   let gameData = null;
   try {
-    const res = await apiPlayQuestions(A.curDbGameId);
+    const res = await loadPlayQuestionsFast(A.curDbGameId, gmStatic);
     if (res.ok) gameData = res;
   } catch(e) { console.warn('[game] DB load failed, fallback to static:', e); }
   gameData = normalizePreferredGameData(gmStatic, gameData);
@@ -106,6 +111,15 @@ async function startGame(gid){
 
 function _countQ(d){
   return d?.qs?.length || d?.pairs?.length || d?.items?.length || d?.words?.length || 0;
+}
+function loadPlayQuestionsFast(dbGameId, gmStatic){
+  const hasStaticQuestions = _countQ(gmStatic) > 0;
+  if(!hasStaticQuestions) return apiPlayQuestions(dbGameId);
+  const timeoutMs = 2500;
+  return Promise.race([
+    apiPlayQuestions(dbGameId),
+    new Promise(resolve=>setTimeout(()=>resolve({ok:false,error:'โหลดคำถามจากเซิร์ฟเวอร์ช้า ใช้ชุดคำถามสำรอง'}), timeoutMs))
+  ]);
 }
 function hasQuestionImageData(qs){
   return Array.isArray(qs) && qs.some(q=>String(q?.img || '').trim() !== '');
@@ -170,7 +184,7 @@ function recordAttempt({ prompt='', correctAnswer='', studentAnswer='', isCorrec
 function _staticToGameData(gm){
   if(!gm) return {};
   if(gm.type==='matching')  return { pairs: gm.pairs||[] };
-  if(gm.type==='sequence')  return { items: gm.items||[] };
+  if(gm.type==='sequence' || gm.type==='letterorder')  return { items: gm.items||[] };
   if(gm.type==='wordsearch') return { words: gm.words||[] };
   return { qs: gm.qs||[] };
 }
@@ -316,8 +330,9 @@ function renderGame(){
   else if(t==='truefalse') renderTF();
   else if(t==='fill')    renderFill();
   else if(t==='matching')  renderMatch();
-  else if(t==='sequence')  renderSeq();
+  else if(t==='sequence' || t==='letterorder')  renderSeq();
   else if(t==='wordsearch') renderWS();
+  else finishGame();
 }
 function upQP(cur,tot){
   document.getElementById('g-qno').textContent=`${cur}/${tot}`;

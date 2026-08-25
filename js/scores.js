@@ -138,7 +138,7 @@ function renderScoreTable(sc) {
     tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีคะแนน</td></tr>';
     return;
   }
-  const TYPE_LBL = { mcq: 'MCQ', truefalse: 'จริง/เท็จ', fill: 'เติมคำ', matching: 'จับคู่', sequence: 'เรียงลำดับ', wordsearch: 'ค้นหาคำ' };
+  const TYPE_LBL = { mcq: 'MCQ', truefalse: 'จริง/เท็จ', fill: 'เติมคำ', matching: 'จับคู่', sequence: 'เรียงลำดับ', letterorder: 'เรียงตัวอักษร', wordsearch: 'ค้นหาคำ' };
   tb.innerHTML = sc.map(s => {
     const score = s.score ?? s.score;
     const max = s.max_score ?? 100;

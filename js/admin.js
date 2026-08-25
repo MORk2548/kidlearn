@@ -173,7 +173,7 @@ async function _renderReport(type){
     </tr></thead><tbody>${rows}</tbody></table></div>`; return;}
 
   if(type==='by_game'){
-    const TYPE_LBL={mcq:'MCQ',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'ค้นหาคำ'};
+    const TYPE_LBL={mcq:'MCQ',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',letterorder:'เรียงตัวอักษร',wordsearch:'ค้นหาคำ'};
     const rows=(res.games||[]).map(g=>{const avg=Math.round(+g.avg_score||0);const c=avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
       return `<tr style="border-bottom:1px solid #F1F5F9">
         <td style="padding:.6rem .75rem;font-weight:600">${g.game_name}</td>

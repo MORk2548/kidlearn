@@ -131,7 +131,7 @@ async function selectTcStudent(sid){
     return;
   }
 
-  const TYPE_LBL={mcq:'MCQ',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',wordsearch:'Search'};
+  const TYPE_LBL={mcq:'MCQ',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',letterorder:'เรียงตัวอักษร',wordsearch:'Search'};
   // สรุปรายวิชา
   const bySub={};
   sc.forEach(s=>{

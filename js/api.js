@@ -1,6 +1,7 @@
 // api.js - JavaScript wrapper for the PHP backend.
 const API_URL = 'api/backend.php';
 let API_CSRF_TOKEN = sessionStorage.getItem('kl_csrf_token') || '';
+const API_GET_CACHE = new Map();
 
 async function _api(action, { method = 'GET', body, params } = {}) {
   let url = `${API_URL}?action=${action}`;
@@ -48,6 +49,37 @@ async function _api(action, { method = 'GET', body, params } = {}) {
   }
 }
 
+function _apiCached(action, params = {}, ttlMs = 30000) {
+  const key = `${action}:${JSON.stringify(params)}`;
+  const now = Date.now();
+  const cached = API_GET_CACHE.get(key);
+  if (cached && cached.expires > now) return cached.promise || Promise.resolve(cached.data);
+
+  const promise = _api(action, { params }).then(res => {
+    if (res?.ok) {
+      API_GET_CACHE.set(key, { data: res, expires: Date.now() + ttlMs });
+    } else {
+      API_GET_CACHE.delete(key);
+    }
+    return res;
+  }).catch(err => {
+    API_GET_CACHE.delete(key);
+    throw err;
+  });
+  API_GET_CACHE.set(key, { promise, expires: now + ttlMs });
+  return promise;
+}
+
+function _apiClearCache(actions = []) {
+  if (!actions.length) {
+    API_GET_CACHE.clear();
+    return;
+  }
+  for (const key of API_GET_CACHE.keys()) {
+    if (actions.some(action => key.startsWith(`${action}:`))) API_GET_CACHE.delete(key);
+  }
+}
+
 // Auth
 const apiLogin = (u, p) => _api('login', { body: { username: u, password: p } });
 const apiLogout = () => _api('logout', { method: 'POST' });
@@ -57,16 +89,16 @@ const apiUpdateProfile = (d) => _api('update_profile', { body: d });
 const apiChangePassword = (d) => _api('change_password', { body: d });
 
 // Subjects and games
-const apiSubjects = () => _api('subjects');
-const apiGames = (sid) => _api('games', { params: { subject_id: sid } });
+const apiSubjects = () => _apiCached('subjects', {}, 60000);
+const apiGames = (sid) => _apiCached('games', { subject_id: sid }, 60000);
 
 // Scores
 const apiSaveScore = (d) => _api('save_score', { body: d });
 const apiScores = (sid) => _api('scores', sid ? { params: { student_id: sid } } : {});
 
 // Lesson content
-const apiGetContent = (gid) => _api('get_content', { params: { game_id: gid } });
-const apiLessonContent = (gid, lno) => _api('lesson_content', { params: { game_id: gid, lesson_no: lno } });
+const apiGetContent = (gid) => _apiCached('get_content', { game_id: gid }, 60000);
+const apiLessonContent = (gid, lno) => _apiCached('lesson_content', { game_id: gid, lesson_no: lno }, 60000);
 const apiLessonHistory = (gid, lno) => _api('lesson_history', { params: { game_id: gid, lesson_no: lno } });
 
 // Parent
@@ -90,8 +122,8 @@ const apiStudentPlans = (sid) => _api('student_plans', sid ? { params: { student
 const apiCreatePlan = (d) => _api('create_plan', { body: d });
 
 // Lesson editor
-const apiSaveLesson = (d) => _api('save_lesson', { body: d });
-const apiDeleteLesson = (d) => _api('delete_lesson', { body: d });
+const apiSaveLesson = (d) => _api('save_lesson', { body: d }).then(res => { if(res?.ok) _apiClearCache(['get_content','lesson_content']); return res; });
+const apiDeleteLesson = (d) => _api('delete_lesson', { body: d }).then(res => { if(res?.ok) _apiClearCache(['get_content','lesson_content']); return res; });
 
 const apiAutoLink = () => _api('auto_link', { method: 'POST', body: {} });
 
@@ -106,10 +138,10 @@ const apiSaveSubject = (d) => _api('save_subject', { body: d });
 const apiToggleSubject = (d) => _api('toggle_subject', { body: d });
 
 // Game questions
-const apiGameQuestions = (gid) => _api('game_questions', { params: { game_id: gid } });
-const apiSaveQuestion = (d) => _api('save_question', { body: d });
-const apiDeleteQuestion = (d) => _api('delete_question', { body: d });
-const apiSaveGameSettings = (d) => _api('save_game_settings', { body: d });
+const apiGameQuestions = (gid) => _apiCached('game_questions', { game_id: gid }, 15000);
+const apiSaveQuestion = (d) => _api('save_question', { body: d }).then(res => { if(res?.ok) _apiClearCache(['game_questions','play_questions']); return res; });
+const apiDeleteQuestion = (d) => _api('delete_question', { body: d }).then(res => { if(res?.ok) _apiClearCache(['game_questions','play_questions']); return res; });
+const apiSaveGameSettings = (d) => _api('save_game_settings', { body: d }).then(res => { if(res?.ok) _apiClearCache(['games','game_questions','play_questions']); return res; });
 
 // Reports
 const apiReport = (type, extra = {}) => _api('report', { params: { type, ...extra } });
@@ -119,7 +151,7 @@ const apiForgotPassword = (d) => _api('forgot_password', { body: d });
 const apiResetPassword = (d) => _api('reset_password', { body: d });
 const apiValidateEmail = (email) => _api('validate_email', { params: { email } });
 
-const apiPlayQuestions = (gid) => _api('play_questions', { params: { game_id: gid } });
+const apiPlayQuestions = (gid) => _apiCached('play_questions', { game_id: gid }, 15000);
 
 // Staff and executive APIs
 const apiAdminCreateStaff = (d) => _api('admin_create_staff', { body: d });
