@@ -1,4 +1,4 @@
-// ══════════════════════════════════════════════════════
+﻿// ══════════════════════════════════════════════════════
 // MODAL
 // ══════════════════════════════════════════════════════
 let pendingGid=null, pendingLesson=1;
@@ -392,17 +392,19 @@ function renderTF(){
   const{qi,totalQ}=A.gs, q=A.curGame.qs[qi];
   if(!q){finishGame();return;}
   upQP(qi+1,totalQ);
+  const trueLabel=q.trueLabel||'จริง';
+  const falseLabel=q.falseLabel||'เท็จ';
   document.getElementById('g-content').innerHTML=`
     ${renderQuestionImage(q)}
     <div class="qt">${q.q}</div>
     <div class="tf">
       <button class="tfb t" onclick="ansTF(this,true,${q.ans})">
         <span style="font-size:2rem;display:block;margin-bottom:.3rem">✅</span>
-        <span style="font-size:1.1rem;font-weight:800">จริง</span>
+        <span style="font-size:1.1rem;font-weight:800">${trueLabel}</span>
       </button>
       <button class="tfb f" onclick="ansTF(this,false,${q.ans})">
         <span style="font-size:2rem;display:block;margin-bottom:.3rem">❌</span>
-        <span style="font-size:1.1rem;font-weight:800">เท็จ</span>
+        <span style="font-size:1.1rem;font-weight:800">${falseLabel}</span>
       </button>
     </div>`;
 }
@@ -410,10 +412,12 @@ function ansTF(btn,chose,correct){
   document.querySelectorAll('.tfb').forEach(b=>b.disabled=true);
   const ok=chose===correct;
   const q=A.curGame.qs[A.gs.qi];
+  const trueLabel=q?.trueLabel||'จริง';
+  const falseLabel=q?.falseLabel||'เท็จ';
   recordAttempt({
     prompt: q?.q || '',
-    correctAnswer: correct ? 'จริง' : 'เท็จ',
-    studentAnswer: chose ? 'จริง' : 'เท็จ',
+    correctAnswer: correct ? trueLabel : falseLabel,
+    studentAnswer: chose ? trueLabel : falseLabel,
     isCorrect: ok,
     wrongQuestion: ok || !q ? null : { ...q }
   });

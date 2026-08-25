@@ -1,4 +1,4 @@
-// ══════════════════════════════════════════════════════
+﻿// ══════════════════════════════════════════════════════
 // GAME EDITOR — ครูแก้ไขคำถาม-คำตอบ (4.0)
 // ══════════════════════════════════════════════════════
 let _geGid=null, _geDbGid=null, _geQuestions=[], _geAnsCount=4, _geGameMeta=null;
@@ -303,15 +303,28 @@ function _geFormHtml(type, q){
     html+='</div>';
 
   } else if(type==='truefalse'){
-    const correctAns = answers.find(a=>a.is_correct)?.answer_text||'ถูก';
-    html+=`<label style="font-weight:700;font-size:.82rem">คำตอบที่ถูก</label></div>
-      <div id="ge-ans-wrap" style="display:flex;gap:1rem">
+    const trueAnswer = answers.find(a=>Number(a.seq_order)===1) || answers[0] || {};
+    const falseAnswer = answers.find(a=>Number(a.seq_order)===2) || answers[1] || {};
+    const correctValue = trueAnswer.is_correct ? 'true' : (falseAnswer.is_correct ? 'false' : 'true');
+    html+=`<label style="font-weight:700;font-size:.82rem">ตัวเลือกคำตอบ</label></div>
+      <div id="ge-ans-wrap" style="display:grid;gap:.85rem">
+        <div>
+          <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:.35rem">ข้อความปุ่มฝั่งถูก</label>
+          <input id="ge-tf-true-text" class="ge-in" placeholder="เช่น จริง, ใช่, ถูกต้อง" value="${_geEsc(trueAnswer.answer_text||'จริง')}">
+        </div>
+        <div>
+          <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:.35rem">ข้อความปุ่มฝั่งผิด</label>
+          <input id="ge-tf-false-text" class="ge-in" placeholder="เช่น เท็จ, ไม่ใช่, ไม่ถูกต้อง" value="${_geEsc(falseAnswer.answer_text||'เท็จ')}">
+        </div>
+        <label style="font-weight:700;font-size:.82rem">คำตอบที่ถูก</label>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;font-weight:600">
-          <input type="radio" name="ge-tf" value="ถูก" ${correctAns==='ถูก'?'checked':''} style="accent-color:var(--g)"> ✅ ถูก
+          <input type="radio" name="ge-tf" value="true" ${correctValue==='true'?'checked':''} style="accent-color:var(--g)"> ✅ ฝั่งถูก
         </label>
         <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;font-weight:600">
-          <input type="radio" name="ge-tf" value="ผิด" ${correctAns==='ผิด'?'checked':''} style="accent-color:#EF4444"> ❌ ผิด
+          <input type="radio" name="ge-tf" value="false" ${correctValue==='false'?'checked':''} style="accent-color:#EF4444"> ❌ ฝั่งผิด
         </label>
+        </div>
       </div>`;
 
   } else if(type==='fill'){
@@ -442,8 +455,13 @@ async function geSaveQ(idx){
       if(t) answers.push({answer_text:t,is_correct:String(i)===correctVal?1:0});
     });
   } else if(type==='truefalse'){
-    const correct=document.querySelector('input[name="ge-tf"]:checked')?.value||'ถูก';
-    answers=[{answer_text:'ถูก',is_correct:correct==='ถูก'?1:0},{answer_text:'ผิด',is_correct:correct==='ผิด'?1:0}];
+    const correct=document.querySelector('input[name="ge-tf"]:checked')?.value||'true';
+    const trueText=document.getElementById('ge-tf-true-text')?.value.trim()||'จริง';
+    const falseText=document.getElementById('ge-tf-false-text')?.value.trim()||'เท็จ';
+    answers=[
+      {answer_text:trueText,is_correct:correct==='true'?1:0,seq_order:1},
+      {answer_text:falseText,is_correct:correct==='false'?1:0,seq_order:2}
+    ];
   } else if(type==='fill'){
     const ans=document.getElementById('ge-fill-ans')?.value.trim();
     if(!ans){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ ใส่คำตอบที่ถูก</span>';return;}
