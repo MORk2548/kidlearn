@@ -2584,7 +2584,6 @@ function handleSaveGameSettingsV2(): never {
 function handleGetGameQuestionsV2(): never {
     auth();
     ensureQuestionImageColumnCapacity();
-    ensureGameQuestionBankSchema();
 
     $gid = (int)($_GET['game_id'] ?? 0);
     if (!$gid) DB::fail('Missing game_id', 400);
@@ -2685,7 +2684,6 @@ function handleSaveQuestionV2(): never {
 
 function handlePlayQuestionsV2(): never {
     ensureQuestionImageColumnCapacity();
-    ensureGameQuestionBankSchema();
 
     $db  = DB::get();
     $gid = (int)($_GET['game_id'] ?? 0);
