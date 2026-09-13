@@ -20,7 +20,7 @@ docker compose up -d
 | บริการ | URL |
 |--------|-----|
 | 🌐 เว็บไซต์ KidLearn | http://localhost:8080 |
-| 🗄️ phpMyAdmin (ดู DB) | http://localhost:8081 |
+| 🩺 API health check | http://localhost:8080/api/backend.php?action=health |
 
 ---
 
@@ -39,20 +39,16 @@ docker compose logs -f
 # restart เฉพาะ web
 docker compose restart web
 
-# เข้า MySQL โดยตรง
-docker exec -it kidlearn_db mysql -ukidlearn -pkidlearn123 kidlearn_db
+# สร้าง/เริ่ม web container หลังตั้งค่า .env
+docker compose up -d --build web
 ```
 
 ---
 
 ## ข้อมูล Database
 
-| | ค่า |
-|-|-----|
-| Host | `db` (ภายใน Docker) / `localhost:3306` (ภายนอก) |
-| Database | `kidlearn_db` |
-| Username | `kidlearn` |
-| Password | `kidlearn123` |
+Docker ไม่ได้สร้างฐานข้อมูล local เองแล้ว แต่ให้ `web` เชื่อมต่อ Supabase PostgreSQL
+ผ่านค่า `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS` และ `DB_NAME` ในไฟล์ `.env`
 
 ---
 
@@ -63,7 +59,7 @@ kidlearn/
 ├── docker-compose.yml     ← ไฟล์หลัก Docker
 ├── docker/
 │   └── php.ini            ← PHP config
-├── kidlearn_full.sql      ← ฐานข้อมูล (import อัตโนมัติ)
+├── .env                   ← ค่าเชื่อมต่อ Supabase (ห้าม commit)
 ├── index.html
 ├── app.html
 ├── api/
@@ -75,6 +71,6 @@ kidlearn/
 
 ## หมายเหตุ
 
-- ข้อมูล DB เก็บใน Docker volume (`db_data`) — ไม่หายแม้ restart
-- ถ้าต้องการ reset DB: `docker compose down -v` แล้ว `up -d` ใหม่
-- backend.php รองรับทั้ง Docker และ XAMPP โดยอัตโนมัติ
+- Schema และข้อมูลอยู่ใน Supabase ต้อง import SQL ผ่าน Supabase SQL Editor
+- ตรวจการเชื่อมต่อได้ที่ API health check ด้านบน
+- backend.php ใช้ PostgreSQL ผ่าน `pdo_pgsql`

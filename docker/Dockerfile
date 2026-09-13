@@ -11,3 +11,4 @@ RUN a2enmod rewrite headers
 
 WORKDIR /var/www/html
 EXPOSE 80
+    

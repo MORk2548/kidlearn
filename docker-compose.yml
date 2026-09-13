@@ -1,29 +1,6 @@
 services:
 
-  # ── MySQL 8.0 ──────────────────────────────────────────────
-  db:
-    image: mysql:8.0
-    container_name: kidlearn_db
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-kidlearn_local_root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-kidlearn_db}
-      MYSQL_USER: ${MYSQL_USER:-kidlearn}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-kidlearn_local_password}
-    ports:
-      - "3306:3306"
-    volumes:
-      - db_data:/var/lib/mysql
-      - ./kidlearn_full.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-      - ./content/questions_seed.sql:/docker-entrypoint-initdb.d/02_questions.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
-  # ── PHP 8.2 + Apache ───────────────────────────────────────
+  # ── PHP 8.2 + Apache + Supabase PostgreSQL ─────────────────
   web:
     build:
       context: .
@@ -39,21 +16,3 @@ services:
       - ./docker/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
       - ./docker/apache.conf:/etc/apache2/sites-enabled/000-default.conf:ro
 
-  # ── phpMyAdmin ─────────────────────────────────────────────
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: kidlearn_pma
-    restart: unless-stopped
-    depends_on:
-      - db
-    ports:
-      - "8081:80"
-    environment:
-      PMA_HOST: db
-      PMA_USER: ${MYSQL_USER:-kidlearn}
-      PMA_PASSWORD: ${MYSQL_PASSWORD:-kidlearn_local_password}
-      UPLOAD_LIMIT: 50M
-
-volumes:
-  db_data:
-    driver: local
