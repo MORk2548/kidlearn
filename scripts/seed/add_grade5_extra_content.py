@@ -171,6 +171,21 @@ EXTRA = {
     24: {"type": "wordsearch", "items": ["board", "desk", "chair", "clock", "bag", "crayon", "page", "canteen", "playground", "homework"]},
 }
 
+GAME_META = {
+    13: ("อ่านจับใจความ", "mcq", 10),
+    14: ("จริงหรือเท็จ ภาษาไทย", "truefalse", 10),
+    15: ("เติมคำภาษาไทย", "fill", 10),
+    16: ("จับคู่หลักภาษา", "matching", 10),
+    17: ("เรียงประโยคภาษาไทย", "sequence", 10),
+    18: ("เรียงตัวอักษรภาษาไทย", "letterorder", 10),
+    19: ("Classroom Quiz", "mcq", 10),
+    20: ("True or False English", "truefalse", 10),
+    21: ("Fill in the Blank", "fill", 10),
+    22: ("Vocabulary Matching", "matching", 10),
+    23: ("Sentence Order", "sequence", 10),
+    24: ("Word Search", "wordsearch", 10),
+}
+
 
 def connect():
     env = load_env(os.path.join(os.getcwd(), ".env"))
@@ -208,8 +223,6 @@ def add_content(cur, game_id, payload):
     inserted = 0
     if qtype == "mcq":
         for prompt, choices, correct_idx in payload["items"]:
-            if question_exists(cur, game_id, prompt):
-                continue
             qid = insert_question(cur, game_id, prompt, qtype, order_no)
             order_no += 1
             for idx, choice in enumerate(choices, 1):
@@ -217,8 +230,6 @@ def add_content(cur, game_id, payload):
             inserted += 1
     elif qtype == "truefalse":
         for prompt, is_true in payload["items"]:
-            if question_exists(cur, game_id, prompt):
-                continue
             qid = insert_question(cur, game_id, prompt, qtype, order_no)
             order_no += 1
             cur.execute("INSERT INTO answers (question_id, answer_text, is_correct, seq_order) VALUES (%s,'ถูก',%s,1)", (qid, is_true))
@@ -226,8 +237,6 @@ def add_content(cur, game_id, payload):
             inserted += 1
     elif qtype == "fill":
         for prompt, answer in payload["items"]:
-            if question_exists(cur, game_id, prompt):
-                continue
             qid = insert_question(cur, game_id, prompt, qtype, order_no)
             order_no += 1
             cur.execute("INSERT INTO answers (question_id, answer_text, is_correct, seq_order) VALUES (%s,%s,true,1)", (qid, answer))
@@ -235,8 +244,6 @@ def add_content(cur, game_id, payload):
     elif qtype == "matching":
         for left, right in payload["items"]:
             prompt = f"จับคู่: {left}"
-            if question_exists(cur, game_id, prompt):
-                continue
             qid = insert_question(cur, game_id, prompt, qtype, order_no)
             order_no += 1
             cur.execute(
@@ -246,8 +253,6 @@ def add_content(cur, game_id, payload):
             inserted += 1
     elif qtype in ("sequence", "letterorder"):
         for prompt, parts in payload["items"]:
-            if question_exists(cur, game_id, prompt):
-                continue
             qid = insert_question(cur, game_id, prompt, qtype, order_no)
             order_no += 1
             for seq_order, part in enumerate(parts, 1):
@@ -256,8 +261,6 @@ def add_content(cur, game_id, payload):
     elif qtype == "wordsearch":
         for word in payload["items"]:
             prompt = f"ค้นหาคำ: {word}"
-            if question_exists(cur, game_id, prompt):
-                continue
             qid = insert_question(cur, game_id, word, qtype, order_no)
             order_no += 1
             cur.execute("INSERT INTO answers (question_id, answer_text, is_correct, seq_order) VALUES (%s,%s,true,1)", (qid, word))
@@ -271,6 +274,8 @@ def main():
         with conn.cursor() as cur:
             cur.execute("SELECT setval(pg_get_serial_sequence('questions','question_id'), GREATEST((SELECT COALESCE(MAX(question_id), 0) FROM questions), 1), true)")
             cur.execute("SELECT setval(pg_get_serial_sequence('answers','answer_id'), GREATEST((SELECT COALESCE(MAX(answer_id), 0) FROM answers), 1), true)")
+            cur.execute("DELETE FROM answers WHERE question_id IN (SELECT question_id FROM questions WHERE game_id BETWEEN 13 AND 24)")
+            cur.execute("DELETE FROM questions WHERE game_id BETWEEN 13 AND 24")
             for game_id, (title, summary, body) in LESSONS.items():
                 cur.execute(
                     """
@@ -290,8 +295,12 @@ def main():
                 )
             summary = []
             for game_id, payload in EXTRA.items():
+                name, game_type, question_count = GAME_META[game_id]
+                cur.execute(
+                    "UPDATE games SET name=%s, game_type=%s, question_count=%s WHERE game_id=%s",
+                    (name, game_type, question_count, game_id),
+                )
                 inserted = add_content(cur, game_id, payload)
-                cur.execute("UPDATE games SET question_count=(SELECT COUNT(*) FROM questions WHERE game_id=%s) WHERE game_id=%s", (game_id, game_id))
                 summary.append((game_id, inserted))
             cur.execute(
                 """
