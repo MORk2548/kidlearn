@@ -58,6 +58,8 @@ async function startGame(gid){
   document.getElementById('g-title').textContent = gmStatic?.name || 'กำลังโหลด...';
   document.getElementById('g-result').style.display  = 'none';
   document.getElementById('g-content').style.display = 'block';
+  document.getElementById('g-feedback').hidden = true;
+  document.getElementById('s-game').classList.remove('mission-complete');
   document.getElementById('g-content').innerHTML =
     '<div style="text-align:center;padding:3rem;color:var(--mu)">⏳ กำลังโหลดคำถาม...</div>';
 
@@ -322,7 +324,24 @@ function runTimer(){
 function upTimer(){
   const el=document.getElementById('g-timer');
   el.textContent=`⏱ ${A.gs.timeLeft}`;
+  el.setAttribute('aria-label',`เวลาที่เหลือ ${A.gs.timeLeft} วินาที`);
   el.classList.toggle('warn',A.gs.timeLeft<=10);
+}
+function animateQuestionEntry(){
+  const content=document.getElementById('g-content');
+  const feedback=document.getElementById('g-feedback');
+  if(feedback) feedback.hidden=true;
+  content.classList.remove('question-enter');
+  void content.offsetWidth;
+  content.classList.add('question-enter');
+}
+function announceGameFeedback(isCorrect, customMessage){
+  const feedback=document.getElementById('g-feedback');
+  if(!feedback) return;
+  feedback.hidden=false;
+  feedback.classList.toggle('is-correct',!!isCorrect);
+  feedback.classList.toggle('is-incorrect',!isCorrect);
+  feedback.textContent=customMessage || (isCorrect ? '✨ ถูกต้อง! เดินทางต่อกันเลย' : '🌱 ไม่เป็นไร ลองดูเฉลยแล้วไปต่อ');
 }
 function renderGame(){
   const t=A.curGame.type;
@@ -336,8 +355,10 @@ function renderGame(){
 }
 function upQP(cur,tot){
   document.getElementById('g-qno').textContent=`${cur}/${tot}`;
-  document.getElementById('g-qf').style.width=(tot?cur/tot*100:0)+'%';
-  document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+  const pct=tot?Math.round(cur/tot*100):0;
+  document.getElementById('g-qf').style.width=pct+'%';
+  document.querySelector('.qpb').setAttribute('aria-valuenow',pct);
+  document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;
 }
 
 /* ── MCQ ── */
@@ -406,7 +427,8 @@ function renderTF(){
         <span style="font-size:2rem;display:block;margin-bottom:.3rem">❌</span>
         <span style="font-size:1.1rem;font-weight:800">${falseLabel}</span>
       </button>
-    </div>`;
+      </div>`;
+  animateQuestionEntry();
 }
 function ansTF(btn,chose,correct){
   document.querySelectorAll('.tfb').forEach(b=>b.disabled=true);
@@ -422,7 +444,8 @@ function ansTF(btn,chose,correct){
     wrongQuestion: ok || !q ? null : { ...q }
   });
   btn.classList.add(ok?'ok':'no');
-  if(ok){A.gs.earned+=Math.round(100/A.gs.totalQ);document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;}
+  if(ok){A.gs.earned+=Math.round(100/A.gs.totalQ);document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;}
+  announceGameFeedback(ok);
   setTimeout(()=>{A.gs.qi++;renderTF();},1100);
 }
 
@@ -437,6 +460,7 @@ function renderFill(){
     ${q.hint?`<div class="hint-box">💡 คำใบ้: ${q.hint}</div>`:''}
     <input id="fi-inp" class="fi" placeholder="พิมพ์คำตอบ..." onkeydown="if(event.key==='Enter')chkFill()">
     <button class="btn btn-p" style="margin-top:.75rem;width:100%;padding:.9rem;font-size:1rem;border-radius:12px;font-weight:700" onclick="chkFill()">✔ ตรวจคำตอบ</button>`;
+  animateQuestionEntry();
   setTimeout(()=>document.getElementById('fi-inp')?.focus(),80);
 }
 function chkFill(){
@@ -452,6 +476,7 @@ function chkFill(){
     wrongQuestion: ok || !q ? null : { ...q }
   });
   inp.classList.add(ok?'ok':'no'); inp.disabled=true;
+  announceGameFeedback(ok);
   document.querySelector('#g-content .btn')?.remove();
   if(ok){A.gs.earned+=Math.round(100/A.gs.totalQ);}
   else{
@@ -563,12 +588,19 @@ function finishGame(){
   const sc=Math.min(100,Math.max(0,A.gs.earned)), pct=sc;
   document.getElementById('g-content').style.display='none';
   document.getElementById('g-result').style.display='block';
+  document.getElementById('g-result').classList.remove('result-arrive');
+  void document.getElementById('g-result').offsetWidth;
+  document.getElementById('g-result').classList.add('result-arrive');
+  document.getElementById('s-game').classList.add('mission-complete');
   document.getElementById('r-sc').textContent=sc;
   document.getElementById('r-mx').textContent='/ 100';
   document.getElementById('r-ring').style.background=`conic-gradient(var(--p) ${pct}%,#E5E7EB 0%)`;
   const[title,msg]=pct>=80?['🎉 ยอดเยี่ยม!','คุณทำได้ดีมากเลย!']:pct>=50?['👍 ดีทีเดียว!','ฝึกอีกนิดจะเก่งมาก!']:['💪 สู้ๆ!','ลองใหม่นะ ทำได้แน่!'];
   document.getElementById('r-ti').textContent=title;
   document.getElementById('r-mg').textContent=msg;
+  document.getElementById('r-emblem').textContent=pct>=80?'🏆':pct>=50?'🧭':'🌱';
+  document.getElementById('r-trail').textContent=pct>=80?'ยอดนักผจญภัย! ความพยายามของคุณพาไปได้ไกลมาก ✨':pct>=50?'อีกนิดเดียวก็จะถึงเป้าหมาย ฝึกต่อแล้วคุณจะเก่งขึ้น ⭐':'ทุกการลองคือก้าวใหม่ เริ่มภารกิจอีกครั้งได้เลย 🌱';
+  document.getElementById('g-result').focus({preventScroll:true});
   let reviewBox=document.getElementById('g-review-box');
   if(!reviewBox){
     reviewBox=document.createElement('div');
@@ -643,18 +675,21 @@ function renderWS(){
   const placedMap=new Map(placed.map(p=>[p.word,p]));
   let found=[];
   let selection=[];
+  let firstDraw=true;
   const drag={active:false,start:null,pointerId:null};
   upQP(0,words.length);
 
   const isFoundCell=(r,c)=>found.some(word=>placedMap.get(word)?.cells.some(cell=>cell.r===r&&cell.c===c));
   const finishSelection=()=>{
     if(!selection.length) return;
+    const foundBefore=found.length;
     const key=wsLineKey(selection);
     const match=placed.find(p=>!found.includes(p.word) && (p.key===key || p.reverseKey===key));
     if(match){
       found.push(match.word);
       A.gs.earned=Math.round(found.length/words.length*100);
       document.getElementById('g-live').textContent='เธเธฐเนเธเธ: '+A.gs.earned;
+      announceGameFeedback(true,`🔎 เจอคำว่า ${match.word} แล้ว!`);
       upQP(found.length,words.length);
       if(found.length===words.length){
         recordAttempt({
@@ -669,6 +704,7 @@ function renderWS(){
         return;
       }
     }
+    if(found.length===foundBefore) announceGameFeedback(false,'🔎 ลองลากเลือกคำที่ซ่อนอยู่ในตาราง');
     selection=[];
     draw();
   };
@@ -692,6 +728,7 @@ function renderWS(){
         }).join('')).join('')}
       </div>
       <div style="font-size:.78rem;color:var(--mu);margin-top:.5rem">\u0e25\u0e32\u0e01\u0e1c\u0e48\u0e32\u0e19\u0e04\u0e33\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e04\u0e33\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e2b\u0e32 \u0e1e\u0e1a\u0e41\u0e25\u0e49\u0e27 ${found.length}/${words.length} \u0e04\u0e33</div>`;
+    if(firstDraw){animateQuestionEntry();firstDraw=false;}
 
     document.querySelector('.wsg')?.addEventListener('pointerdown',ev=>{
       const cell=ev.target.closest('.wsc');
@@ -786,7 +823,8 @@ function renderMCQ(){
           <span class="ch-letter">${letters[i]||i+1}</span>
           ${renderChoiceBody(opt)}
         </button>`).join('')}
-    </div>`;
+      </div>`;
+  animateQuestionEntry();
 }
 
 function ansMCQ(btn,chose,correct){
@@ -810,7 +848,8 @@ function ansMCQ(btn,chose,correct){
     const cb=document.querySelectorAll('.ch')[correct];
     cb?.classList.add('ok');
   }
-  document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+  announceGameFeedback(ok);
+  document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;
   setTimeout(()=>{A.gs.qi++;renderMCQ();},1100);
 }
 
@@ -827,6 +866,7 @@ function renderMatch(){
       <div class="mc" id="ml">${left.map(p=>`<div class="mi match-card" data-k="${p.id}" onclick="mL(this)">${renderMatchSide(p,'left')}</div>`).join('')}</div>
       <div class="mc" id="mr">${right.map(p=>`<div class="mi match-card" data-k="${p.id}" onclick="mR(this)">${renderMatchSide(p,'right')}</div>`).join('')}</div>
     </div>`;
+  animateQuestionEntry();
   window.mL=el=>{
     document.querySelectorAll('#ml .mi:not(.matched)').forEach(e=>e.classList.remove('sel'));
     el.classList.add('sel');
@@ -846,10 +886,11 @@ function renderMatch(){
         isCorrect:true
       });
       A.gs.earned=Math.round(matched/pairs.length*100);
-      document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+      document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;
+      announceGameFeedback(true,`🧩 จับคู่สำเร็จ! พบแล้ว ${matched} จาก ${pairs.length} คู่`);
       upQP(matched,pairs.length);
       if(matched===pairs.length){clearInterval(A.tmr);setTimeout(finishGame,600);}
-    } else {
+    }else{
       const wrongPair=right.find(p=>String(p.id)===String(el.dataset.k));
       recordAttempt({
         prompt:'จับคู่ให้ถูกต้อง',
@@ -858,6 +899,7 @@ function renderMatch(){
         isCorrect:false
       });
       el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),600);
+      announceGameFeedback(false,'🧩 คู่นี้ยังไม่ตรงกัน ลองอีกครั้งได้เลย');
     }
     selLeftId=null;
     document.querySelectorAll('#ml .mi').forEach(e=>e.classList.remove('sel'));
@@ -884,6 +926,7 @@ function renderSeq(){
 
     const bank=shuffleItems(items);
     const placed=Array(items.length).fill(null);
+    let firstDraw=true;
     upQP(qi+1,totalQ);
 
     const draw=()=>{
@@ -909,6 +952,7 @@ function renderSeq(){
           </div>
           <button class="btn btn-p btn-sm" style="width:100%;padding:.75rem;border-radius:12px" onclick="chkSeq()">ตรวจคำตอบ</button>
         </div>`;
+      if(firstDraw){animateQuestionEntry();firstDraw=false;}
     };
 
     window.seqPick=id=>{
@@ -940,6 +984,7 @@ function renderSeq(){
       });
       A.gs.earned=(A.gs.earned||0)+pts;
       document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
+      announceGameFeedback(isCorrect, isCorrect ? '✨ เรียงลำดับถูกต้อง!' : `🧩 ตำแหน่งถูก ${correctItems} จาก ${items.length} ลำดับ`);
       document.querySelector('#g-content .btn')?.remove();
       setTimeout(()=>{
         qi++;

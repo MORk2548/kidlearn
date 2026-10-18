@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KidLearn — เรียนสนุก เล่นสนุก</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=3.5">
+  <link rel="stylesheet" href="style.css?v=3.6">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -88,35 +88,48 @@
     </div>
 
     <!-- ── GAME PLAY ── -->
-    <div id="s-game" style="display:none">
-      <button class="btn btn-sm btn-s" onclick="backToGames()" style="margin-bottom:1rem">← กลับ</button>
+    <div id="s-game" class="game-screen" style="display:none">
+      <div class="game-topline">
+        <button class="game-back" onclick="backToGames()" aria-label="กลับไปเลือกเกม">← <span>กลับไปเลือกเกม</span></button>
+        <span class="game-world-label"><span aria-hidden="true">✦</span> ดินแดนแห่งการเรียนรู้</span>
+      </div>
       <div class="gw">
-        <div class="ghdr">
-          <div class="gtitle" id="g-title">เกม</div>
-          <div class="timer"  id="g-timer">⏱ 60</div>
-        </div>
-        <div class="qp">
-          <div class="qpl">
-            <span id="g-qno">0/0</span>
-            <span id="g-live">คะแนน: 0</span>
+        <header class="game-banner">
+          <div class="game-banner-mark" aria-hidden="true">🧭</div>
+          <div class="game-banner-copy">
+            <div class="game-eyebrow">ภารกิจของคุณ</div>
+            <h1 class="gtitle" id="g-title">เกม</h1>
           </div>
-          <div class="qpb"><div class="qpf" id="g-qf" style="width:0%"></div></div>
-        </div>
-        <div id="g-content"></div>
-        <div class="result" id="g-result">
+          <div class="timer" id="g-timer" role="timer" aria-label="เวลาที่เหลือ 60 วินาที">⏱ 60</div>
+        </header>
+        <section class="quest-hud" aria-label="ความคืบหน้าภารกิจ">
+          <div class="quest-hud-top">
+            <div class="quest-step"><span class="quest-step-icon" aria-hidden="true">🗺️</span><span>เส้นทางภารกิจ</span><strong id="g-qno">0/0</strong></div>
+            <div class="quest-score" id="g-live" aria-live="polite"><span aria-hidden="true">⭐</span> คะแนน 0</div>
+          </div>
+          <div class="qpb" role="progressbar" aria-label="ความคืบหน้าภารกิจ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="qpf" id="g-qf" style="width:0%"></div>
+          </div>
+        </section>
+        <div class="quest-content" id="g-content" aria-label="พื้นที่เล่นเกม"></div>
+        <div class="game-feedback" id="g-feedback" role="status" aria-live="polite" hidden></div>
+        <section class="result" id="g-result" aria-labelledby="r-ti" tabindex="-1">
+          <div class="result-emblem" id="r-emblem" aria-hidden="true">🏆</div>
+          <div class="result-kicker">สรุปภารกิจ</div>
           <div class="rring" id="r-ring" style="background:conic-gradient(var(--p) 0%,#E5E7EB 0%)">
             <div class="rinner">
               <div class="rscore" id="r-sc">0</div>
-              <div class="rmax"   id="r-mx">/ 100</div>
+              <div class="rmax" id="r-mx">/ 100</div>
             </div>
           </div>
           <div class="rtitle" id="r-ti">🎉</div>
-          <div class="rmsg"   id="r-mg"></div>
+          <div class="rmsg" id="r-mg"></div>
+          <div class="result-trail" id="r-trail">ทุกคำตอบช่วยให้คุณเก่งขึ้น 🌱</div>
           <div class="rbtns">
-            <button class="btn btn-p" onclick="replayGame()">🔄 เล่นใหม่</button>
-            <button class="btn btn-s" onclick="backToGames()">📚 กลับบทเรียน</button>
+            <button class="btn btn-p" onclick="replayGame()">🔄 เล่นภารกิจอีกครั้ง</button>
+            <button class="btn btn-s" onclick="backToGames()">🗺️ กลับไปเลือกเกม</button>
           </div>
-        </div>
+        </section>
       </div>
     </div>
 
@@ -370,7 +383,7 @@
 <script src="js/router.js?v=3.5"></script>
 <script src="js/auth.js?v=3.5"></script>
 <script src="js/home.js?v=3.5"></script>
-<script src="js/game.js?v=3.5"></script>
+<script src="js/game.js?v=3.6"></script>
 <script src="js/scores.js?v=3.5"></script>
 <script src="js/recommendations.js?v=3.5"></script>
 <script src="js/children.js?v=3.5"></script>

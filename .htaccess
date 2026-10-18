@@ -7,7 +7,7 @@ RewriteEngine On
     SetHandler application/x-httpd-php
 </FilesMatch>
 
-# Cache control สำหรับ JS/CSS
+# JS/CSS URLs include a version query string; bump it when asset contents change.
 <FilesMatch "\.(js|css)$">
-    Header set Cache-Control "no-cache, must-revalidate"
+    Header set Cache-Control "public, max-age=31536000, immutable"
 </FilesMatch>
