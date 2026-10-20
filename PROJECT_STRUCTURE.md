@@ -34,6 +34,7 @@
 - `api/init_db.php` - script เตรียมฐานข้อมูลเริ่มต้น.
 - `api/init_admin.php` - script สร้าง admin เริ่มต้น ควรใช้เฉพาะช่วง setup.
 - `api/kidlearn_patch_v3.sql` - patch SQL สำหรับปรับ schema/data เพิ่มเติมจากชุดหลัก.
+- `api/kidlearn_patch_v4.sql` - migration สำหรับวันแก้ไขบัญชีและเจ้าของเนื้อหา; ใช้กับฐานข้อมูลเดิมหลัง patch ก่อนหน้า.
 - `kidlearn_full.sql` - schema และ seed หลักที่ Docker ใช้ตอนสร้างฐานข้อมูล.
 - `content/questions_seed.sql` - seed คำถามเพิ่มเติมที่ Docker import ต่อจาก `kidlearn_full.sql`.
 - `content/lessons.sql` - seed บทเรียนแยกสำหรับ import เองเมื่อจำเป็น.

@@ -3,6 +3,7 @@
 let _exTab = 'dashboard';
 let _exCache = null;
 let _exLessonDetail = null;
+let _exDateRange = 'all';
 
 function exSelectTab(tab) {
   _exTab = tab;
@@ -12,6 +13,24 @@ function exSelectTab(tab) {
 function exReload() {
   _exCache = null;
   _renderExecutivePanel();
+}
+
+function exSetDateRange(range) {
+  _exDateRange = range;
+  _exCache = null;
+  _renderExecutivePanel();
+}
+
+function _exDateRangeFilter() {
+  return `<label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:var(--mu)">
+    ช่วงข้อมูล
+    <select class="fc" style="width:auto;padding:.45rem .65rem;font-size:.82rem" onchange="exSetDateRange(this.value)">
+      <option value="all"${_exDateRange==='all'?' selected':''}>ทุกช่วง</option>
+      <option value="7d"${_exDateRange==='7d'?' selected':''}>ย้อนหลัง 7 วัน</option>
+      <option value="1m"${_exDateRange==='1m'?' selected':''}>ย้อนหลัง 1 เดือน</option>
+      <option value="1y"${_exDateRange==='1y'?' selected':''}>ย้อนหลัง 1 ปี</option>
+    </select><span style="font-size:.7rem">1 เดือน/ปีนับย้อนหลังจากเวลาปัจจุบัน</span>
+  </label>`;
 }
 
 function exOpenLesson(contentId) {
@@ -50,9 +69,9 @@ async function _exLoadAllData() {
   if (_exCache) return _exCache;
 
   const [dashboard, users, scores, lessons, questions] = await Promise.all([
-    apiExecutiveDashboard().catch(() => ({ ok: false })),
-    apiExecutiveUsers().catch(() => ({ ok: false, users: [] })),
-    apiExecutiveContent('scores').catch(() => ({ ok: false, scores: [] })),
+    apiExecutiveDashboard(_exDateRange).catch(() => ({ ok: false })),
+    apiExecutiveUsers(_exDateRange).catch(() => ({ ok: false, users: [] })),
+    apiExecutiveContent('scores', _exDateRange).catch(() => ({ ok: false, scores: [] })),
     apiExecutiveContent('lessons').catch(() => ({ ok: false, lessons: [] })),
     apiExecutiveContent('questions').catch(() => ({ ok: false, questions: [] }))
   ]);
@@ -81,17 +100,22 @@ function _exTopSummary(data) {
       <div class="ex-stat-card">
         <div class="ex-stat-icon" style="background:#DBEAFE;color:#1D4ED8">👦</div>
         <div class="ex-stat-value">${data.dashboard.total_students || 0}</div>
-        <div class="ex-stat-label">นักเรียน</div>
+        <div class="ex-stat-label">นักเรียนใหม่ที่ใช้งาน</div>
       </div>
       <div class="ex-stat-card">
         <div class="ex-stat-icon" style="background:#DCFCE7;color:#15803D">👩‍🏫</div>
         <div class="ex-stat-value">${data.dashboard.total_teachers || 0}</div>
-        <div class="ex-stat-label">ครู</div>
+        <div class="ex-stat-label">ครูใหม่ที่ใช้งาน</div>
+      </div>
+      <div class="ex-stat-card">
+        <div class="ex-stat-icon" style="background:#EDE9FE;color:#6D28D9">🎮</div>
+        <div class="ex-stat-value">${data.dashboard.total_plays || 0}</div>
+        <div class="ex-stat-label">ครั้งที่เล่นในช่วงที่เลือก</div>
       </div>
       <div class="ex-stat-card">
         <div class="ex-stat-icon" style="background:#FEF3C7;color:#B45309">🏆</div>
         <div class="ex-stat-value">${data.dashboard.avg_score || 0}%</div>
-        <div class="ex-stat-label">คะแนนเฉลี่ย</div>
+        <div class="ex-stat-label">คะแนนเฉลี่ยในช่วงที่เลือก</div>
       </div>
       <div class="ex-stat-card">
         <div class="ex-stat-icon" style="background:#FFE4E6;color:#BE123C">📌</div>
@@ -112,6 +136,7 @@ function _exRenderDashboard(data) {
   const recentLessons = data.lessons.slice(0, 4);
 
   return `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem">${_exDateRangeFilter()}</div>
     ${_exTopSummary(data)}
     <div style="display:grid;grid-template-columns:1.2fr .9fr;gap:1rem">
       <div class="ex-surface">
@@ -173,14 +198,15 @@ function _exRenderUsers(data) {
       <div class="ex-section-head">
         <div>
           <div class="ex-section-title">ผู้ใช้ในระบบ</div>
-          <div class="ex-section-sub">สรุปรายชื่อและข้อมูลติดต่อหลัก</div>
+          <div class="ex-section-sub">วันที่ในตัวกรองหมายถึงวันสมัคร</div>
         </div>
+        ${_exDateRangeFilter()}
       </div>
       ${data.users.length ? `
         <div class="ex-table-wrap">
           <table class="ex-table">
             <thead>
-              <tr><th>ชื่อ</th><th>บทบาท</th><th>อีเมล</th><th>ข้อมูลเพิ่ม</th></tr>
+              <tr><th>ชื่อ</th><th>บทบาท</th><th>อีเมล</th><th>ข้อมูลเพิ่ม</th><th>วันที่สมัคร</th><th>แก้ไขล่าสุด</th></tr>
             </thead>
             <tbody>
               ${data.users.map(user => {
@@ -192,6 +218,8 @@ function _exRenderUsers(data) {
                     <td><span class="ex-role-pill" style="${_exBadgeStyle(tone)}">${user.role || '-'}</span></td>
                     <td>${user.email || '-'}</td>
                     <td>${extra}</td>
+                    <td style="white-space:nowrap">${formatDateTimeTH(user.created_at)}</td>
+                    <td style="white-space:nowrap">${formatDateTimeTH(user.updated_at)}</td>
                   </tr>
                 `;
               }).join('')}
@@ -270,6 +298,7 @@ function _exRenderLessons(data) {
                     <span class="ex-role-pill" style="${_exBadgeStyle('blue')}">${lesson.read_time || 0} นาที</span>
                   </div>
                   <div class="ex-note" style="margin-top:.5rem">${lesson.summary || 'ไม่มีสรุปบทเรียน'}</div>
+                  <div class="ex-note" style="margin-top:.3rem">แก้ไขล่าสุด ${formatDateTimeTH(lesson.updated_at)}</div>
                 </button>
               `;
             }).join('')}
@@ -292,6 +321,7 @@ function _exRenderLessons(data) {
           </div>
           <div style="font-weight:800;font-size:1.05rem;color:#0F172A;margin-bottom:.5rem">${_exLessonDetail.title || 'ไม่มีชื่อบทเรียน'}</div>
           <div style="font-size:.9rem;color:#475569;line-height:1.7;margin-bottom:1rem">${_exLessonDetail.summary || 'ไม่มีสรุปบทเรียน'}</div>
+          <div class="ex-note" style="margin-bottom:.75rem">แก้ไขล่าสุด ${formatDateTimeTH(_exLessonDetail.updated_at)}</div>
           <div class="ex-lesson-body">${(_exLessonDetail.body || 'ไม่มีเนื้อหาบทเรียน').replace(/\n/g, '<br>')}</div>
         ` : _exEmptyState('เลือกบทเรียนจากรายการด้านซ้ายเพื่อดูรายละเอียด')}
       </div>
@@ -312,7 +342,7 @@ function _exRenderQuestions(data) {
         <div class="ex-table-wrap">
           <table class="ex-table">
             <thead>
-              <tr><th>วิชา</th><th>เกม</th><th style="text-align:center">ลำดับ</th><th>คำถาม</th><th>คำตอบ</th></tr>
+              <tr><th>วิชา</th><th>เกม</th><th style="text-align:center">ลำดับ</th><th>คำถาม</th><th>คำตอบ</th><th>แก้ไขล่าสุด</th></tr>
             </thead>
             <tbody>
               ${data.questions.map(question => `
@@ -322,6 +352,7 @@ function _exRenderQuestions(data) {
                   <td style="text-align:center">${question.order_no || '-'}</td>
                   <td>${question.question_text || '-'}</td>
                   <td>${question.answers_summary || '-'}</td>
+                  <td style="white-space:nowrap">${formatDateTimeTH(question.updated_at)}</td>
                 </tr>
               `).join('')}
             </tbody>

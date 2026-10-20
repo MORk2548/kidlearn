@@ -37,6 +37,10 @@ function loadProfile() {
   document.getElementById('pf-email').value = u.email || '';
   const pu = document.getElementById('pf-user');
   if (pu) pu.value = u.username || '';
+  const createdAt = document.getElementById('pf-created-at');
+  const updatedAt = document.getElementById('pf-updated-at');
+  if (createdAt) createdAt.textContent = formatDateTimeTH(u.created_at);
+  if (updatedAt) updatedAt.textContent = formatDateTimeTH(u.updated_at);
 
   const nd = document.getElementById('pf-nm-display');
   const rd = document.getElementById('pf-rb-display');
@@ -117,6 +121,10 @@ async function saveProfile() {
   A.user.name = name;
   A.user.full_name = name;
   A.user.email = email;
+  A.user.created_at = res.created_at || A.user.created_at;
+  A.user.updated_at = res.updated_at || A.user.updated_at;
+  const updatedAt = document.getElementById('pf-updated-at');
+  if (updatedAt) updatedAt.textContent = formatDateTimeTH(A.user.updated_at);
   document.getElementById('sb-nm').textContent = name;
   document.getElementById('wn').textContent = name.split(' ')[0];
   const nd = document.getElementById('pf-nm-display');
@@ -147,6 +155,9 @@ async function changePassword() {
     return;
   }
 
+  A.user.updated_at = res.updated_at || A.user.updated_at;
+  const updatedAt = document.getElementById('pf-updated-at');
+  if (updatedAt) updatedAt.textContent = formatDateTimeTH(A.user.updated_at);
   showAl('pw-ok', 'เปลี่ยนรหัสผ่านสำเร็จ');
   ['pf-old-pw', 'pf-new-pw', 'pf-cfm-pw', 'pf-op', 'pf-np', 'pf-cp'].forEach((id) => {
     const e = document.getElementById(id);

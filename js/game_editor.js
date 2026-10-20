@@ -127,11 +127,12 @@ function _geRenderQList(type){
         <span style="background:var(--s);color:#fff;width:26px;height:26px;border-radius:50%;
           display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex-shrink:0">${i+1}</span>
         <span style="flex:1;font-size:.88rem;font-weight:600">${q.question_text}</span>
-        <button class="btn btn-sm" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;font-size:.75rem"
+        ${q.can_edit?`<button class="btn btn-sm" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;font-size:.75rem"
           onclick="geOpenForm(${i})">✏️ แก้ไข</button>
         <button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;font-size:.75rem"
-          onclick="geDeleteQ(${i})">🗑</button>
+          onclick="geDeleteQ(${i})">🗑</button>`:''}
       </div>
+      <div style="font-size:.72rem;color:var(--mu);margin:-.2rem 0 .45rem 2rem">แก้ไขล่าสุด ${formatDateTimeTH(q.updated_at)}</div>
       <div class="ge-q-body">
         ${q.question_img?`<div style="margin-bottom:.65rem"><img src="${q.question_img}" alt="question" style="max-width:220px;width:100%;border-radius:12px;border:1px solid #E5E7EB"></div>`:''}
         ${(q.answers||[]).map(a=>`

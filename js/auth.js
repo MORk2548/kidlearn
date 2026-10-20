@@ -137,8 +137,6 @@ function sessionClear() {
 }
 
 async function sessionLoad() {
-  const uid = sessionStorage.getItem('kl_uid');
-  if (!uid) return false;
   const res = await apiMe();
   if (!res.ok) {
     sessionClear();
@@ -159,6 +157,8 @@ function normalizeUser(u) {
     full_name: u.full_name ?? u.name,
     email: u.email,
     role: u.role,
+    created_at: u.created_at,
+    updated_at: u.updated_at,
     grade: u.grade,
     parentPhone: u.parent_phone,
     phone: u.phone,

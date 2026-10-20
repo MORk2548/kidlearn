@@ -4,6 +4,7 @@
 
 let _ofUsers = [];
 let _ofFilter = 'all';
+let _ofDateRange = 'all';
 let _ofTab = 'users'; // 'users' | 'lessons' | 'games'
 
 function _renderOfficerPanel(){
@@ -126,6 +127,14 @@ function _ofRenderUsersTab() {
             💼 ผู้บริหาร
           </button>
         </div>
+        <div style="font-weight:800;font-size:.88rem;color:var(--s);margin:.9rem 0 .5rem">📅 ช่วงวันที่สมัคร</div>
+        <select class="fc" style="padding:.5rem;font-size:.82rem" onchange="ofSetDateRange(this.value)">
+          <option value="all"${_ofDateRange==='all'?' selected':''}>ทุกช่วง</option>
+          <option value="7d"${_ofDateRange==='7d'?' selected':''}>ย้อนหลัง 7 วัน</option>
+          <option value="1m"${_ofDateRange==='1m'?' selected':''}>ย้อนหลัง 1 เดือน</option>
+          <option value="1y"${_ofDateRange==='1y'?' selected':''}>ย้อนหลัง 1 ปี</option>
+        </select>
+        <div style="font-size:.72rem;color:var(--mu);margin-top:.35rem">นับย้อนหลังจากเวลาปัจจุบัน ไม่ใช่เดือนหรือปีปฏิทิน</div>
       </div>
       
       <!-- ขวา: รายชื่อผู้ใช้ -->
@@ -158,7 +167,7 @@ async function ofLoadUsers() {
   content.innerHTML = '⏳ กำลังโหลด...';
   
   try {
-    const res = await apiOfficerUsers();
+    const res = await apiOfficerUsers(_ofDateRange);
     if(!res.ok) {
       content.innerHTML = `<div style="color: #EF4444; padding: 1.5rem; background: #FEF2F2; border-radius: 12px;">❌ ${res.error || 'โหลดข้อมูลไม่สำเร็จ'}</div>`;
       return;
@@ -225,6 +234,7 @@ function ofRenderUsersList() {
       <div class="of-user-meta">
         <div>${meta.join(' · ')}</div>
         <div style="text-align: right;">${u.email}</div>
+        <div style="grid-column:1/-1">สมัคร ${formatDateTimeTH(u.created_at)} · แก้ไขล่าสุด ${formatDateTimeTH(u.updated_at)}</div>
       </div>
       <div class="of-user-actions">
         <button class="of-btn-sm" onclick="ofEditUser(${u.user_id})">✏️ แก้ไข</button>
@@ -237,6 +247,11 @@ function ofRenderUsersList() {
 function ofSetFilter(role) {
   _ofFilter = role;
   _renderOfficerPanel();
+}
+
+function ofSetDateRange(range) {
+  _ofDateRange = range;
+  ofLoadUsers();
 }
 
 function ofReloadUsers() {

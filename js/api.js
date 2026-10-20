@@ -156,9 +156,9 @@ const apiPlayQuestions = (gid) => _apiCached('play_questions', { game_id: gid },
 // Staff and executive APIs
 const apiAdminCreateStaff = (d) => _api('admin_create_staff', { body: d });
 const apiOfficerCreateStaff = (d) => _api('officer_create_staff', { body: d });
-const apiExecutiveDashboard = () => _api('executive_dashboard');
-const apiExecutiveUsers = () => _api('executive_users');
-const apiExecutiveContent = (type) => _api('executive_content', { params: { type } });
-const apiOfficerUsers = () => _api('officer_users');
+const apiExecutiveDashboard = (dateRange = 'all') => _api('executive_dashboard', { params: { date_range: dateRange } });
+const apiExecutiveUsers = (dateRange = 'all') => _api('executive_users', { params: { date_range: dateRange } });
+const apiExecutiveContent = (type, dateRange = 'all') => _api('executive_content', { params: { type, date_range: dateRange } });
+const apiOfficerUsers = (dateRange = 'all') => _api('officer_users', { params: { date_range: dateRange } });
 const apiOfficerUpdateUser = (d) => _api('officer_update_user', { body: d });
 const apiOfficerDeleteUser = (d) => _api('officer_delete_user', { body: d });

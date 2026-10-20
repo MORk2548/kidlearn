@@ -304,7 +304,7 @@ async function selectEdGame(jsKey){
   if(!form)return;
   form.innerHTML='<div style="color:var(--mu);padding:2rem;text-align:center">⏳ กำลังโหลด...</div>';
 
-  let title='',body='',summary='',readTime=5;
+  let title='',body='',summary='',readTime=5,canEdit=true,updatedAt=null;
   try{
     const res=await apiLessonContent(_edDbGid,1);
     if(res.ok&&res.content){
@@ -312,6 +312,8 @@ async function selectEdGame(jsKey){
       body=res.content.body||'';
       summary=res.content.summary||'';
       readTime=res.content.read_time||5;
+      canEdit=res.content.can_edit!==false;
+      updatedAt=res.content.updated_at||null;
     }
   }catch(e){}
 
@@ -352,6 +354,7 @@ async function selectEdGame(jsKey){
         <div style="flex:1">
           <div style="font-weight:800;font-size:.95rem">${gm.name}</div>
           <div style="font-size:.73rem;color:var(--mu)">${sub?.name||''} · ${gm.type}</div>
+          <div style="font-size:.72rem;color:var(--mu);margin-top:.2rem">แก้ไขล่าสุด ${formatDateTimeTH(updatedAt)}</div>
         </div>
         ${hasCon
           ?'<span style="font-size:.72rem;background:#DCFCE7;color:#166534;padding:.22rem .65rem;border-radius:99px;font-weight:700">✅ มีเนื้อหาแล้ว</span>'
@@ -427,6 +430,11 @@ async function selectEdGame(jsKey){
         <div id="ed-msg" style="font-size:.85rem;min-width:120px"></div>
       </div>
     </div>`;
+
+  if(!canEdit){
+    form.insertAdjacentHTML('afterbegin','<div style="padding:.7rem 1rem;margin-bottom:.75rem;border-radius:10px;background:#FEF3C7;color:#92400E;font-size:.82rem">ดูได้อย่างเดียว เพราะเนื้อหานี้เป็นของผู้ใช้อื่น</div>');
+    form.querySelectorAll('input,textarea,select,button').forEach(control=>control.disabled=true);
+  }
 
   // ใส่ style toolbar button ถ้ายังไม่มี
   if(!document.getElementById('ed-tb-style')){

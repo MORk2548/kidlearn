@@ -274,6 +274,14 @@
             <label class="fl">อีเมล</label>
             <input id="pf-email" type="email" class="fc" placeholder="email@example.com">
           </div>
+          <div class="fg">
+            <label class="fl">วันที่สมัคร</label>
+            <div id="pf-created-at" class="fc" style="background:#F8FAFC;color:var(--mu)">—</div>
+          </div>
+          <div class="fg">
+            <label class="fl">แก้ไขบัญชีล่าสุด</label>
+            <div id="pf-updated-at" class="fc" style="background:#F8FAFC;color:var(--mu)">—</div>
+          </div>
           <div id="pf-student-extra" style="display:none">
             <div class="fg">
               <label class="fl">ชั้นเรียน</label>
@@ -377,22 +385,22 @@
 <!-- ════════════════════════════════════════════════════
      SCRIPTS (order matters)
 ════════════════════════════════════════════════════ -->
-<script src="js/api.js?v=3.5"></script>
-<script src="js/data.js?v=3.5"></script>
+<script src="js/api.js?v=3.8"></script>
+<script src="js/data.js?v=3.7"></script>
 <script src="js/state.js?v=3.5"></script>
 <script src="js/router.js?v=3.5"></script>
-<script src="js/auth.js?v=3.5"></script>
+<script src="js/auth.js?v=3.8"></script>
 <script src="js/home.js?v=3.5"></script>
 <script src="js/game.js?v=3.6"></script>
 <script src="js/scores.js?v=3.5"></script>
 <script src="js/recommendations.js?v=3.5"></script>
 <script src="js/children.js?v=3.5"></script>
-<script src="js/teacher.js?v=3.5"></script>
-<script src="js/game_editor.js?v=3.5"></script>
-<script src="js/officer.js?v=3.5"></script>
-<script src="js/executive.js?v=3.5"></script>
-<script src="js/admin.js?v=3.5"></script>
-<script src="js/profile.js?v=3.5"></script>
+<script src="js/teacher.js?v=3.7"></script>
+<script src="js/game_editor.js?v=3.7"></script>
+<script src="js/officer.js?v=3.7"></script>
+<script src="js/executive.js?v=3.7"></script>
+<script src="js/admin.js?v=3.7"></script>
+<script src="js/profile.js?v=3.7"></script>
 <script>
   window.addEventListener('DOMContentLoaded', async () => {
     const ok = await sessionLoad();

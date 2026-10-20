@@ -1,0 +1,18 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]: KidLearn 🎓
+    - paragraph [ref=e5]: ระบบเรียนรู้สนุกสำหรับเด็ก
+    - generic [ref=e6]:
+      - generic [ref=e7]: ชื่อผู้ใช้
+      - textbox "กรอกชื่อผู้ใช้" [ref=e8]
+    - generic [ref=e9]:
+      - generic [ref=e10]: รหัสผ่าน
+      - textbox "กรอกรหัสผ่าน" [ref=e11]
+      - button "" [ref=e12] [cursor=pointer]
+    - button "เข้าสู่ระบบ 🚀" [ref=e14] [cursor=pointer]
+    - generic [ref=e15]: ลืมรหัสผ่าน?
+    - paragraph [ref=e16]:
+      - text: ยังไม่มีบัญชี?
+      - link "สมัครสมาชิก" [ref=e17] [cursor=pointer]:
+        - /url: register.html
+  - text: 

@@ -4,6 +4,7 @@
 if(typeof A.adminTab==='undefined') A.adminTab='users';
 if(typeof A.adminRole==='undefined') A.adminRole='';
 if(typeof A.adminSearch==='undefined') A.adminSearch='';
+if(typeof A.adminDateRange==='undefined') A.adminDateRange='all';
 if(typeof A.reportTab==='undefined') A.reportTab='summary';
 
 async function loadAdmin() {
@@ -29,7 +30,7 @@ async function _loadAdminUsers(){
   const el=document.getElementById('adm-user-list');
   if(!el)return;
   el.innerHTML='<div style="color:var(--mu);padding:1rem">⏳ กำลังโหลด...</div>';
-  const res=await apiAdminUsers({role:A.adminRole,search:A.adminSearch}).catch(()=>({ok:false,users:[]}));
+  const res=await apiAdminUsers({role:A.adminRole,search:A.adminSearch,date_range:A.adminDateRange}).catch(()=>({ok:false,users:[]}));
   const users=res.ok?(res.users||[]):[];
   const total=res.total||0;
 
@@ -39,6 +40,12 @@ async function _loadAdminUsers(){
   el.innerHTML=`
     <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
       <select class="fc" style="width:140px;padding:.5rem .75rem;font-size:.85rem" onchange="A.adminRole=this.value;_loadAdminUsers()">${roleOpts}</select>
+      <select class="fc" style="width:170px;padding:.5rem .75rem;font-size:.85rem" onchange="A.adminDateRange=this.value;_loadAdminUsers()">
+        <option value="all"${A.adminDateRange==='all'?' selected':''}>สมัครทุกช่วง</option>
+        <option value="7d"${A.adminDateRange==='7d'?' selected':''}>ย้อนหลัง 7 วัน</option>
+        <option value="1m"${A.adminDateRange==='1m'?' selected':''}>ย้อนหลัง 1 เดือนจากเวลานี้</option>
+        <option value="1y"${A.adminDateRange==='1y'?' selected':''}>ย้อนหลัง 1 ปีจากเวลานี้</option>
+      </select>
       <input class="fc" type="text" placeholder="ค้นหาชื่อ/username..." value="${A.adminSearch}"
         style="flex:1;min-width:160px;padding:.5rem .75rem;font-size:.85rem"
         oninput="A.adminSearch=this.value" onkeydown="if(event.key==='Enter')_loadAdminUsers()">
@@ -47,12 +54,14 @@ async function _loadAdminUsers(){
       <span style="font-size:.82rem;color:var(--mu)">ทั้งหมด ${total} คน</span>
     </div>
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:560px">
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:900px">
       <thead><tr style="background:var(--s);color:#fff">
         <th style="padding:.55rem .75rem;text-align:left">ชื่อ</th>
         <th style="padding:.55rem .75rem;text-align:left">Username</th>
         <th style="padding:.55rem .75rem;text-align:center">Role</th>
         <th style="padding:.55rem .75rem;text-align:center">สถานะ</th>
+        <th style="padding:.55rem .75rem;text-align:center">วันที่สมัคร</th>
+        <th style="padding:.55rem .75rem;text-align:center">แก้ไขล่าสุด</th>
         <th style="padding:.55rem .75rem;text-align:left">ข้อมูลเพิ่มเติม</th>
         <th style="padding:.55rem .75rem;text-align:center">จัดการ</th>
       </tr></thead>
@@ -74,6 +83,8 @@ function _renderUserRow(u){
       <span style="color:${u.is_active?'#10B981':'#EF4444'};font-weight:700;font-size:.82rem">
         ${u.is_active?'✅ ใช้งาน':'⛔ ระงับ'}</span>
     </td>
+    <td style="padding:.55rem .75rem;text-align:center;white-space:nowrap">${formatDateTimeTH(u.created_at)}</td>
+    <td style="padding:.55rem .75rem;text-align:center;white-space:nowrap">${formatDateTimeTH(u.updated_at)}</td>
     <td style="padding:.55rem .75rem;font-size:.78rem;color:var(--mu)">${extra}</td>
     <td style="padding:.55rem .75rem;text-align:center">
       <div style="display:flex;gap:.3rem;justify-content:center;flex-wrap:wrap">

@@ -146,6 +146,30 @@ function authRole(string ...$roles): void {
     if (!in_array(myRole(), $roles, true)) DB::fail('Forbidden', 403);
 }
 
+function accountDateFilter(string $column): array {
+    $range = (string)($_GET['date_range'] ?? 'all');
+    $intervals = [
+        '7d' => '7 days',
+        '1m' => '1 month',
+        '1y' => '1 year',
+    ];
+    if ($range === 'all') return ['', []];
+    if (!isset($intervals[$range])) DB::fail('Invalid date range', 400);
+    return [" AND $column >= NOW() - INTERVAL '{$intervals[$range]}' AND $column <= NOW()", []];
+}
+
+function canEditContent(?array $content): bool {
+    if (!in_array(myRole(), ['teacher', 'admin', 'officer'], true)) return false;
+    if (myRole() !== 'teacher') return true;
+    $ownerId = (int)($content['created_by'] ?? 0);
+    if (!$ownerId) $ownerId = (int)($content['updated_by'] ?? 0);
+    return $content !== null && $ownerId === myId();
+}
+
+function requireContentOwner(?array $content): void {
+    if (!canEditContent($content)) DB::fail('แก้ไขได้เฉพาะเนื้อหาที่คุณเป็นเจ้าของ', 403);
+}
+
 function csrfToken(): string {
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -747,7 +771,7 @@ function handleRegister(): never {
 function handleMe(): never {
     auth();
     $user = DB::get()->one(
-        "SELECT u.user_id, u.username, u.email, u.role, u.full_name,
+        "SELECT u.user_id, u.username, u.email, u.role, u.full_name, u.created_at, u.updated_at,
                 s.student_id, s.grade, s.parent_phone,
                 p.parent_id, p.phone,
                 t.teacher_id, t.department,
@@ -784,6 +808,7 @@ function handleUpdateProfile(): never {
     if (!$name || !$email) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
 
     $db->run("UPDATE users SET full_name=?,email=? WHERE user_id=?", [$name, $email, $id], 'ssi');
+    $accountDates = $db->one("SELECT created_at, updated_at FROM users WHERE user_id=?", [$id], 'i');
 
     if ($role === 'student') {
         $grade    = $body['grade']        ?? null;
@@ -830,7 +855,7 @@ function handleUpdateProfile(): never {
 
     // เธญเธฑเธเน€เธ”เธ• session
     $_SESSION['user']['full_name'] = $name;
-    DB::ok();
+    DB::ok(['created_at' => $accountDates['created_at'] ?? null, 'updated_at' => $accountDates['updated_at'] ?? null]);
 }
 
 function handleChangePassword(): never {
@@ -844,7 +869,8 @@ function handleChangePassword(): never {
     if (!password_verify($old, $user['password'])) DB::fail('รหัสผ่านเดิมไม่ถูกต้อง', 401);
     DB::get()->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($new, PASSWORD_BCRYPT), myId()], 'si');
-    DB::ok();
+    $updatedAt = DB::get()->one("SELECT updated_at FROM users WHERE user_id=?", [myId()], 'i')['updated_at'] ?? null;
+    DB::ok(['updated_at' => $updatedAt]);
 }
 
 // ============================================================
@@ -998,7 +1024,7 @@ function handleLessonContent(): never {
     // เธ”เธถเธเธ—เธธเธเธเธ—เธเธญเธเน€เธเธกเธเธฑเนเธ (เนเธกเนเธฃเธฐเธเธธ lesson_no) เธซเธฃเธทเธญเธเธ—เน€เธ”เธตเธขเธง
     if ($lessonNo) {
         $content = $db->one(
-            "SELECT content_id, game_id, lesson_no, title, body, summary, read_time
+            "SELECT content_id, game_id, lesson_no, title, body, summary, read_time, created_by, updated_by, updated_at
              FROM lesson_content
              WHERE game_id=? AND lesson_no=?
              LIMIT 1",
@@ -1007,14 +1033,17 @@ function handleLessonContent(): never {
         if (!$content) {
             DB::ok(['content' => null, 'placeholder' => true]);
         }
+        $content['can_edit'] = canEditContent($content);
         DB::ok(['content' => $content]);
     } else {
         // เธ”เธถเธเธฃเธฒเธขเธเธทเนเธญเธ—เธธเธเธเธ—เธเธญเธเน€เธเธกเธเธตเน (เธชเธณเธซเธฃเธฑเธ lesson selector)
         $list = $db->all(
-            "SELECT content_id, lesson_no, title, summary, read_time FROM lesson_content
+            "SELECT content_id, lesson_no, title, summary, read_time, created_by, updated_by, updated_at FROM lesson_content
              WHERE game_id=? ORDER BY lesson_no",
             [$gameId], 'i'
         );
+        foreach ($list as &$content) $content['can_edit'] = canEditContent($content);
+        unset($content);
         DB::ok(['lessons' => $list]);
     }
 }
@@ -1027,22 +1056,25 @@ function handleLessonContentV2(): never {
 
     if ($lessonNo) {
         $content = $db->one(
-            "SELECT content_id, game_id, lesson_no, title, body, summary, read_time, status, version_no, published_at, updated_by, approved_by
+            "SELECT content_id, game_id, lesson_no, title, body, summary, read_time, status, version_no, published_at, created_by, updated_by, updated_at, approved_by
              FROM lesson_content
              WHERE game_id=? AND lesson_no=?
              LIMIT 1",
             [$gameId, $lessonNo], 'ii'
         );
-        if (!$content) DB::ok(['content' => null, 'placeholder' => true]);
+        if (!$content) DB::ok(['content' => null, 'placeholder' => true, 'can_edit' => true]);
+        $content['can_edit'] = canEditContent($content);
         DB::ok(['content' => $content]);
     }
 
     $list = $db->all(
-        "SELECT content_id, lesson_no, title, summary, read_time, status, version_no, published_at
+        "SELECT content_id, lesson_no, title, summary, read_time, status, version_no, published_at, created_by, updated_by, updated_at
          FROM lesson_content
          WHERE game_id=? ORDER BY lesson_no",
         [$gameId], 'i'
     );
+    foreach ($list as &$content) $content['can_edit'] = canEditContent($content);
+    unset($content);
     DB::ok(['lessons' => $list]);
 }
 
@@ -1086,13 +1118,17 @@ function handleGetContent(): never {
 
     // lesson list with has_content flag
     $lessons = $db->all(
-        "SELECT lesson_no, title, summary, read_time FROM lesson_content
+        "SELECT lesson_no, title, summary, read_time, created_by, updated_by, updated_at FROM lesson_content
          WHERE game_id=? ORDER BY lesson_no",
         [$gameId], 'i'
     );
     // เธชเธฃเนเธฒเธ map lesson_no => has_content
     $hasContent = [];
-    foreach ($lessons as $l) $hasContent[(int)$l['lesson_no']] = true;
+    foreach ($lessons as &$lesson) {
+        $hasContent[(int)$lesson['lesson_no']] = true;
+        $lesson['can_edit'] = canEditContent($lesson);
+    }
+    unset($lesson);
 
     DB::ok(['lessons' => $lessons, 'best_scores' => $scores, 'has_content' => $hasContent]);
 }
@@ -1535,6 +1571,7 @@ function handleSaveLessonV2(): never {
         "SELECT * FROM lesson_content WHERE game_id=? AND lesson_no=?",
         [$gameId, $lessonNo], 'ii'
     );
+    if ($exists) requireContentOwner($exists);
 
     $approvedBy = $status === 'published' ? myId() : null;
     $publishedAt = $status === 'published' ? date('Y-m-d H:i:s') : null;
@@ -1562,19 +1599,19 @@ function handleSaveLessonV2(): never {
         $db->run(
             "UPDATE lesson_content
              SET title=?, body=?, summary=?, read_time=?, status=?, version_no=version_no+1,
-                 updated_by=?, approved_by=?, published_at=?
+                 created_by=COALESCE(created_by, ?), updated_by=?, approved_by=?, published_at=?
              WHERE content_id=?",
-            [$title, $bodyHtml, $summary, $readTime, $status, myId(), $approvedBy, $publishedAt, $exists['content_id']],
-            'sssissssi'
+            [$title, $bodyHtml, $summary, $readTime, $status, myId(), myId(), $approvedBy, $publishedAt, $exists['content_id']],
+            'sssisiiisi'
         );
         $contentId = (int)$exists['content_id'];
     } else {
         $db->run(
             "INSERT INTO lesson_content
-             (game_id, lesson_no, title, body, summary, read_time, status, version_no, updated_by, approved_by, published_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            [$gameId, $lessonNo, $title, $bodyHtml, $summary, $readTime, $status, 1, myId(), $approvedBy, $publishedAt],
-            'iisssisiiss'
+             (game_id, lesson_no, title, body, summary, read_time, status, version_no, created_by, updated_by, approved_by, published_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [$gameId, $lessonNo, $title, $bodyHtml, $summary, $readTime, $status, 1, myId(), myId(), $approvedBy, $publishedAt],
+            'iisssisiiiis'
         );
         $contentId = $db->insertId();
     }
@@ -1587,7 +1624,8 @@ function handleSaveLessonV2(): never {
         ['game_id' => $gameId, 'lesson_no' => $lessonNo, 'status' => $status]
     );
 
-    DB::ok(['message' => 'เธเธฑเธเธ—เธถเธเธชเธณเน€เธฃเนเธ', 'content_id' => $contentId, 'status' => $status]);
+    $contentDate = $db->one("SELECT updated_at FROM lesson_content WHERE content_id=?", [$contentId], 'i');
+    DB::ok(['message' => 'เธเธฑเธเธ—เธถเธเธชเธณเน€เธฃเนเธ', 'content_id' => $contentId, 'status' => $status, 'updated_at' => $contentDate['updated_at'] ?? null]);
 }
 
 function handleDeleteLesson(): never {
@@ -1596,7 +1634,11 @@ function handleDeleteLesson(): never {
     $gameId   = (int)($body['game_id']   ?? 0);
     $lessonNo = (int)($body['lesson_no'] ?? 1);
     if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
-    DB::get()->run(
+    $db = DB::get();
+    $content = $db->one("SELECT created_by, updated_by FROM lesson_content WHERE game_id=? AND lesson_no=?", [$gameId, $lessonNo], 'ii');
+    if (!$content) DB::fail('ไม่พบบทเรียน', 404);
+    requireContentOwner($content);
+    $db->run(
         "DELETE FROM lesson_content WHERE game_id=? AND lesson_no=?",
         [$gameId, $lessonNo], 'ii'
     );
@@ -2078,12 +2120,14 @@ function handleAdminUsers(): never {
 
     $where = 'WHERE 1=1';
     $params = []; $types = '';
+    [$dateSql] = accountDateFilter('u.created_at');
+    $where .= $dateSql;
     if ($role)   { $where .= ' AND u.role=?';          $params[] = $role;   $types .= 's'; }
     if ($search) { $where .= ' AND (u.full_name LIKE ? OR u.username LIKE ?)';
                    $s = "%$search%"; $params[] = $s; $params[] = $s; $types .= 'ss'; }
 
     $users = $db->all("SELECT u.user_id, u.username, u.full_name, u.email, u.role,
-            u.is_active, u.created_at,
+            u.is_active, u.created_at, u.updated_at,
             COALESCE(s.grade,'โ€”') AS grade,
             COALESCE(p.phone,'โ€”') AS phone,
             COALESCE(t.department,'โ€”') AS department
@@ -2231,7 +2275,11 @@ function handleDeleteQuestion(): never {
     authRole('teacher', 'admin', 'officer');
     $qid = (int)($body['question_id'] ?? 0);
     if (!$qid) DB::fail('เธ•เนเธญเธเธชเนเธ question_id', 400);
-    DB::get()->run("DELETE FROM questions WHERE question_id=?", [$qid], 'i');
+    $db = DB::get();
+    $question = $db->one("SELECT created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
+    if (!$question) DB::fail('Question not found', 404);
+    requireContentOwner($question);
+    $db->run("DELETE FROM questions WHERE question_id=?", [$qid], 'i');
     DB::ok();
 }
 
@@ -2599,6 +2647,7 @@ function handleGetGameQuestionsV2(): never {
     );
 
     foreach ($questions as &$question) {
+        $question['can_edit'] = canEditContent($question);
         $question['answers'] = $db->all(
             "SELECT answer_id, question_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order
              FROM answers
@@ -2631,17 +2680,21 @@ function handleSaveQuestionV2(): never {
     if (!$gid || $text === '') DB::fail('Missing game_id or question_text', 400);
 
     if ($qid) {
+        $existing = $db->one("SELECT game_id, created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
+        if (!$existing) DB::fail('Question not found', 404);
+        if ((int)$existing['game_id'] !== $gid) DB::fail('Question does not belong to this game', 400);
+        requireContentOwner($existing);
         $db->run(
-            "UPDATE questions SET question_text=?, question_img=?, hint=?, order_no=? WHERE question_id=?",
-            [$text, $questionImg ?: null, $hint ?: null, $order, $qid],
-            'sssii'
+            "UPDATE questions SET question_text=?, question_img=?, hint=?, order_no=?, created_by=COALESCE(created_by, ?), updated_by=? WHERE question_id=?",
+            [$text, $questionImg ?: null, $hint ?: null, $order, myId(), myId(), $qid],
+            'sssiiii'
         );
         $db->run("DELETE FROM answers WHERE question_id=?", [$qid], 'i');
     } else {
         $db->run(
-            "INSERT INTO questions (game_id, question_text, question_img, hint, order_no) VALUES (?,?,?,?,?)",
-            [$gid, $text, $questionImg ?: null, $hint ?: null, $order],
-            'isssi'
+            "INSERT INTO questions (game_id, question_text, question_img, hint, order_no, created_by, updated_by) VALUES (?,?,?,?,?,?,?)",
+            [$gid, $text, $questionImg ?: null, $hint ?: null, $order, myId(), myId()],
+            'isssiii'
         );
         $qid = $db->insertId();
     }
@@ -2679,7 +2732,8 @@ function handleSaveQuestionV2(): never {
         );
     }
 
-    DB::ok(['question_id' => $qid]);
+    $questionDate = $db->one("SELECT updated_at FROM questions WHERE question_id=?", [$qid], 'i');
+    DB::ok(['question_id' => $qid, 'updated_at' => $questionDate['updated_at'] ?? null]);
 }
 
 function handlePlayQuestionsV2(): never {
@@ -2863,17 +2917,19 @@ function handlePlayQuestionsV2(): never {
 function handleOfficerUsers(): never {
     authRole('officer', 'admin');
     $db = DB::get();
+    [$dateSql, $dateParams] = accountDateFilter('u.created_at');
     
     // เธ”เธถเธเธฃเธฒเธขเธเธทเนเธญเธเธนเนเนเธเนเธ—เธฑเนเธเธซเธกเธ”
     $users = $db->all(
         "SELECT u.user_id, u.username, u.email, u.full_name, u.role, u.is_active, 
-                u.created_at, s.grade, p.phone, t.department
+                u.created_at, u.updated_at, s.grade, p.phone, t.department
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
          LEFT JOIN parents p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
-         WHERE u.role IN ('student', 'parent', 'teacher', 'officer', 'executive')
+         WHERE u.role IN ('student', 'parent', 'teacher', 'officer', 'executive') $dateSql
          ORDER BY u.created_at DESC"
+        , $dateParams
     );
     
     DB::ok(['users' => $users]);
@@ -2952,12 +3008,12 @@ function handleOfficerDeleteUser(): never {
 function handleExecutiveDashboard(): never {
     authRole('executive', 'admin');
     $db = DB::get();
-    
-    // เธชเธฃเธธเธเธเนเธญเธกเธนเธฅเธฃเธงเธก
-    $students = $db->one("SELECT COUNT(*) AS c FROM students WHERE user_id IN (SELECT user_id FROM users WHERE is_active=TRUE)");
-    $teachers = $db->one("SELECT COUNT(*) AS c FROM teachers WHERE user_id IN (SELECT user_id FROM users WHERE is_active=TRUE)");
-    $totalPlays = $db->one("SELECT COUNT(*) AS c FROM scores");
-    $avgScore = $db->one("SELECT ROUND(AVG(score),1) AS a FROM scores");
+    [$accountDateSql, $dateParams] = accountDateFilter('u.created_at');
+    [$scoreDateSql] = accountDateFilter('sc.played_at');
+    $students = $db->one("SELECT COUNT(*) AS c FROM students s JOIN users u ON u.user_id=s.user_id WHERE u.is_active=TRUE$accountDateSql", $dateParams);
+    $teachers = $db->one("SELECT COUNT(*) AS c FROM teachers t JOIN users u ON u.user_id=t.user_id WHERE u.is_active=TRUE$accountDateSql", $dateParams);
+    $totalPlays = $db->one("SELECT COUNT(*) AS c FROM scores sc WHERE TRUE$scoreDateSql");
+    $avgScore = $db->one("SELECT ROUND(AVG(sc.score),1) AS a FROM scores sc WHERE TRUE$scoreDateSql");
     
     DB::ok([
         'total_students' => (int)($students['c'] ?? 0),
@@ -2970,17 +3026,18 @@ function handleExecutiveDashboard(): never {
 function handleExecutiveUsers(): never {
     authRole('executive', 'admin');
     $db = DB::get();
-    
+    [$dateSql, $dateParams] = accountDateFilter('u.created_at');
     // เธ”เธถเธเธเนเธญเธกเธนเธฅเธเธนเนเนเธเนเธ—เธฑเนเธเธซเธกเธ” (View-only)
     $users = $db->all(
-        "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at,
+        "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at, u.updated_at,
                 s.grade, p.phone, t.department
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
          LEFT JOIN parents p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
-         WHERE u.is_active = TRUE
+         WHERE u.is_active = TRUE$dateSql
          ORDER BY u.role, u.full_name"
+        , $dateParams
     );
     
     DB::ok(['users' => $users]);
@@ -3033,6 +3090,7 @@ function handleExecutiveContent(): never {
     }
 
     if ($type === 'scores') {
+        [$scoreDateSql] = accountDateFilter('sc.played_at');
         $scores = $db->all(
             "SELECT sc.score_id, sc.score, 100 AS max_score, sc.time_spent, sc.played_at,
                     u.full_name AS student_name,
@@ -3044,6 +3102,7 @@ function handleExecutiveContent(): never {
              JOIN users u ON u.user_id = st.user_id
              LEFT JOIN games g ON g.game_id = sc.game_id
              LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
+             WHERE TRUE$scoreDateSql
              ORDER BY sc.played_at DESC
              LIMIT 120"
         );
@@ -3052,7 +3111,7 @@ function handleExecutiveContent(): never {
 
     if ($type === 'lessons') {
         $lessons = $db->all(
-            "SELECT lc.content_id, lc.game_id, lc.lesson_no, lc.title, lc.summary, lc.read_time,
+            "SELECT lc.content_id, lc.game_id, lc.lesson_no, lc.title, lc.summary, lc.read_time, lc.updated_at,
                     g.name AS game_name,
                     sub.name AS subject_name,
                     sub.icon AS subject_icon
@@ -3066,7 +3125,7 @@ function handleExecutiveContent(): never {
 
     if ($type === 'questions') {
         $questions = $db->all(
-            "SELECT q.question_id, q.game_id, q.order_no, q.question_type, q.question_text,
+            "SELECT q.question_id, q.game_id, q.order_no, q.question_type, q.question_text, q.updated_at,
                     g.name AS game_name,
                     sub.name AS subject_name,
                     sub.icon AS subject_icon,
@@ -3084,7 +3143,7 @@ function handleExecutiveContent(): never {
              LEFT JOIN games g ON g.game_id = q.game_id
              LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
              LEFT JOIN answers a ON a.question_id = q.question_id
-             GROUP BY q.question_id, q.game_id, q.order_no, q.question_type, q.question_text,
+             GROUP BY q.question_id, q.game_id, q.order_no, q.question_type, q.question_text, q.updated_at,
                       g.name, sub.name, sub.icon, sub.subject_id
              ORDER BY sub.subject_id, q.game_id, q.order_no, q.question_id"
         );

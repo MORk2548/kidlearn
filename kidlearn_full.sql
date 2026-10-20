@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
              CHECK (role IN ('student','parent','teacher','officer','executive','admin')),
   full_name  VARCHAR(100) NOT NULL DEFAULT '',
   is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS students (
@@ -113,6 +114,9 @@ CREATE TABLE IF NOT EXISTS questions (
   hint          TEXT DEFAULT NULL,
   order_no      INT  NOT NULL DEFAULT 0,
   point         INT  NOT NULL DEFAULT 10,
+  created_by    INT  DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  updated_by    INT  DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE
 );
 
@@ -140,6 +144,7 @@ CREATE TABLE IF NOT EXISTS lesson_content (
   read_time    INT          NOT NULL DEFAULT 5,
   status       VARCHAR(20)  NOT NULL DEFAULT 'published',
   version_no   INT          NOT NULL DEFAULT 1,
+  created_by   INT          DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
   updated_by   INT          DEFAULT NULL,
   approved_by  INT          DEFAULT NULL,
   published_at TIMESTAMPTZ  DEFAULT NULL,
@@ -159,6 +164,16 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_lesson_content_updated_at
   BEFORE UPDATE ON lesson_content
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
+CREATE TRIGGER trg_users_updated_at
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS trg_questions_updated_at ON questions;
+CREATE TRIGGER trg_questions_updated_at
+  BEFORE UPDATE ON questions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================
