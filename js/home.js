@@ -191,47 +191,6 @@ function loadSubs(){
   if (A.role === 'student') fetchProgCache().then(() => renderSubCards('subs-grid'));
 }
 
-function openSub(id){
-  A.curSub=SUBS.find(s=>s.id===id);
-  document.getElementById('games-hd').innerHTML=`${A.curSub.icon} ${A.curSub.name}`;
-  document.getElementById('games-back-btn').textContent='← กลับ';
-  document.getElementById('games-badge').style.display='none';
-  const grid=document.getElementById('games-grid'); grid.innerHTML='';
-  const TYPE_LBL={mcq:'🅰 ตอบปรนัย',truefalse:'✅ จริง/เท็จ',fill:'✏️ เติมคำ',
-    matching:'🔗 จับคู่',sequence:'📋 เรียงลำดับ',letterorder:'🔤 เรียงตัวอักษร',wordsearch:'🔍 ค้นหาคำ'};
-  const TYPE_BG={mcq:'#FFF3E0',truefalse:'#E8F5E9',fill:'#EDE7F6',
-    matching:'#E3F2FD',sequence:'#FFF8E1',letterorder:'#EEF2FF',wordsearch:'#FCE4EC'};
-  const TYPE_COL={mcq:'#E65100',truefalse:'#1B5E20',fill:'#4527A0',
-    matching:'#0D47A1',sequence:'#F57F17',letterorder:'#3730A3',wordsearch:'#880E4F'};
-  const lvlLbl={easy:'ง่าย',medium:'ปานกลาง',hard:'ยาก'};
-  const myGames=Object.values(GAMES_DB).filter(g=>g.sid===id);
-  myGames.forEach((gm,i)=>{
-    const tbg=TYPE_BG[gm.type]||'#F3F4F6';
-    const tc=TYPE_COL[gm.type]||'#374151';
-    grid.innerHTML+=`<div class="gc" style="animation-delay:${i*.07}s">
-      <div class="gc-thumb" style="background:linear-gradient(135deg,${A.curSub.color}25,${A.curSub.color}50)">
-        <span style="font-size:2.6rem">${gm.icon}</span>
-        <span class="gc-tag" style="background:${tbg};color:${tc}">${missionKit(gm.code)?'🧩 ภารกิจ':TYPE_LBL[gm.type]||gm.type}</span>
-      </div>
-      <div class="gc-body">
-        <div class="gc-title">${gm.name}</div>
-        <div class="gc-meta">
-          <span class="badge ${gm.lvl==='easy'?'be':gm.lvl==='medium'?'bm':'bh'}">${lvlLbl[gm.lvl]}</span>
-          <span>⏱ ${gm.time>=600?`${Math.round(gm.time/60)} นาที`:`${gm.time}วิ`}</span>
-        </div>
-        ${A.role==='student'
-          ?`<div class="gc-lesson-btns">
-              <button class="lp-btn-read" onclick="openGameContent('${gm.id}')">📖 อ่านบทเรียน</button>
-              <button class="lp-btn-play" onclick="startLesson('${gm.id}',1)">🎮 เล่นเกม</button>
-            </div>`
-          :'<div style="font-size:.78rem;color:var(--mu);text-align:center;padding:.4rem 0">เฉพาะนักเรียนเล่นได้</div>'}
-      </div>
-    </div>`;
-  });
-  sec('games');
-}
-
-// ══════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════
 // LESSON SELECTOR — ดึง API + ปุ่ม "อ่านเนื้อหา" / "เล่นเกม"
@@ -347,12 +306,13 @@ async function openSub(id){
     const dbMeta=dbGamesMap[gm.code ? String(GAME_DB_IDS[gm.code]) : String(jsKeyToDbId(gm.id))]||{};
     const gameName=dbMeta.name||gm.name;
     const timeLimit=parseInt(dbMeta.time_limit,10)>0?parseInt(dbMeta.time_limit,10):(parseInt(gm.time,10)||60);
-    const tbg=TYPE_BG[gm.type]||'#F3F4F6';
-    const tc=TYPE_COL[gm.type]||'#374151';
+    const gameType=dbMeta.game_type||gm.type;
+    const tbg=TYPE_BG[gameType]||'#F3F4F6';
+    const tc=TYPE_COL[gameType]||'#374151';
     grid.innerHTML+=`<div class="gc" style="animation-delay:${i*.07}s">
       <div class="gc-thumb" style="background:linear-gradient(135deg,${A.curSub.color}25,${A.curSub.color}50)">
         <span style="font-size:2.6rem">${gm.icon}</span>
-        <span class="gc-tag" style="background:${tbg};color:${tc}">${missionKit(gm.code)?'🧩 ภารกิจ':TYPE_LBL[gm.type]||gm.type}</span>
+        <span class="gc-tag" style="background:${tbg};color:${tc}">${missionKit(gm.code)?'🧩 ภารกิจ':TYPE_LBL[gameType]||gameType}</span>
       </div>
       <div class="gc-body">
         <div class="gc-title">${gameName}</div>

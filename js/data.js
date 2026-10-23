@@ -52,25 +52,6 @@ function wsGridEn(words) {
   return{grid,placed};
 }
 
-function makePictureQuizImage(emoji, label, bgA='#DBEAFE', bgB='#BFDBFE') {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">
-      <defs>
-        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="${bgA}"/>
-          <stop offset="100%" stop-color="${bgB}"/>
-        </linearGradient>
-      </defs>
-      <rect width="320" height="240" rx="28" fill="url(#g)"/>
-      <circle cx="65" cy="60" r="26" fill="rgba(255,255,255,.32)"/>
-      <circle cx="270" cy="52" r="18" fill="rgba(255,255,255,.28)"/>
-      <rect x="28" y="24" width="264" height="192" rx="22" fill="rgba(255,255,255,.30)"/>
-      <text x="160" y="128" text-anchor="middle" font-size="90">${emoji}</text>
-      <text x="160" y="198" text-anchor="middle" font-size="26" font-family="Arial, sans-serif" fill="#1E3A8A">${label}</text>
-    </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 // ══════════════════════════════════════════════════════
 // DATA — GAMES (6 per subject = 36 total)
 // ══════════════════════════════════════════════════════
@@ -309,22 +290,6 @@ const GAMES_DB = {
 // ══════════════════════════════════════════════════════
 // MOCK SCORES (per student id)
 // ══════════════════════════════════════════════════════
-GAMES_DB['4_1'] = {
-  ...GAMES_DB['4_1'],
-  name:'คำศัพท์สัตว์',
-  type:'mcq',
-  icon:'🐾',
-  preferStatic:true,
-  qs:[
-    {q:'What animal is this?', img:makePictureQuizImage('🐘','Elephant'), opts:['Lion','Dog','Elephant','Rabbit'], ans:2},
-    {q:'What animal is this?', img:makePictureQuizImage('🐕','Dog','#DCFCE7','#BBF7D0'), opts:['Cat','Dog','Fish','Bird'], ans:1},
-    {q:'What animal is this?', img:makePictureQuizImage('🦁','Lion','#FEF3C7','#FDE68A'), opts:['Tiger','Bear','Rabbit','Lion'], ans:3},
-    {q:'What animal is this?', img:makePictureQuizImage('🐟','Fish','#E0F2FE','#BAE6FD'), opts:['Bird','Frog','Fish','Snake'], ans:2},
-    {q:'What animal is this?', img:makePictureQuizImage('🐦','Bird','#F3E8FF','#E9D5FF'), opts:['Bee','Butterfly','Bird','Bat'], ans:2},
-    {q:'What animal is this?', img:makePictureQuizImage('🐇','Rabbit','#FCE7F3','#FBCFE8'), opts:['Squirrel','Mouse','Hamster','Rabbit'], ans:3},
-  ]
-};
-
 let SCORES = {}; // ข้อมูลมาจาก PHP API
 
 // ══════════════════════════════════════════════════════

@@ -87,10 +87,9 @@ async function startGame(gid){
     const res = await loadPlayQuestionsFast(A.curDbGameId, gmStatic);
     if (res.ok) gameData = res;
   } catch(e) { console.warn('[game] DB load failed, fallback to static:', e); }
-  gameData = normalizePreferredGameData(gmStatic, gameData);
 
   // Fallback: ใช้คำถามจาก data.js ถ้า DB ไม่มีหรือโหลดไม่ได้
-  if (!gameData || _countQ(gameData) === 0 || shouldUseStaticGameData(gmStatic, gameData)) {
+  if (!gameData || _countQ(gameData) === 0) {
     console.log('[game] using static questions for', gid);
     gameData = _staticToGameData(gmStatic);
   }
@@ -101,7 +100,8 @@ async function startGame(gid){
   const levelQuestions = gmStatic?.code
     ? questionSource.filter(q=>!q.difficulty || q.difficulty===pendingDifficulty)
     : questionSource;
-  const selectedQuestions = shuffleItems(levelQuestions).slice(0,10).map(question=>{
+  const questionCount = parseInt(gameData.game?.question_count, 10) > 0 ? parseInt(gameData.game.question_count, 10) : 10;
+  const selectedQuestions = shuffleItems(levelQuestions).slice(0,questionCount).map(question=>{
     if(!Array.isArray(question.opts))return question;
     const choices=shuffleItems(question.opts.map((option,index)=>({option,isCorrect:index===Number(question.ans)})));
     return {...question,opts:choices.map(choice=>choice.option),ans:choices.findIndex(choice=>choice.isCorrect)};
@@ -116,18 +116,12 @@ async function startGame(gid){
     items: gameData.items || gmStatic?.items || [],
     words: gameData.words || gmStatic?.words || [],
     gridData: gmStatic?.gridData || null,
-    // ใช้ type จาก static เป็นหลัก (DB อาจใช้ชื่อต่างกัน)
-    type:  gmStatic?.type || gameData.type,
+    // ใช้ type จาก DB ให้ตรงกับที่ครูตั้งไว้ในหน้าแก้ไขเกม
+    type:  gameData.type || gmStatic?.type,
     time:  (parseInt(gameData.game?.time_limit, 10) > 0
       ? parseInt(gameData.game?.time_limit, 10)
       : (parseInt(gmStatic?.time, 10) > 0 ? parseInt(gmStatic.time, 10) : 60)),
   };
-  if (gmStatic?.preferStatic) {
-    A.curGame.name = gmStatic?.name || A.curGame.name;
-    A.curGame.icon = gmStatic?.icon || A.curGame.icon;
-    A.curGame.type = gmStatic?.type || A.curGame.type;
-  }
-
   const qCount = _countQ({
     qs: A.curGame.qs, pairs: A.curGame.pairs,
     items: A.curGame.items, words: A.curGame.words
@@ -145,37 +139,11 @@ function _countQ(d){
 function loadPlayQuestionsFast(dbGameId, gmStatic){
   const hasStaticQuestions = _countQ(gmStatic) > 0;
   if(!hasStaticQuestions) return apiPlayQuestions(dbGameId);
-  const timeoutMs = 2500;
+  const timeoutMs = 15000;
   return Promise.race([
     apiPlayQuestions(dbGameId),
     new Promise(resolve=>setTimeout(()=>resolve({ok:false,error:'โหลดคำถามจากเซิร์ฟเวอร์ช้า ใช้ชุดคำถามสำรอง'}), timeoutMs))
   ]);
-}
-function hasQuestionImageData(qs){
-  return Array.isArray(qs) && qs.some(q=>String(q?.img || '').trim() !== '');
-}
-function shouldUseStaticGameData(gmStatic, gameData){
-  if(!gmStatic?.preferStatic) return false;
-  if(gmStatic.type === 'fill'){
-    return !hasQuestionImageData(gameData?.qs);
-  }
-  return true;
-}
-function normalizePreferredGameData(gmStatic, gameData){
-  if(!gmStatic?.preferStatic || gmStatic?.type !== 'fill' || !Array.isArray(gameData?.qs)) return gameData;
-  const normalizedQs = gameData.qs.map(q=>{
-    const hasOptions = Array.isArray(q?.opts);
-    const answerFromOptions = hasOptions
-      ? q.opts?.[Number.isInteger(q?.ans) ? q.ans : parseInt(q?.ans,10)] ?? ''
-      : '';
-    return {
-      q: q?.q || '',
-      img: q?.img || '',
-      hint: q?.hint || '',
-      ans: String(q?.ans ?? '').trim() && !hasOptions ? q.ans : answerFromOptions
-    };
-  }).filter(q=>q.q || q.img || q.ans);
-  return { ...gameData, qs: normalizedQs };
 }
 
 function currentSkillMeta(){
