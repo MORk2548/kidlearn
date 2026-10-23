@@ -167,12 +167,12 @@ const LESSON_NAMES = {
   '5_4':['ยุคสมัยไทย','ยุคสมัยโลก','อารยธรรมโบราณ','ยุคอาณานิคม','สงครามโลก','ยุคสมัยใหม่'],
   '5_5':['ลำดับสุโขทัย','ลำดับอยุธยา','ลำดับรัตนโกสินทร์','เหตุการณ์โลก','การปฏิรูป','ยุคปัจจุบัน'],
   '5_6':['คำศัพท์ราชวงศ์','คำศัพท์สงคราม','คำศัพท์วัฒนธรรม','คำศัพท์เมือง','คำศัพท์ยุคสมัย','คำศัพท์บุคคล'],
-  '6_1':['โภชนาการ 5 หมู่','วิตามินและแร่ธาตุ','การออกกำลังกาย','ระบบร่างกาย','โรคและการป้องกัน','สุขอนามัย'],
-  '6_2':['สุขภาพกาย','สุขภาพจิต','สุขภาพสิ่งแวดล้อม','การป้องกันโรค','ยาและการใช้','ความปลอดภัย'],
-  '6_3':['อาหาร 5 หมู่','สารอาหาร','ระบบย่อยอาหาร','ระบบไหลเวียนโลหิต','ระบบหายใจ','ระบบขับถ่าย'],
-  '6_4':['โปรตีน','คาร์โบไฮเดรต','ไขมัน','วิตามิน','แร่ธาตุ','น้ำและใยอาหาร'],
-  '6_5':['CPR ขั้นตอน 1-2','CPR ขั้นตอน 3-4','ปฐมพยาบาลเบื้องต้น','การห้ามเลือด','การช่วยคนจมน้ำ','การเคลื่อนย้ายผู้ป่วย'],
-  '6_6':['คำศัพท์สุขภาพ','คำศัพท์อาหาร','คำศัพท์กีฬา','คำศัพท์ร่างกาย','คำศัพท์โรค','คำศัพท์ยา'],
+  '6_1':['นักสืบสุขภาพ: ดูแลร่างกาย สุขอนามัย การพักผ่อน'],
+  '6_2':['อาหารหลัก 5 หมู่และการจัดเมนูให้สมดุล'],
+  '6_3':['กิจวัตรประจำวันเพื่อสุขภาพดี'],
+  '6_4':['การเคลื่อนไหว การเล่นกีฬา และความปลอดภัย'],
+  '6_5':['ความปลอดภัยในชีวิตและการขอความช่วยเหลือ'],
+  '6_6':['การทำงานเป็นทีมและน้ำใจนักกีฬา'],
 };
 
 // ── helper: ดึงคะแนนสูงสุดที่เคยได้ในบทนั้น ──
@@ -211,7 +211,7 @@ function openSub(id){
     grid.innerHTML+=`<div class="gc" style="animation-delay:${i*.07}s">
       <div class="gc-thumb" style="background:linear-gradient(135deg,${A.curSub.color}25,${A.curSub.color}50)">
         <span style="font-size:2.6rem">${gm.icon}</span>
-        <span class="gc-tag" style="background:${tbg};color:${tc}">${TYPE_LBL[gm.type]||gm.type}</span>
+        <span class="gc-tag" style="background:${tbg};color:${tc}">${missionKit(gm.code)?'🧩 ภารกิจ':TYPE_LBL[gm.type]||gm.type}</span>
       </div>
       <div class="gc-body">
         <div class="gc-title">${gm.name}</div>
@@ -352,13 +352,13 @@ async function openSub(id){
     grid.innerHTML+=`<div class="gc" style="animation-delay:${i*.07}s">
       <div class="gc-thumb" style="background:linear-gradient(135deg,${A.curSub.color}25,${A.curSub.color}50)">
         <span style="font-size:2.6rem">${gm.icon}</span>
-        <span class="gc-tag" style="background:${tbg};color:${tc}">${TYPE_LBL[gm.type]||gm.type}</span>
+        <span class="gc-tag" style="background:${tbg};color:${tc}">${missionKit(gm.code)?'🧩 ภารกิจ':TYPE_LBL[gm.type]||gm.type}</span>
       </div>
       <div class="gc-body">
         <div class="gc-title">${gameName}</div>
         <div class="gc-meta">
           <span class="badge ${gm.lvl==='easy'?'be':gm.lvl==='medium'?'bm':'bh'}">${lvlLbl[gm.lvl]}</span>
-          <span>⏱ ${timeLimit} วิ</span>
+          <span>⏱ ${timeLimit>=600?`${Math.round(timeLimit/60)} นาที`:`${timeLimit} วิ`}</span>
         </div>
         ${A.role==='student'
           ?`<div class="gc-lesson-btns">

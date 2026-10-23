@@ -1340,6 +1340,7 @@
 
   window.MathKit = {
     fr, fText, fCmp, bestCut, CUTS, buildRound, checkStep, answerText, hasMissions: code => Boolean(GENERATORS[code]), GENERATORS,
+    roundSize: code => GENERATORS[code].size,
     makeMission, normalizeMission, validateMission, parseFraction, parseFixed, decText, PIZZA_MAX_ORDERS
   };
 })();
