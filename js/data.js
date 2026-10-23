@@ -79,54 +79,12 @@ const GAMES_DB = {
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 1 — คณิตศาสตร์                     ║
 // ╚═══════════════════════════════════════╝
-'1_1':{ id:'1_1', sid:1, name:'บวกลบคล่อง',       type:'mcq',       icon:'➕', lvl:'easy',   time:60,
-  qs:[
-    {q:'15 + 27 = ?',         opts:['40','42','41','43'], ans:1},
-    {q:'56 - 19 = ?',         opts:['37','35','38','36'], ans:0},
-    {q:'8 × 7 = ?',           opts:['54','56','58','52'], ans:1},
-    {q:'81 ÷ 9 = ?',          opts:['8','9','7','10'],   ans:1},
-    {q:'(4 + 6) × 3 = ?',     opts:['30','28','32','24'],ans:0},
-    {q:'100 - 47 = ?',        opts:['53','55','57','51'],ans:0},
-  ]},
-'1_2':{ id:'1_2', sid:1, name:'จริงหรือเท็จ เลขคณิต', type:'truefalse', icon:'✅', lvl:'easy', time:60,
-  qs:[
-    {q:'7 × 8 = 56',                    ans:true},
-    {q:'12 + 13 = 26',                  ans:false},
-    {q:'100 ÷ 5 = 20',                  ans:true},
-    {q:'จำนวนคู่คือ 2, 4, 6, 8, 10',   ans:true},
-    {q:'15 เป็นจำนวนเฉพาะ',             ans:false},
-    {q:'0.5 = 1/2',                     ans:true},
-  ]},
-'1_3':{ id:'1_3', sid:1, name:'เติมสมการ',         type:'fill',      icon:'✏️', lvl:'medium', time:90,
-  qs:[
-    {q:'___ + 15 = 30',         hint:'30 - 15',                ans:'15'},
-    {q:'7 × ___ = 63',          hint:'63 ÷ 7',                 ans:'9'},
-    {q:'พื้นที่สี่เหลี่ยม กว้าง 5 ยาว 8 = ___', hint:'กว้าง×ยาว', ans:'40'},
-    {q:'0.25 = ___/100',        hint:'0.25 × 100',             ans:'25'},
-    {q:'ครึ่งของ 64 คือ ___',   hint:'64 ÷ 2',                 ans:'32'},
-    {q:'3² + 4² = ___²  (ทฤษฎีพีทาโกรัส)', hint:'9+16=25', ans:'5'},
-  ]},
-'1_4':{ id:'1_4', sid:1, name:'จับคู่สัญลักษณ์',   type:'matching',  icon:'🔗', lvl:'easy',   time:90,
-  pairs:[
-    {left:'บวก',    right:'+'},
-    {left:'ลบ',     right:'-'},
-    {left:'คูณ',    right:'×'},
-    {left:'หาร',    right:'÷'},
-    {left:'เท่ากับ',right:'='},
-    {left:'ไม่เท่ากับ',right:'≠'},
-  ]},
-'1_5':{ id:'1_5', sid:1, name:'เรียงตัวเลข',        type:'sequence',  icon:'📋', lvl:'medium', time:90,
-  items:[
-    {id:'a',text:'½ (0.5)',    order:1},
-    {id:'b',text:'¾ (0.75)',   order:2},
-    {id:'c',text:'1',          order:3},
-    {id:'d',text:'1.5',        order:4},
-    {id:'e',text:'2',          order:5},
-    {id:'f',text:'3',          order:6},
-  ]},
-'1_6':{ id:'1_6', sid:1, name:'ค้นหาตัวเลข',        type:'wordsearch', icon:'🔍', lvl:'easy',  time:120,
-  words:['บวก','ลบ','คูณ','หาร','เลข','จำนวน'],
-  gridData:wsGrid(['บวก','ลบ','คูณ','หาร','เลข','จำนวน'])},
+'1_1':{ id:'1_1', code:'math_fraction_quest', sid:1, name:'ภารกิจพิชิตอาณาจักรเศษส่วน', type:'mcq', mode:'fraction-quest', icon:'🏰', lvl:'medium', time:120 },
+'1_2':{ id:'1_2', code:'math_pizza_chef', sid:1, name:'เชฟน้อยพิชิตพิซซ่า', type:'mcq', mode:'pizza', icon:'🍕', lvl:'medium', time:120 },
+'1_3':{ id:'1_3', code:'math_decimal_shop', sid:1, name:'ร้านค้าคณิตคิดเงินไว', type:'mcq', mode:'decimal-shop', icon:'🛍️', lvl:'medium', time:120 },
+'1_4':{ id:'1_4', code:'math_decimal_treasure', sid:1, name:'นักล่าสมบัติทศนิยม', type:'mcq', mode:'treasure', icon:'🗝️', lvl:'medium', time:120 },
+'1_5':{ id:'1_5', code:'math_data_detective', sid:1, name:'นักสืบข้อมูลมหัศจรรย์', type:'mcq', mode:'data-detective', icon:'🕵️', lvl:'medium', time:120 },
+'1_6':{ id:'1_6', code:'math_chart_builder', sid:1, name:'สร้างกราฟพิชิตคะแนน', type:'mcq', mode:'chart-builder', icon:'📊', lvl:'medium', time:150 },
 
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 2 — วิทยาศาสตร์                  ║

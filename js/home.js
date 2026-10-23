@@ -4,7 +4,10 @@
 // ── แปลง JS game key '1_1' → DB integer game_id ──────────────
 // key format: '{subjectIndex}_{gameIndex}' เช่น '1_1', '2_3', '6_6'
 // DB game_id  = (subjectIndex-1)*6 + gameIndex
+const GAME_DB_IDS = Object.create(null);
 function jsKeyToDbId(key) {
+  const game = typeof GAMES_DB !== 'undefined' ? GAMES_DB[key] : null;
+  if (game?.code) return GAME_DB_IDS[game.code] || 0;
   const parts = String(key).split('_');
   if (parts.length === 2) {
     const s = parseInt(parts[0]);
@@ -134,12 +137,12 @@ function subCard(sub, prog, played, i){
 // บทเรียน 6 บทต่อเกม (ทุกวิชา ทุกเกม)
 // ══════════════════════════════════════════════════════
 const LESSON_NAMES = {
-  '1_1':['บวกเลขหลักเดียว','ลบเลขหลักเดียว','บวกลบสองหลัก','คูณตารางสูตร','หารเบื้องต้น','โจทย์ผสม'],
-  '1_2':['จำนวนคู่-คี่','เปรียบเทียบตัวเลข','ค่าสัมบูรณ์','จำนวนเฉพาะ','เศษส่วนเบื้องต้น','ทศนิยมเบื้องต้น'],
-  '1_3':['สมการง่าย','สมการหาตัวแปร','พื้นที่รูปทรง','ปริมาตรเบื้องต้น','อัตราส่วน','สัดส่วน'],
-  '1_4':['สัญลักษณ์คณิต','หน่วยการวัด','รูปทรงเรขาคณิต','กราฟแท่ง','กราฟเส้น','แผนภูมิวงกลม'],
-  '1_5':['เรียงน้อย→มาก','เรียงมาก→น้อย','เรียงเศษส่วน','เรียงทศนิยม','เรียงเหตุการณ์','เรียงตามขนาด'],
-  '1_6':['คำศัพท์บวกลบ','คำศัพท์คูณหาร','คำศัพท์รูปทรง','คำศัพท์การวัด','คำศัพท์สถิติ','คำศัพท์พีชคณิต'],
+  '1_1':['เปรียบเทียบเศษส่วน','เรียงลำดับเศษส่วน','เศษส่วนที่เท่ากัน','บวกตัวส่วนเท่ากัน','บวกตัวส่วนต่างกัน','โจทย์ปัญหาเศษส่วน'],
+  '1_2':['ตัวเศษและตัวส่วน','แบ่งพิซซ่าเป็นส่วนเท่า ๆ กัน','เลือกชิ้นตามเศษส่วน','เศษส่วนอย่างง่าย','เศษส่วนมากกว่า 1','ทบทวนเศษส่วนจากภาพ'],
+  '1_3':['อ่านราคาทศนิยม','รวมราคาสินค้า','บวกจำนวนเงิน','ทอนเงินอย่างถูกต้อง','ตรวจยอดชำระ','โจทย์ซื้อขาย'],
+  '1_4':['อ่านค่าทศนิยม','บวกทศนิยม','ลบทศนิยม','จัดตำแหน่งจุดทศนิยม','ตรวจคำตอบ','โจทย์ทศนิยม'],
+  '1_5':['อ่านตารางข้อมูล','หาค่าสูงสุด','หาค่าต่ำสุด','หาผลรวมข้อมูล','หาผลต่างข้อมูล','ตอบคำถามจากแผนภูมิ'],
+  '1_6':['เลือกข้อมูลลงกราฟ','ใส่ค่าบนแกน','เทียบสเกลกราฟ','สร้างกราฟแท่ง','ตรวจความสูงแท่ง','ตรวจป้ายกำกับกราฟ'],
   '2_1':['ระบบสุริยะ','ดาวและกาแล็กซี','บรรยากาศโลก','สิ่งมีชีวิตในน้ำ','สิ่งมีชีวิตบนบก','ระบบนิเวศ'],
   '2_2':['สัตว์มีกระดูกสันหลัง','สัตว์ไม่มีกระดูกสันหลัง','พืชดอก','พืชไม่มีดอก','สภาวะอากาศ','แหล่งน้ำ'],
   '2_3':['ก๊าซในอากาศ','วงจรชีวิตสัตว์','วงจรชีวิตพืช','สารและสมบัติ','การเปลี่ยนแปลงสาร','พลังงานแสง'],
@@ -341,7 +344,8 @@ async function openSub(id){
   const renderGameCards=(dbGamesMap={})=>{
     grid.innerHTML='';
     myGames.forEach((gm,i)=>{
-    const dbMeta=dbGamesMap[String(jsKeyToDbId(gm.id))]||{};
+    const dbMeta=dbGamesMap[gm.code ? String(GAME_DB_IDS[gm.code]) : String(jsKeyToDbId(gm.id))]||{};
+    const gameName=dbMeta.name||gm.name;
     const timeLimit=parseInt(dbMeta.time_limit,10)>0?parseInt(dbMeta.time_limit,10):(parseInt(gm.time,10)||60);
     const tbg=TYPE_BG[gm.type]||'#F3F4F6';
     const tc=TYPE_COL[gm.type]||'#374151';
@@ -351,7 +355,7 @@ async function openSub(id){
         <span class="gc-tag" style="background:${tbg};color:${tc}">${TYPE_LBL[gm.type]||gm.type}</span>
       </div>
       <div class="gc-body">
-        <div class="gc-title">${gm.name}</div>
+        <div class="gc-title">${gameName}</div>
         <div class="gc-meta">
           <span class="badge ${gm.lvl==='easy'?'be':gm.lvl==='medium'?'bm':'bh'}">${lvlLbl[gm.lvl]}</span>
           <span>⏱ ${timeLimit} วิ</span>
@@ -374,6 +378,9 @@ async function openSub(id){
     const res=await apiGames(id);
     if(A.curSub?.id!==id) return;
     if(res?.ok && Array.isArray(res.games)){
+      res.games.forEach(game=>{
+        if(game.game_code) GAME_DB_IDS[game.game_code]=Number(game.game_id);
+      });
       const dbGamesMap=Object.fromEntries(res.games.map(game=>[String(game.game_id),game]));
       renderGameCards(dbGamesMap);
     }

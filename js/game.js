@@ -1,7 +1,7 @@
 ﻿// ══════════════════════════════════════════════════════
 // MODAL
 // ══════════════════════════════════════════════════════
-let pendingGid=null, pendingLesson=1;
+let pendingGid=null, pendingLesson=1, pendingDifficulty='medium';
 async function openModal(gid, lessonNo){
   pendingGid=gid; pendingLesson=lessonNo||1;
   const gm=GAMES_DB[gid], sub=SUBS.find(s=>s.id===gm.sid);
@@ -37,12 +37,22 @@ function renderGameModal(gm, sub, typeLabel, gameName, gameType, timeLimit){
       🎯 ประเภท: ${typeLabel[gameType]||gameType}<br>
       ⏱ เวลา: ${timeLimit} วิ<br>
       🏆 คะแนนเต็ม: 100
-    </div>`;
+    </div>
+    ${gm.code?`<label class="math-difficulty-label" for="math-difficulty">เลือกระดับความยาก</label>
+      <select id="math-difficulty" class="math-difficulty" onchange="pendingDifficulty=this.value">
+        <option value="easy" ${pendingDifficulty==='easy'?'selected':''}>🌱 ง่าย</option>
+        <option value="medium" ${pendingDifficulty==='medium'?'selected':''}>🚀 ปานกลาง</option>
+        <option value="hard" ${pendingDifficulty==='hard'?'selected':''}>🐉 ยาก</option>
+      </select>`:''}`;
 }
 function closeModal(){
   document.getElementById('gmodal').classList.remove('show');
 }
-function startFromModal(){closeModal();startGame(pendingGid);}
+function startFromModal(){
+  const selected=document.getElementById('math-difficulty');
+  if(selected) pendingDifficulty=selected.value;
+  closeModal();startGame(pendingGid);
+}
 
 // ══════════════════════════════════════════════════════
 // GAME ENGINE — โหลดคำถามจาก DB
@@ -66,6 +76,7 @@ async function startGame(gid){
   // โหลดคำถามจาก DB แต่ fallback ให้เร็วถ้า API ช้า เพื่อไม่ให้เกมค้างที่ loading
   let gameData = null;
   try {
+    if(!A.curDbGameId) throw new Error('เกมนี้ยังไม่ได้เชื่อมกับฐานข้อมูล');
     const res = await loadPlayQuestionsFast(A.curDbGameId, gmStatic);
     if (res.ok) gameData = res;
   } catch(e) { console.warn('[game] DB load failed, fallback to static:', e); }
@@ -78,12 +89,19 @@ async function startGame(gid){
   }
 
   // merge metadata จาก static (icon, sid ฯลฯ)
+  const questionSource = Array.isArray(gameData?.qs) && gameData.qs.length ? gameData.qs : (gmStatic?.qs||[]);
+  const levelQuestions = questionSource.filter(q=>!q.difficulty || q.difficulty===pendingDifficulty);
+  const selectedQuestions = shuffleItems(levelQuestions).slice(0,10).map(question=>{
+    if(!Array.isArray(question.opts))return question;
+    const choices=shuffleItems(question.opts.map((option,index)=>({option,isCorrect:index===Number(question.ans)})));
+    return {...question,opts:choices.map(choice=>choice.option),ans:choices.findIndex(choice=>choice.isCorrect)};
+  });
   A.curGame = {
     ...gmStatic,
     // ข้อมูลจาก DB
     ...(gameData.game || {}),
     // คำถาม
-    qs:    gameData.qs    || gmStatic?.qs    || [],
+    qs:    selectedQuestions,
     pairs: gameData.pairs || gmStatic?.pairs || [],
     items: gameData.items || gmStatic?.items || [],
     words: gameData.words || gmStatic?.words || [],
@@ -344,6 +362,8 @@ function announceGameFeedback(isCorrect, customMessage){
   feedback.textContent=customMessage || (isCorrect ? '✨ ถูกต้อง! เดินทางต่อกันเลย' : '🌱 ไม่เป็นไร ลองดูเฉลยแล้วไปต่อ');
 }
 function renderGame(){
+  if(A.curGame?.mode==='pizza'){renderPizzaGame();return;}
+  if(A.curGame?.mode==='chart-builder'){renderChartBuilder();return;}
   const t=A.curGame.type;
   if(t==='mcq')          renderMCQ();
   else if(t==='truefalse') renderTF();
@@ -595,11 +615,13 @@ function finishGame(){
   document.getElementById('r-sc').textContent=sc;
   document.getElementById('r-mx').textContent='/ 100';
   document.getElementById('r-ring').style.background=`conic-gradient(var(--p) ${pct}%,#E5E7EB 0%)`;
+  const correctCount=(A.gs?.attempts||[]).filter(attempt=>attempt.is_correct).length;
+  const stars=pct>=90?3:pct>=70?2:1;
   const[title,msg]=pct>=80?['🎉 ยอดเยี่ยม!','คุณทำได้ดีมากเลย!']:pct>=50?['👍 ดีทีเดียว!','ฝึกอีกนิดจะเก่งมาก!']:['💪 สู้ๆ!','ลองใหม่นะ ทำได้แน่!'];
   document.getElementById('r-ti').textContent=title;
   document.getElementById('r-mg').textContent=msg;
-  document.getElementById('r-emblem').textContent=pct>=80?'🏆':pct>=50?'🧭':'🌱';
-  document.getElementById('r-trail').textContent=pct>=80?'ยอดนักผจญภัย! ความพยายามของคุณพาไปได้ไกลมาก ✨':pct>=50?'อีกนิดเดียวก็จะถึงเป้าหมาย ฝึกต่อแล้วคุณจะเก่งขึ้น ⭐':'ทุกการลองคือก้าวใหม่ เริ่มภารกิจอีกครั้งได้เลย 🌱';
+  document.getElementById('r-emblem').textContent='⭐'.repeat(stars);
+  document.getElementById('r-trail').textContent=`ตอบถูก ${correctCount} จาก ${A.gs.totalQ} ข้อ · ได้รับ ${stars} ดาว · ${pct>=80?'ยอดนักผจญภัย! ความพยายามของคุณพาไปได้ไกลมาก ✨':pct>=50?'ฝึกอีกนิดแล้วจะเก่งขึ้นอีก ⭐':'ทุกการลองคือก้าวใหม่ เริ่มภารกิจอีกครั้งได้เลย 🌱'}`;
   document.getElementById('g-result').focus({preventScroll:true});
   let reviewBox=document.getElementById('g-review-box');
   if(!reviewBox){
@@ -812,11 +834,16 @@ function renderMatchSide(pair, side){
 function renderMCQ(){ 
   const{qi,totalQ}=A.gs, q=A.curGame.qs[qi];
   if(!q){finishGame();return;}
+  A.gs.answered=false;
   upQP(qi+1,totalQ);
   const letters=['A','B','C','D','E','F'];
+  const context=A.curGame.mode==='data-detective'?renderDataTable(q):'';
   document.getElementById('g-content').innerHTML=`
-    ${renderQuestionImage(q)}
+    ${context}
+    ${A.curGame.mode==='treasure'?'<div class="math-story-icon" aria-hidden="true">🗝️ 🔒</div>':''}
+    ${A.curGame.mode==='decimal-shop'?'<div class="math-story-icon" aria-hidden="true">🧺 🪙</div>':''}
     <div class="qt">${q.q}</div>
+    ${renderMathHint(q)}
     <div class="choices choices-media">
       ${(q.opts||[]).map((opt,i)=>`
         <button class="ch${gameChoiceImg(opt)?' ch-media':''}" onclick="ansMCQ(this,${i},${q.ans})" data-idx="${i}">
@@ -828,6 +855,8 @@ function renderMCQ(){
 }
 
 function ansMCQ(btn,chose,correct){
+  if(!A.gs || A.gs.answered) return;
+  A.gs.answered=true;
   document.querySelectorAll('.ch').forEach(b=>b.disabled=true);
   const q = A.curGame.qs[A.gs.qi];
   const chosenOpt=q?.opts?.[chose];
@@ -848,9 +877,116 @@ function ansMCQ(btn,chose,correct){
     const cb=document.querySelectorAll('.ch')[correct];
     cb?.classList.add('ok');
   }
-  announceGameFeedback(ok);
+  const correctText=gameChoiceAnswerLabel(correctOpt);
+  announceGameFeedback(ok,ok?'⭐ ถูกต้อง! ไปต่อกันเลย':`เฉลย: ${correctText}${q?.explanation?` — ${q.explanation}`:''}`);
   document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;
-  setTimeout(()=>{A.gs.qi++;renderMCQ();},1100);
+  setTimeout(()=>{A.gs.qi++;A.gs.answered=false;renderGame();},1100);
+}
+
+function parseMathPayload(question){
+  try{return JSON.parse(question?.img||'{}');}catch{return {};}
+}
+function renderMathHint(question){
+  return question?.hint?`<div class="math-hint-wrap"><button type="button" class="math-hint-btn" onclick="toggleMathHint(this)">💡 ดูคำใบ้</button><div class="hint-box math-hint" hidden>${question.hint}</div></div>`:'';
+}
+function toggleMathHint(button){
+  const hint=button?.nextElementSibling;
+  if(!hint)return;
+  hint.hidden=!hint.hidden;
+  button.textContent=hint.hidden?'💡 ดูคำใบ้':'🙈 ซ่อนคำใบ้';
+}
+function renderDataTable(question){
+  const data=parseMathPayload(question);
+  if(!Array.isArray(data.labels)||!Array.isArray(data.values))return '';
+  return `<div class="math-data-card"><div class="math-data-title">📋 ตารางข้อมูล</div><table><thead><tr><th scope="col">สัตว์</th><th scope="col">คะแนนโหวต</th></tr></thead><tbody>${data.labels.map((label,index)=>`<tr><th scope="row">${label}</th><td>${data.values[index]}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function mathSubmitAnswer({question,studentAnswer,correctAnswer,isCorrect,feedback}){
+  if(!A.gs||A.gs.answered)return false;
+  A.gs.answered=true;
+  recordAttempt({prompt:question?.q||'',correctAnswer,studentAnswer,isCorrect,wrongQuestion:isCorrect?null:{...question}});
+  if(isCorrect)A.gs.earned=Math.min(100,A.gs.earned+Math.round(100/A.gs.totalQ));
+  document.getElementById('g-live').textContent=`⭐ คะแนน ${A.gs.earned}`;
+  announceGameFeedback(isCorrect,feedback||(isCorrect?'✨ ถูกต้อง! ได้รับดาวเพิ่ม':'คำตอบที่ถูกต้อง: '+correctAnswer));
+  document.querySelectorAll('#g-content button,#g-content input').forEach(control=>control.disabled=true);
+  setTimeout(()=>{A.gs.qi++;A.gs.answered=false;renderGame();},1250);
+  return true;
+}
+function pizzaWedgePath(index,count){
+  const start=-90+index*360/count, end=-90+(index+1)*360/count, points=[];
+  for(let angle=start;angle<=end;angle+=Math.max(3,360/count/8)){
+    const rad=angle*Math.PI/180;
+    points.push(`${50+45*Math.cos(rad)} ${50+45*Math.sin(rad)}`);
+  }
+  const last=end*Math.PI/180;
+  points.push(`${50+45*Math.cos(last)} ${50+45*Math.sin(last)}`);
+  return `M50 50 L${points.join(' L')} Z`;
+}
+function renderPizzaGame(){
+  const question=A.curGame.qs[A.gs.qi];
+  if(!question){finishGame();return;}
+  A.gs.answered=false;upQP(A.gs.qi+1,A.gs.totalQ);
+  const data=parseMathPayload(question), denominator=Math.max(2,Math.min(16,Number(data.denominator)||4));
+  const numerator=Math.max(1,Math.min(denominator,Number(data.numerator)||1));
+  window.mathPizzaSelected=new Set();
+  document.getElementById('g-content').innerHTML=`
+    <div class="qt">${question.q}</div>
+    ${renderMathHint(question)}
+    <div class="pizza-board" role="group" aria-label="เลือกชิ้นพิซซ่า จำนวน ${numerator} ชิ้น จาก ${denominator} ชิ้น">
+      ${Array.from({length:denominator},(_,index)=>`<button type="button" class="pizza-piece" data-piece="${index}" aria-pressed="false" aria-label="ชิ้นที่ ${index+1}" onclick="togglePizzaPiece(this)"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="${pizzaWedgePath(index,denominator)}" fill="${['#FDBA74','#FCA5A5','#FDE68A','#C4B5FD'][index%4]}" stroke="#fff" stroke-width="3"/><circle cx="${50+23*Math.cos((-90+(index+.5)*360/denominator)*Math.PI/180)}" cy="${50+23*Math.sin((-90+(index+.5)*360/denominator)*Math.PI/180)}" r="5" fill="#d85436"/></svg></button>`).join('')}
+    </div>
+    <div class="pizza-selected-count" id="pizza-count" aria-live="polite">เลือกแล้ว 0 / ${numerator} ชิ้น</div>
+    <button type="button" class="btn btn-p math-check-btn" onclick="checkPizzaAnswer(${numerator},${denominator},${JSON.stringify(question.q).replace(/"/g,'&quot;')})">🍕 ตรวจคำตอบ</button>`;
+}
+function togglePizzaPiece(button){
+  const selected=window.mathPizzaSelected;
+  if(!selected)return;
+  const index=button.dataset.piece;
+  if(selected.has(index))selected.delete(index);else selected.add(index);
+  button.classList.toggle('selected',selected.has(index));
+  button.setAttribute('aria-pressed',String(selected.has(index)));
+  const needed=Number(document.querySelector('.pizza-board')?.getAttribute('aria-label')?.match(/จำนวน (\d+) ชิ้น/)?.[1]||0);
+  const count=document.getElementById('pizza-count');
+  if(count)count.textContent=`เลือกแล้ว ${selected.size} / ${needed} ชิ้น`;
+}
+function checkPizzaAnswer(numerator,denominator,prompt){
+  const question=A.curGame.qs[A.gs.qi];
+  const selected=window.mathPizzaSelected?.size||0;
+  const isCorrect=selected===numerator;
+  const correctAnswer=`${numerator}/${denominator} ถาด`;
+  mathSubmitAnswer({question,studentAnswer:`เลือก ${selected}/${denominator}`,correctAnswer,isCorrect,
+    feedback:isCorrect?'🍕 ยอดเยี่ยม! เลือกได้พอดีตามเศษส่วน':`เฉลย: ${correctAnswer} — ${question.explanation||'จำนวนชิ้นที่เลือกเป็นตัวเศษ และจำนวนชิ้นทั้งหมดเป็นตัวส่วน'}`});
+}
+function renderChartBuilder(){
+  const question=A.curGame.qs[A.gs.qi];
+  if(!question){finishGame();return;}
+  A.gs.answered=false;upQP(A.gs.qi+1,A.gs.totalQ);
+  const data=parseMathPayload(question), labels=data.labels||[], values=data.values||[];
+  const max=Math.max(1,...values);
+  document.getElementById('g-content').innerHTML=`
+    <div class="qt">${question.q}</div>
+    ${renderMathHint(question)}
+    <div class="chart-builder-grid"><div class="math-data-card"><div class="math-data-title">📋 ข้อมูลที่ได้รับ</div><table><thead><tr><th scope="col">วัน</th><th scope="col">คะแนน</th></tr></thead><tbody>${labels.map((label,index)=>`<tr><th scope="row">${label}</th><td>${values[index]}</td></tr>`).join('')}</tbody></table></div>
+      <div class="math-chart-card"><div class="math-data-title">📊 กราฟของฉัน</div><div class="math-bars" id="math-bars">${labels.map((label,index)=>`<label class="math-bar-row"><span>${label}</span><span class="math-bar-track"><span class="math-bar-fill" id="math-bar-${index}" style="width:0%"></span></span><input type="number" inputmode="numeric" min="0" max="20" value="" aria-label="จำนวนของ ${label}" oninput="updateMathBar(${index},this.value,${max})"></label>`).join('')}</div></div></div>
+    <button type="button" class="btn btn-p math-check-btn" onclick="checkBuiltChart()">📊 ตรวจกราฟ</button>`;
+  window.mathChartPayload=data;
+}
+function updateMathBar(index,value,max){
+  const bar=document.getElementById(`math-bar-${index}`);
+  if(bar)bar.style.width=`${Math.max(0,Math.min(100,(Number(value)/max)*100))}%`;
+}
+function checkBuiltChart(){
+  const question=A.curGame.qs[A.gs.qi], data=window.mathChartPayload||{};
+  const inputs=[...document.querySelectorAll('.math-bar-row input')];
+  if(inputs.some(input=>input.value==='')){
+    announceGameFeedback(false,'กรอกคะแนนให้ครบทุกวันก่อนตรวจกราฟ');
+    return;
+  }
+  const entered=inputs.map(input=>Number(input.value));
+  const correct=(data.values||[]).every((value,index)=>entered[index]===Number(value));
+  const correctAnswer=(data.labels||[]).map((label,index)=>`${label} ${data.values[index]}`).join(', ');
+  const studentAnswer=(data.labels||[]).map((label,index)=>`${label} ${entered[index]}`).join(', ');
+  mathSubmitAnswer({question,studentAnswer,correctAnswer,isCorrect:correct,
+    feedback:correct?'📊 กราฟถูกต้องทุกแท่ง!':`เฉลย: ${correctAnswer} — ${question.explanation||'ตรวจค่าของแต่ละแท่งกับตารางข้อมูล'}`});
 }
 
 function renderMatch(){

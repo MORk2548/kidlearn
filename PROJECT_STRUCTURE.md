@@ -35,6 +35,7 @@
 - `api/init_admin.php` - script สร้าง admin เริ่มต้น ควรใช้เฉพาะช่วง setup.
 - `api/kidlearn_patch_v3.sql` - patch SQL สำหรับปรับ schema/data เพิ่มเติมจากชุดหลัก.
 - `api/kidlearn_patch_v4.sql` - migration สำหรับวันแก้ไขบัญชีและเจ้าของเนื้อหา; ใช้กับฐานข้อมูลเดิมหลัง patch ก่อนหน้า.
+- `api/kidlearn_patch_math_grade5.sql` - ปิดเกมคณิตเดิมใน catalog โดยเก็บ ID/คะแนนไว้ และเพิ่มเกม ป.5 ชุดใหม่.
 - `kidlearn_full.sql` - schema และ seed หลักที่ Docker ใช้ตอนสร้างฐานข้อมูล.
 - `content/questions_seed.sql` - seed คำถามเพิ่มเติมที่ Docker import ต่อจาก `kidlearn_full.sql`.
 - `content/lessons.sql` - seed บทเรียนแยกสำหรับ import เองเมื่อจำเป็น.
@@ -49,6 +50,7 @@
 - `scripts/seed/add_grade5_extra_content.py` - เพิ่มบทเรียนและคำถามเสริม ป.5 เข้า Postgres.
 - `scripts/seed/seed_grade5_th_en.py` - seed เนื้อหา ป.5 ภาษาไทยและอังกฤษ.
 - `scripts/seed/seed_sequence_grade5.py` - seed เกมเรียงลำดับสำหรับ ป.5.
+- `scripts/seed/seed_math_grade5.py` - เติมคลังโจทย์ 3 ระดับและบทเรียนให้เกมคณิต ป.5 ชุดใหม่ หลังรัน migration.
 - `scripts/seed/seed_thai_letterorder.py` - seed เกมเรียงตัวอักษรภาษาไทย.
 - `scripts/debug/debug_login.php` - script ตรวจข้อมูล login admin แบบเฉพาะกิจ.
 - `scripts/debug/test_supabase.php` - script ทดสอบการเชื่อมต่อ Supabase/Postgres แบบเฉพาะกิจ.

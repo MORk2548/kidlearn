@@ -887,7 +887,7 @@ function handleGames(): never {
     $sid = (int)($_GET['subject_id'] ?? 0);
     if (!$sid) DB::fail('เธ•เนเธญเธเธชเนเธ subject_id', 400);
     DB::ok(['games' => DB::get()->all(
-        "SELECT * FROM games WHERE subject_id=? ORDER BY game_id", [$sid], 'i'
+        "SELECT * FROM games WHERE subject_id=? AND is_active=TRUE ORDER BY game_id", [$sid], 'i'
     )]);
 }
 
@@ -2456,7 +2456,7 @@ function handlePlayQuestions(): never {
 
     // เนเธซเธฅเธ”เธเธณเธ–เธฒเธกเธ—เธฑเนเธเธซเธกเธ”
     $qs = $db->all(
-        "SELECT question_id, question_text, question_img, hint, question_type, order_no
+        "SELECT question_id, question_text, question_img, hint, question_type, difficulty, explanation, order_no
          FROM questions WHERE game_id=? ORDER BY order_no",
         [$gid], 'i'
     );
@@ -2599,16 +2599,19 @@ function handleSaveGameSettingsV2(): never {
     $timeLimit = (int)($body['time_limit'] ?? 0);
     $questionCountRaw = isset($body['question_count']) ? (int)$body['question_count'] : 0;
     $gameType = trim((string)($body['game_type'] ?? ''));
+    $gameName = trim((string)($body['name'] ?? ''));
 
     if (!$gameId) DB::fail('Missing game_id', 400);
     if ($timeLimit < 10 || $timeLimit > 3600) DB::fail('Time limit must be between 10 and 3600 seconds', 400);
     if ($questionCountRaw < 0 || $questionCountRaw > 100) DB::fail('Question count must be between 0 and 100', 400);
     $allowedTypes = ['mcq', 'truefalse', 'fill', 'matching', 'sequence', 'wordsearch', 'letterorder'];
     if ($gameType !== '' && !in_array($gameType, $allowedTypes, true)) DB::fail('Invalid game type', 400);
+    if ($gameName !== '' && mb_strlen($gameName, 'UTF-8') > 100) DB::fail('Game name must be 100 characters or fewer', 400);
 
-    $game = $db->one("SELECT game_id, game_type FROM games WHERE game_id=? LIMIT 1", [$gameId], 'i');
+    $game = $db->one("SELECT game_id, game_type, name FROM games WHERE game_id=? LIMIT 1", [$gameId], 'i');
     if (!$game) DB::fail('Game not found', 404);
     if ($gameType === '') $gameType = (string)($game['game_type'] ?? '');
+    if ($gameName === '') $gameName = (string)($game['name'] ?? '');
 
     $questionCount = $questionCountRaw > 0 ? $questionCountRaw : null;
     if ($gameType === 'wordsearch' && $questionCount !== null) {
@@ -2616,9 +2619,9 @@ function handleSaveGameSettingsV2(): never {
     }
 
     $db->run(
-        "UPDATE games SET time_limit=?, question_count=?, game_type=? WHERE game_id=?",
-        [$timeLimit, $questionCount, $gameType, $gameId],
-        'iisi'
+        "UPDATE games SET time_limit=?, question_count=?, game_type=?, name=? WHERE game_id=?",
+        [$timeLimit, $questionCount, $gameType, $gameName, $gameId],
+        'iissi'
     );
 
     DB::ok([
@@ -2626,6 +2629,7 @@ function handleSaveGameSettingsV2(): never {
         'time_limit' => $timeLimit,
         'question_count' => $questionCount,
         'game_type' => $gameType,
+        'name' => $gameName,
     ]);
 }
 
@@ -2674,10 +2678,13 @@ function handleSaveQuestionV2(): never {
     $text = trim((string)($body['question_text'] ?? ''));
     $hint = trim((string)($body['hint'] ?? ''));
     $questionImg = trim((string)($body['question_img'] ?? ''));
+    $difficulty = trim((string)($body['difficulty'] ?? 'medium'));
+    $explanation = trim((string)($body['explanation'] ?? ''));
     $order = (int)($body['order_no'] ?? 1);
     $answers = is_array($body['answers'] ?? null) ? $body['answers'] : [];
 
     if (!$gid || $text === '') DB::fail('Missing game_id or question_text', 400);
+    if (!in_array($difficulty, ['easy', 'medium', 'hard'], true)) DB::fail('Invalid question difficulty', 400);
 
     if ($qid) {
         $existing = $db->one("SELECT game_id, created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
@@ -2685,16 +2692,16 @@ function handleSaveQuestionV2(): never {
         if ((int)$existing['game_id'] !== $gid) DB::fail('Question does not belong to this game', 400);
         requireContentOwner($existing);
         $db->run(
-            "UPDATE questions SET question_text=?, question_img=?, hint=?, order_no=?, created_by=COALESCE(created_by, ?), updated_by=? WHERE question_id=?",
-            [$text, $questionImg ?: null, $hint ?: null, $order, myId(), myId(), $qid],
-            'sssiiii'
+            "UPDATE questions SET question_text=?, question_img=?, hint=?, difficulty=?, explanation=?, order_no=?, created_by=COALESCE(created_by, ?), updated_by=? WHERE question_id=?",
+            [$text, $questionImg ?: null, $hint ?: null, $difficulty, $explanation ?: null, $order, myId(), myId(), $qid],
+            'sssssiiii'
         );
         $db->run("DELETE FROM answers WHERE question_id=?", [$qid], 'i');
     } else {
         $db->run(
-            "INSERT INTO questions (game_id, question_text, question_img, hint, order_no, created_by, updated_by) VALUES (?,?,?,?,?,?,?)",
-            [$gid, $text, $questionImg ?: null, $hint ?: null, $order, myId(), myId()],
-            'isssiii'
+            "INSERT INTO questions (game_id, question_text, question_img, hint, difficulty, explanation, order_no, created_by, updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
+            [$gid, $text, $questionImg ?: null, $hint ?: null, $difficulty, $explanation ?: null, $order, myId(), myId()],
+            'isssssiii'
         );
         $qid = $db->insertId();
     }
@@ -2749,7 +2756,7 @@ function handlePlayQuestionsV2(): never {
     $type = (string)($game['game_type'] ?? '');
     $requestedCount = (int)($game['question_count'] ?? 0);
     $questions = $db->all(
-        "SELECT question_id, question_text, question_img, hint, question_type, order_no
+        "SELECT question_id, question_text, question_img, hint, question_type, difficulty, explanation, order_no
          FROM questions
          WHERE game_id=?
          ORDER BY order_no, question_id",
@@ -2787,6 +2794,8 @@ function handlePlayQuestionsV2(): never {
                     'q' => $question['question_text'],
                     'img' => $question['question_img'],
                     'hint' => $question['hint'] ?? '',
+                    'difficulty' => $question['difficulty'] ?? 'medium',
+                    'explanation' => $question['explanation'] ?? '',
                     'opts' => $options,
                     'ans' => $correctIndex,
                 ];
@@ -2822,6 +2831,8 @@ function handlePlayQuestionsV2(): never {
                 'q' => $question['question_text'],
                 'img' => $question['question_img'],
                 'hint' => $question['hint'] ?? '',
+                'difficulty' => $question['difficulty'] ?? 'medium',
+                'explanation' => $question['explanation'] ?? '',
                 'ans' => $correctText,
             ];
             continue;

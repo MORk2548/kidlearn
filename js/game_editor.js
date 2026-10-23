@@ -51,6 +51,18 @@ function _renderGameEditor(){
 async function selectGeGame(jsKey){
   _geGid=jsKey;
   _geDbGid=typeof jsKeyToDbId==='function'?jsKeyToDbId(jsKey):parseInt(jsKey);
+  if(!_geDbGid && GAMES_DB[jsKey]?.code){
+    const catalog=await apiGames(GAMES_DB[jsKey].sid).catch(()=>({ok:false}));
+    (catalog.games||[]).forEach(game=>{
+      if(game.game_code) GAME_DB_IDS[game.game_code]=Number(game.game_id);
+    });
+    _geDbGid=jsKeyToDbId(jsKey);
+  }
+  if(!_geDbGid){
+    const panel=document.getElementById('ge-editor');
+    if(panel)panel.innerHTML='<div style="color:#9a3412;background:#fff7ed;border-radius:12px;padding:1rem">ยังไม่พบเกมนี้ในฐานข้อมูล กรุณารัน migration และ seed เกมคณิต ป.5 ก่อน</div>';
+    return;
+  }
   document.querySelectorAll('.ge-btn').forEach(b=>{
     const isA=(b.getAttribute('onclick')||'').includes(`'${jsKey}'`);
     b.classList.toggle('ge-active',isA);
@@ -79,6 +91,7 @@ async function selectGeGame(jsKey){
   const gm=GAMES_DB[jsKey],sub=SUBS.find(s=>s.id===gm.sid);
   const TYPE_LBL={mcq:'ตอบปรนัย',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',letterorder:'เรียงตัวอักษร',wordsearch:'ค้นหาคำ'};
   const activeType=geCurrentType();
+  const gameName=_geGameMeta?.name||gm?.name||'';
   const timeLimit=parseInt(_geGameMeta?.time_limit,10)>0?parseInt(_geGameMeta.time_limit,10):(parseInt(gm?.time,10)||60);
   const defaultCount = activeType==='wordsearch' ? 10 : (_geQuestions.length || 10);
   const questionCount = parseInt(_geGameMeta?.question_count,10)>0 ? parseInt(_geGameMeta.question_count,10) : defaultCount;
@@ -89,10 +102,13 @@ async function selectGeGame(jsKey){
         background:linear-gradient(135deg,${sub.color}18,${sub.color}06);border-radius:12px;border-left:4px solid ${sub.color}">
         <span style="font-size:1.6rem">${gm.icon}</span>
         <div style="flex:1">
-          <div style="font-weight:800;font-size:.95rem">${gm.name}</div>
+          <div style="font-weight:800;font-size:.95rem">${gameName}</div>
           <div style="font-size:.73rem;color:var(--mu)">${sub?.name} · ${TYPE_LBL[activeType]||activeType} · <span id="ge-qcount">${_geQuestions.length}</span> คำถาม</div>
         </div>
         <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;justify-content:flex-end">
+          <label for="ge-game-name" style="font-size:.75rem;color:var(--mu);font-weight:700">ชื่อเกม/บท</label>
+          <input id="ge-game-name" type="text" maxlength="100" value="${_geEsc(gameName)}" aria-label="ชื่อเกมหรือบทเรียน"
+            style="width:190px;max-width:100%;padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
           <label for="ge-time-limit" style="font-size:.75rem;color:var(--mu);font-weight:700">เวลาเล่น</label>
           <input id="ge-time-limit" type="number" min="10" max="3600" value="${timeLimit}"
             style="width:88px;padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
@@ -105,7 +121,7 @@ async function selectGeGame(jsKey){
             style="width:88px;padding:.45rem .55rem;border:1px solid #CBD5E1;border-radius:10px;font-family:'Kanit',sans-serif">
           <span style="font-size:.75rem;color:var(--mu)">วินาที</span>
           <button class="btn btn-sm" style="background:#F8FAFC;border:1px solid #CBD5E1;font-size:.75rem"
-            onclick="geSaveGameSettings()">บันทึกเวลา</button>
+            onclick="geSaveGameSettings()">บันทึกการตั้งค่า</button>
         </div>
         <button class="lp-btn-play" style="padding:.5rem 1.25rem;font-size:.85rem" onclick="geOpenForm(-1)">+ เพิ่มคำถาม</button>
       </div>
@@ -134,7 +150,7 @@ function _geRenderQList(type){
       </div>
       <div style="font-size:.72rem;color:var(--mu);margin:-.2rem 0 .45rem 2rem">แก้ไขล่าสุด ${formatDateTimeTH(q.updated_at)}</div>
       <div class="ge-q-body">
-        ${q.question_img?`<div style="margin-bottom:.65rem"><img src="${q.question_img}" alt="question" style="max-width:220px;width:100%;border-radius:12px;border:1px solid #E5E7EB"></div>`:''}
+        ${q.question_img?`${String(q.question_img).trim().startsWith('{')?'<div style="font-size:.76rem;color:#155e8b;background:#eff8ff;border-radius:8px;padding:.45rem .65rem;margin-bottom:.6rem">📊 มีข้อมูลภาพ/กราฟประกอบโจทย์</div>':`<div style="margin-bottom:.65rem"><img src="${q.question_img}" alt="question" style="max-width:220px;width:100%;border-radius:12px;border:1px solid #E5E7EB"></div>`}`:''}
         ${(q.answers||[]).map(a=>`
           <div style="display:flex;align-items:center;gap:.5rem;padding:.18rem 0">
             <span style="width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -226,6 +242,7 @@ function geBindImagePicker(){
 function gePreviewHtml(src='', emptyText='ยังไม่ได้เลือกรูป'){
   const val=String(src||'').trim();
   if(!val) return `<div style="font-size:.74rem;color:var(--mu)">${emptyText}</div>`;
+  if(val.startsWith('{')) return '<div style="padding:.55rem .7rem;background:#EFF8FF;color:#155e8b;border-radius:10px;font-size:.78rem">📊 ข้อมูลโจทย์แบบโครงสร้างพร้อมใช้งาน</div>';
   return `<img src="${val}" alt="preview" style="max-width:140px;width:100%;border-radius:10px;border:1px solid #DBEAFE;box-shadow:0 6px 14px rgba(37,99,235,.12)">`;
 }
 
@@ -258,6 +275,8 @@ function _geFormHtml(type, q){
   const qt = q?.question_text||'';
   const qimg = q?.question_img||'';
   const hint = q?.hint||'';
+  const difficulty = q?.difficulty||'medium';
+  const explanation = q?.explanation||'';
   const answers = q?.answers||[];
 
   // คำถามข้อความ (ทุก type)
@@ -281,14 +300,24 @@ function _geFormHtml(type, q){
       <div id="ge-qimg-preview" style="margin-top:.7rem"></div>
     </div>`;
 
-  // hint (fill เท่านั้น)
-  if(type==='fill'){
-    html+=`<div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">💡 คำใบ้</label>
-      <input id="ge-hint" type="text" class="fc" value="${_geEsc(hint)}"
-        placeholder="เช่น สูตรคือ..." style="font-size:.85rem;padding:.55rem .8rem">
-    </div>`;
-  }
+  html+=`<div style="margin-bottom:.85rem">
+    <label for="ge-hint" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">💡 คำใบ้</label>
+    <input id="ge-hint" type="text" class="fc" value="${_geEsc(hint)}"
+      placeholder="เช่น เริ่มจากเปรียบเทียบตัวเศษ" style="font-size:.85rem;padding:.55rem .8rem">
+  </div>`;
+
+  html+=`<div style="display:grid;grid-template-columns:minmax(140px,.7fr) 1.3fr;gap:.65rem;margin-bottom:.85rem">
+    <div><label for="ge-difficulty" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ระดับความยาก</label>
+      <select id="ge-difficulty" class="fc" style="font-size:.85rem;padding:.55rem .7rem">
+        <option value="easy" ${difficulty==='easy'?'selected':''}>ง่าย</option>
+        <option value="medium" ${difficulty==='medium'?'selected':''}>ปานกลาง</option>
+        <option value="hard" ${difficulty==='hard'?'selected':''}>ยาก</option>
+      </select>
+    </div>
+    <div><label for="ge-explanation" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำอธิบายเฉลย</label>
+      <input id="ge-explanation" type="text" class="fc" value="${_geEsc(explanation)}" placeholder="อธิบายวิธีคิดสั้น ๆ" style="font-size:.85rem;padding:.55rem .8rem">
+    </div>
+  </div>`;
 
   // ตัวเลือก ตาม type
   html+='<div style="margin-bottom:1rem"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">';
@@ -420,17 +449,29 @@ function geAddWordRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)re
 
 async function geSaveGameSettings(){
   const input=document.getElementById('ge-time-limit');
+  const nameInput=document.getElementById('ge-game-name');
   const msg=document.getElementById('ge-game-msg');
   const timeLimit=parseInt(input?.value,10);
+  const name=nameInput?.value.trim()||'';
+  if(!name||name.length>100){
+    if(msg) msg.innerHTML='<span style="color:#EF4444">❌ ใส่ชื่อเกมไม่เกิน 100 ตัวอักษร</span>';
+    nameInput?.focus();
+    return;
+  }
   if(!Number.isFinite(timeLimit)||timeLimit<10||timeLimit>3600){
     if(msg) msg.innerHTML='<span style="color:#EF4444">❌ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
     return;
   }
-  if(msg) msg.innerHTML='<span style="color:var(--mu)">⏳ กำลังบันทึกเวลาเล่น...</span>';
-  const res=await apiSaveGameSettings({game_id:_geDbGid,time_limit:timeLimit}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
+  if(msg) msg.innerHTML='<span style="color:var(--mu)">⏳ กำลังบันทึกชื่อและการตั้งค่าเกม...</span>';
+  const res=await apiSaveGameSettings({game_id:_geDbGid,name,time_limit:timeLimit}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
   if(res.ok){
     if(_geGameMeta) _geGameMeta.time_limit=timeLimit;
-    if(msg) msg.innerHTML='<span style="color:#10B981">✅ บันทึกเวลาเล่นสำเร็จ</span>';
+    if(_geGameMeta) _geGameMeta.name=name;
+    if(GAMES_DB[_geGid]) GAMES_DB[_geGid].name=name;
+    document.querySelectorAll('.ge-btn').forEach(button=>{
+      if((button.getAttribute('onclick')||'').includes(`'${_geGid}'`))button.textContent=`${GAMES_DB[_geGid]?.icon||'🎮'} ${name}`;
+    });
+    if(msg) msg.innerHTML='<span style="color:#10B981">✅ บันทึกชื่อและการตั้งค่าเกมแล้ว</span>';
     setTimeout(()=>{ if(msg) msg.innerHTML=''; },3000);
   }else{
     if(msg) msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
@@ -446,6 +487,8 @@ async function geSaveQ(idx){
   const q=idx>=0?_geQuestions[idx]:null;
   const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
   const hint=document.getElementById('ge-hint')?.value.trim()||'';
+  const difficulty=document.getElementById('ge-difficulty')?.value||'medium';
+  const explanation=document.getElementById('ge-explanation')?.value.trim()||'';
 
   // สร้าง answers ตาม type
   let answers=[];
@@ -489,7 +532,7 @@ async function geSaveQ(idx){
 
   if(!answers.length){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ ใส่คำตอบอย่างน้อย 1 รายการ</span>';return;}
 
-  const payload={game_id:_geDbGid,question_text:text,question_img,hint,
+  const payload={game_id:_geDbGid,question_text:text,question_img,hint,difficulty,explanation,
     order_no:idx>=0?idx+1:_geQuestions.length+1,answers};
   if(q?.question_id) payload.question_id=q.question_id;
 
@@ -568,6 +611,8 @@ function _geFormHtml(type, q){
   const qt = q?.question_text||'';
   const qimg = q?.question_img||'';
   const hint = q?.hint||'';
+  const difficulty = q?.difficulty||'medium';
+  const explanation = q?.explanation||'';
   const answers = q?.answers||[];
   let html=`
     <div style="margin-bottom:.85rem">
@@ -662,22 +707,29 @@ function _geFormHtml(type, q){
 
 async function geSaveGameSettings(){
   const input=document.getElementById('ge-time-limit');
+  const nameInput=document.getElementById('ge-game-name');
   const countInput=document.getElementById('ge-question-count');
   const typeInput=document.getElementById('ge-game-type');
   const msg=document.getElementById('ge-game-msg');
   const timeLimit=parseInt(input?.value,10);
+  const name=nameInput?.value.trim()||'';
   const gameType=typeInput?.value||geCurrentType();
   let questionCount=parseInt(countInput?.value,10);
   if(!Number.isFinite(timeLimit)||timeLimit<10||timeLimit>3600){
     if(msg) msg.innerHTML='<span style="color:#EF4444">โ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
     return;
   }
+  if(!name || name.length>100){
+    if(msg) msg.innerHTML='<span style="color:#EF4444">ใส่ชื่อเกมไม่เกิน 100 ตัวอักษร</span>';
+    return;
+  }
   if(!Number.isFinite(questionCount) || questionCount<1) questionCount = gameType==='wordsearch' ? 10 : Math.max(1,_geQuestions.length||10);
   if(gameType==='wordsearch') questionCount=Math.min(10,questionCount);
   if(msg) msg.innerHTML='<span style="color:var(--mu)">กำลังบันทึกการตั้งค่า...</span>';
-  const res=await apiSaveGameSettings({game_id:_geDbGid,time_limit:timeLimit,question_count:questionCount,game_type:gameType}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
+  const res=await apiSaveGameSettings({game_id:_geDbGid,time_limit:timeLimit,question_count:questionCount,game_type:gameType,name}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
   if(res.ok){
-    if(_geGameMeta){ _geGameMeta.time_limit=timeLimit; _geGameMeta.question_count=questionCount; _geGameMeta.game_type=gameType; }
+    if(_geGameMeta){ _geGameMeta.time_limit=timeLimit; _geGameMeta.question_count=questionCount; _geGameMeta.game_type=gameType; _geGameMeta.name=name; }
+    if(GAMES_DB[_geGid]) GAMES_DB[_geGid].name=name;
     if(msg) msg.innerHTML='<span style="color:#10B981">บันทึกการตั้งค่าเรียบร้อย</span>';
     setTimeout(()=>selectGeGame(_geGid),450);
     setTimeout(()=>{ if(msg) msg.innerHTML=''; },3000);
@@ -871,12 +923,16 @@ function _geFormHtml(type, q){
       <div id="ge-qimg-preview" style="margin-top:.7rem">${gePreviewHtml(qimg)}</div>
     </div>`;
 
-  if(type==='fill'){
-    html+=`<div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำใบ้</label>
-      <input id="ge-hint" type="text" class="fc" value="${_geEsc(hint)}" placeholder="เช่น ขึ้นต้นด้วย..." style="font-size:.85rem;padding:.55rem .8rem">
-    </div>`;
-  }
+  html+=`<div style="margin-bottom:.85rem">
+    <label for="ge-hint" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำใบ้</label>
+    <input id="ge-hint" type="text" class="fc" value="${_geEsc(hint)}" placeholder="เช่น เปรียบเทียบตัวส่วนก่อน" style="font-size:.85rem;padding:.55rem .8rem">
+  </div><div style="display:grid;grid-template-columns:minmax(140px,.7fr) 1.3fr;gap:.65rem;margin-bottom:.85rem">
+    <div><label for="ge-difficulty" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ระดับความยาก</label>
+      <select id="ge-difficulty" class="fc"><option value="easy" ${difficulty==='easy'?'selected':''}>ง่าย</option><option value="medium" ${difficulty==='medium'?'selected':''}>ปานกลาง</option><option value="hard" ${difficulty==='hard'?'selected':''}>ยาก</option></select>
+    </div><div><label for="ge-explanation" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำอธิบายเฉลย</label>
+      <input id="ge-explanation" type="text" class="fc" value="${_geEsc(explanation)}" placeholder="อธิบายวิธีคิดสั้น ๆ">
+    </div>
+  </div>`;
 
   html+='<div style="margin-bottom:1rem"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">';
 
@@ -937,6 +993,8 @@ async function geSaveQ(idx){
   const q=idx>=0?_geQuestions[idx]:null;
   const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
   const hint=document.getElementById('ge-hint')?.value.trim()||'';
+  const difficulty=document.getElementById('ge-difficulty')?.value||'medium';
+  const explanation=document.getElementById('ge-explanation')?.value.trim()||'';
   let answers=[];
 
   if(type==='mcq'){
@@ -979,7 +1037,7 @@ async function geSaveQ(idx){
     });
   }
   if(!answers.length){if(msg)msg.innerHTML='<span style="color:#EF4444">ต้องมีคำตอบอย่างน้อย 1 รายการ</span>';return;}
-  const payload={game_id:_geDbGid,question_text:text,question_img,hint,order_no:idx>=0?idx+1:_geQuestions.length+1,answers};
+  const payload={game_id:_geDbGid,question_text:text,question_img,hint,difficulty,explanation,order_no:idx>=0?idx+1:_geQuestions.length+1,answers};
   if(q?.question_id) payload.question_id=q.question_id;
   if(msg)msg.innerHTML='<span style="color:var(--mu)">กำลังบันทึก...</span>';
   let res;

@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS subjects (
 CREATE TABLE IF NOT EXISTS games (
   game_id        SERIAL PRIMARY KEY,
   subject_id     INT NOT NULL,
+  game_code      VARCHAR(80) UNIQUE,
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
   name           VARCHAR(100) NOT NULL,
   game_type      TEXT NOT NULL DEFAULT 'mcq'
                  CHECK (game_type IN ('mcq','truefalse','fill','matching','sequence','wordsearch','letterorder')),
@@ -111,6 +113,8 @@ CREATE TABLE IF NOT EXISTS questions (
   question_text TEXT NOT NULL,
   question_img  TEXT DEFAULT NULL,
   question_type VARCHAR(20) NOT NULL DEFAULT 'text',
+  difficulty    VARCHAR(10) NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy','medium','hard')),
+  explanation   TEXT DEFAULT NULL,
   hint          TEXT DEFAULT NULL,
   order_no      INT  NOT NULL DEFAULT 0,
   point         INT  NOT NULL DEFAULT 10,
