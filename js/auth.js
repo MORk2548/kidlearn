@@ -157,6 +157,7 @@ function normalizeUser(u) {
     full_name: u.full_name ?? u.name,
     email: u.email,
     role: u.role,
+    avatar_url: u.avatar_url || '',
     created_at: u.created_at,
     updated_at: u.updated_at,
     grade: u.grade,

@@ -207,38 +207,27 @@ function geUpdateImagePreview(src=''){
     : '<div style="font-size:.78rem;color:var(--mu)">ยังไม่ได้เลือกรูปภาพ</div>';
 }
 
-function geBindImagePicker(){
-  const txt=document.getElementById('ge-qimg');
-  const file=document.getElementById('ge-qimg-file');
-  const clearBtn=document.getElementById('ge-qimg-clear');
-  if(txt){
-    txt.addEventListener('input',()=>geUpdateImagePreview(txt.value));
-    geUpdateImagePreview(txt.value);
-  }
-  if(file && txt){
-    file.addEventListener('change',()=>{
-      const picked=file.files?.[0];
-      if(!picked) return;
-      if(!picked.type.startsWith('image/')){
-        alert('กรุณาเลือกไฟล์รูปภาพ');
-        file.value='';
-        return;
-      }
-      const reader=new FileReader();
-      reader.onload=()=>{
-        txt.value=String(reader.result||'');
-        geUpdateImagePreview(txt.value);
-      };
-      reader.readAsDataURL(picked);
-    });
-  }
-  if(clearBtn && txt && file){
-    clearBtn.addEventListener('click',()=>{
-      txt.value='';
-      file.value='';
-      geUpdateImagePreview('');
-    });
-  }
+function geBindUpload(input, target, onUploaded){
+  if(!input || !target) return;
+  input.addEventListener('change',async()=>{
+    const picked=input.files?.[0];
+    if(!picked) return;
+    if(!picked.type.startsWith('image/')){
+      alert('กรุณาเลือกไฟล์รูปภาพ');
+      input.value='';
+      return;
+    }
+    input.disabled=true;
+    const res=await apiUploadImage(picked,'content').catch(()=>({ok:false}));
+    input.disabled=false;
+    if(!res.ok){
+      alert(res.error||'อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+      input.value='';
+      return;
+    }
+    target.value=res.url;
+    onUploaded(res.url);
+  });
 }
 
 function gePreviewHtml(src='', emptyText='ยังไม่ได้เลือกรูป'){
@@ -817,18 +806,7 @@ function geBindImagePicker(){
     txt.addEventListener('input',()=>geUpdateImagePreview(txt.value));
     geUpdateImagePreview(txt.value);
   }
-  if(file && txt){
-    file.addEventListener('change',()=>{
-      const picked=file.files?.[0];
-      if(!picked || !picked.type.startsWith('image/')) return;
-      const reader=new FileReader();
-      reader.onload=()=>{
-        txt.value=String(reader.result||'');
-        geUpdateImagePreview(txt.value);
-      };
-      reader.readAsDataURL(picked);
-    });
-  }
+  geBindUpload(file, txt, geUpdateImagePreview);
   if(clearBtn && txt && file){
     clearBtn.addEventListener('click',()=>{
       txt.value='';
@@ -838,34 +816,14 @@ function geBindImagePicker(){
   }
 
   document.querySelectorAll('[id^="ge-aif-"]').forEach(input=>{
-    input.addEventListener('change',()=>{
-      const id=input.id.replace('ge-aif-','');
-      const target=document.getElementById(`ge-ai-${id}`);
-      const picked=input.files?.[0];
-      if(!target || !picked || !picked.type.startsWith('image/')) return;
-      const reader=new FileReader();
-      reader.onload=()=>{
-        target.value=String(reader.result||'');
-        geUpdateInlinePreview(`ge-ai-preview-${id}`, target.value, 'ยังไม่มีรูปตัวเลือก');
-      };
-      reader.readAsDataURL(picked);
-    });
+    const id=input.id.replace('ge-aif-','');
+    geBindUpload(input, document.getElementById(`ge-ai-${id}`), url=>geUpdateInlinePreview(`ge-ai-preview-${id}`, url, 'ยังไม่มีรูปตัวเลือก'));
   });
 
   [['ge-plif-','ge-pli-','ge-pli-preview-','ยังไม่มีรูปฝั่งซ้าย'],['ge-prif-','ge-pri-','ge-pri-preview-','ยังไม่มีรูปฝั่งขวา']].forEach(([filePrefix,targetPrefix,previewPrefix,emptyText])=>{
     document.querySelectorAll(`[id^="${filePrefix}"]`).forEach(input=>{
-      input.addEventListener('change',()=>{
-        const id=input.id.replace(filePrefix,'');
-        const target=document.getElementById(`${targetPrefix}${id}`);
-        const picked=input.files?.[0];
-        if(!target || !picked || !picked.type.startsWith('image/')) return;
-        const reader=new FileReader();
-        reader.onload=()=>{
-          target.value=String(reader.result||'');
-          geUpdateInlinePreview(`${previewPrefix}${id}`, target.value, emptyText);
-        };
-        reader.readAsDataURL(picked);
-      });
+      const id=input.id.replace(filePrefix,'');
+      geBindUpload(input, document.getElementById(`${targetPrefix}${id}`), url=>geUpdateInlinePreview(`${previewPrefix}${id}`, url, emptyText));
     });
   });
 }

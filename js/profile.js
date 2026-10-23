@@ -1,15 +1,11 @@
 // Profile page helpers.
 
-function getAvatarKey() {
-  return 'kl_avatar_' + (A.user?.id || 'guest');
-}
-
 function applyAvatar(el, fallbackChar) {
   if (!el) return;
-  const saved = localStorage.getItem(getAvatarKey());
+  const saved = A.user?.avatar_url;
   if (saved) {
     el.textContent = '';
-    el.style.backgroundImage = `url(${saved})`;
+    el.style.backgroundImage = `url("${saved}")`;
     el.style.backgroundSize = 'cover';
     el.style.backgroundPosition = 'center';
   } else {
@@ -18,17 +14,21 @@ function applyAvatar(el, fallbackChar) {
   }
 }
 
-function handleAvatarUpload(event) {
-  const file = event.target.files[0];
+async function handleAvatarUpload(event) {
+  const input = event.target;
+  const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const dataUrl = e.target.result;
-    localStorage.setItem(getAvatarKey(), dataUrl);
-    applyAvatar(document.getElementById('pf-av'), A.user?.name?.charAt(0));
-    applyAvatar(document.getElementById('sb-av'), A.user?.name?.charAt(0));
-  };
-  reader.readAsDataURL(file);
+  input.disabled = true;
+  const res = await apiUploadImage(file, 'avatar').catch(() => ({ ok: false }));
+  input.disabled = false;
+  input.value = '';
+  if (!res.ok) {
+    showAl('pf-err', res.error || 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    return;
+  }
+  A.user.avatar_url = res.url;
+  applyAvatar(document.getElementById('pf-av'), A.user?.name?.charAt(0));
+  applyAvatar(document.getElementById('sb-av'), A.user?.name?.charAt(0));
 }
 
 function loadProfile() {

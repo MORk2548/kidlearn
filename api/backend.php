@@ -36,6 +36,10 @@ define('DB_USER', $_ENV['DB_USER'] ?? getenv('DB_USER') ?: 'postgres');
 define('DB_PASS', $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '');
 define('DB_NAME', $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'postgres');
 
+const IMAGE_BUCKET = 'kidlearn-images';
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const IMAGE_EXTENSIONS = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+
 header('Content-Type: application/json; charset=utf-8');
 // เธฃเธญเธเธฃเธฑเธเธ—เธฑเนเธ localhost เนเธฅเธฐ 127.0.0.1
 // CORS โ€” เธฃเธญเธเธฃเธฑเธเธ—เธธเธ origin เธ—เธตเนเน€เธเนเธ localhost
@@ -202,7 +206,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'save_subject', 'toggle_subject', 'save_question', 'delete_question',
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
-        'admin_create_staff',
+        'admin_create_staff', 'upload_image',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
         DB::fail('Method not allowed', 405);
@@ -568,6 +572,7 @@ match ($action) {
     'me'              => handleMe(),
     'update_profile'  => handleUpdateProfile(),
     'change_password' => handleChangePassword(),
+    'upload_image'    => handleUploadImage(),
     'subjects'        => handleSubjects(),
     'games'           => handleGames(),
     'save_score'      => handleSaveScoreV2(),
@@ -771,7 +776,7 @@ function handleRegister(): never {
 function handleMe(): never {
     auth();
     $user = DB::get()->one(
-        "SELECT u.user_id, u.username, u.email, u.role, u.full_name, u.created_at, u.updated_at,
+        "SELECT u.user_id, u.username, u.email, u.role, u.full_name, u.avatar_url, u.created_at, u.updated_at,
                 s.student_id, s.grade, s.parent_phone,
                 p.parent_id, p.phone,
                 t.teacher_id, t.department,
@@ -795,6 +800,70 @@ function handleMe(): never {
         $user['children'] = [];
     }
     DB::ok($user);
+}
+
+function storageUploadImage(string $path, string $bytes, string $mime): string {
+    $base = rtrim((string)envValue('SUPABASE_URL', ''), '/');
+    $key  = (string)envValue('SUPABASE_SERVICE_ROLE_KEY', '');
+    if ($base === '' || $key === '') DB::fail('ยังไม่ได้ตั้งค่า SUPABASE_URL หรือ SUPABASE_SERVICE_ROLE_KEY ในไฟล์ .env', 500);
+
+    $ch = curl_init("{$base}/storage/v1/object/" . IMAGE_BUCKET . "/{$path}");
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $bytes,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_HTTPHEADER     => [
+            "apikey: {$key}",
+            "Authorization: Bearer {$key}",
+            "Content-Type: {$mime}",
+            'Cache-Control: max-age=31536000',
+            'x-upsert: false',
+        ],
+    ]);
+    $response = curl_exec($ch);
+    $status   = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $error    = curl_error($ch);
+    curl_close($ch);
+    if ($response === false || $status >= 300) {
+        error_log("[KidLearn] storage upload failed ({$status}): " . (is_string($response) ? $response : $error));
+        DB::fail('อัปโหลดรูปไปยัง Supabase ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 502);
+    }
+    return "{$base}/storage/v1/object/public/" . IMAGE_BUCKET . "/{$path}";
+}
+
+function handleUploadImage(): never {
+    global $body;
+    auth();
+    $purpose = ($body['purpose'] ?? '') === 'avatar' ? 'avatar' : 'content';
+    if ($purpose === 'content') authRole('teacher', 'admin', 'officer');
+
+    if (!preg_match('#^data:image/[\w.+-]+;base64,(.+)$#s', (string)($body['data_url'] ?? ''), $m)) {
+        DB::fail('ไฟล์รูปภาพไม่ถูกต้อง', 400);
+    }
+    $bytes = base64_decode($m[1], true);
+    if ($bytes === false || $bytes === '') DB::fail('ไฟล์รูปภาพไม่ถูกต้อง', 400);
+    if (strlen($bytes) > IMAGE_MAX_BYTES) DB::fail('รูปภาพต้องมีขนาดไม่เกิน 5 MB', 413);
+
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+    $ext  = IMAGE_EXTENSIONS[$mime] ?? null;
+    if (!$ext) DB::fail('รองรับเฉพาะไฟล์ PNG, JPG, GIF และ WEBP', 415);
+
+    $id   = myId();
+    $path = sprintf('%s/%d/%s.%s', $purpose, $id, bin2hex(random_bytes(16)), $ext);
+    $url  = storageUploadImage($path, $bytes, $mime);
+
+    $db = DB::get();
+    $asset = $db->one(
+        "INSERT INTO image_assets (bucket_id, storage_path, original_filename, mime_type, byte_size, uploaded_by)
+         VALUES (?,?,?,?,?,?) RETURNING image_id",
+        [IMAGE_BUCKET, $path, mb_substr((string)($body['filename'] ?? ''), 0, 255), $mime, strlen($bytes), $id]
+    );
+    if ($purpose === 'avatar') {
+        $db->run("UPDATE users SET avatar_url=? WHERE user_id=?", [$url, $id], 'si');
+        $_SESSION['user']['avatar_url'] = $url;
+    }
+    DB::ok(['url' => $url, 'image_id' => $asset['image_id'] ?? null]);
 }
 
 function handleUpdateProfile(): never {

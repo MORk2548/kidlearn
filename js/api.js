@@ -139,7 +139,17 @@ const apiToggleSubject = (d) => _api('toggle_subject', { body: d });
 
 // Game questions
 const apiGameQuestions = (gid) => _apiCached('game_questions', { game_id: gid }, 15000);
-const apiSaveQuestion = (d) => _api('save_question', { body: d }).then(res => { if(res?.ok) _apiClearCache(['game_questions','play_questions']); return res; });
+function _fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+const apiUploadImage = async (file, purpose = 'content') =>
+  _api('upload_image', { body: { data_url: await _fileToDataUrl(file), filename: file.name, purpose } });
+const apiSaveQuestion =(d) => _api('save_question', { body: d }).then(res => { if(res?.ok) _apiClearCache(['game_questions','play_questions']); return res; });
 const apiDeleteQuestion = (d) => _api('delete_question', { body: d }).then(res => { if(res?.ok) _apiClearCache(['game_questions','play_questions']); return res; });
 const apiSaveGameSettings = (d) => _api('save_game_settings', { body: d }).then(res => { if(res?.ok) _apiClearCache(['games','game_questions','play_questions']); return res; });
 
