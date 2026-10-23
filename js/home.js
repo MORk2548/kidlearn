@@ -217,7 +217,7 @@ function openSub(id){
         <div class="gc-title">${gm.name}</div>
         <div class="gc-meta">
           <span class="badge ${gm.lvl==='easy'?'be':gm.lvl==='medium'?'bm':'bh'}">${lvlLbl[gm.lvl]}</span>
-          <span>⏱ ${gm.time}วิ</span>
+          <span>⏱ ${gm.time>=600?`${Math.round(gm.time/60)} นาที`:`${gm.time}วิ`}</span>
         </div>
         ${A.role==='student'
           ?`<div class="gc-lesson-btns">

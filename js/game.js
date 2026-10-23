@@ -14,6 +14,7 @@ async function openModal(gid, lessonNo){
   const dbGameId=A.curDbGameId || (typeof jsKeyToDbId==='function' ? jsKeyToDbId(gid) : parseInt(gid));
   renderGameModal(gm, sub, TYPE_LBL, gameName, gameType, timeLimit);
   document.getElementById('gmodal').classList.add('show');
+  if (gm.code && window.MathKit?.hasMissions(gm.code)) return;
 
   if (dbGameId) {
     loadPlayQuestionsFast(dbGameId, gm).then(res=>{
@@ -30,19 +31,21 @@ async function openModal(gid, lessonNo){
   }
 }
 function renderGameModal(gm, sub, typeLabel, gameName, gameType, timeLimit){
+  const missionGame=Boolean(gm.code && window.MathKit?.hasMissions(gm.code));
   document.getElementById('m-title').textContent=`${gm.icon} ${gameName}`;
   document.getElementById('m-body').innerHTML=`
     <div style="font-size:.88rem;line-height:2.2;color:#374151">
       📚 <strong>${sub.name}</strong><br>
-      🎯 ประเภท: ${typeLabel[gameType]||gameType}<br>
-      ⏱ เวลา: ${timeLimit} วิ<br>
-      🏆 คะแนนเต็ม: 100
+      ${missionGame
+        ?`🧩 ภารกิจหลายขั้นตอน: คำนวณ วางแผน และตรวจคำตอบ<br>⏱ เวลา: ${Math.round(timeLimit/60)} นาที (ไม่เน้นความเร็ว)<br>🏆 คะแนนเต็ม: 100 รวมโบนัสไม่ใช้คำใบ้`
+        :`🎯 ประเภท: ${typeLabel[gameType]||gameType}<br>⏱ เวลา: ${timeLimit} วิ<br>🏆 คะแนนเต็ม: 100`}
     </div>
     ${gm.code?`<label class="math-difficulty-label" for="math-difficulty">เลือกระดับความยาก</label>
       <select id="math-difficulty" class="math-difficulty" onchange="pendingDifficulty=this.value">
         <option value="easy" ${pendingDifficulty==='easy'?'selected':''}>🌱 ง่าย</option>
         <option value="medium" ${pendingDifficulty==='medium'?'selected':''}>🚀 ปานกลาง</option>
         <option value="hard" ${pendingDifficulty==='hard'?'selected':''}>🐉 ยาก</option>
+        ${missionGame?`<option value="challenge" ${pendingDifficulty==='challenge'?'selected':''}>🏆 ท้าทายพิเศษ</option>`:''}
       </select>`:''}`;
 }
 function closeModal(){
@@ -72,6 +75,10 @@ async function startGame(gid){
   document.getElementById('s-game').classList.remove('mission-complete');
   document.getElementById('g-content').innerHTML =
     '<div style="text-align:center;padding:3rem;color:var(--mu)">⏳ กำลังโหลดคำถาม...</div>';
+  if (gmStatic?.code && window.MathKit?.hasMissions(gmStatic.code)) {
+    startMissionGame(gid, gmStatic);
+    return;
+  }
 
   // โหลดคำถามจาก DB แต่ fallback ให้เร็วถ้า API ช้า เพื่อไม่ให้เกมค้างที่ loading
   let gameData = null;
@@ -341,7 +348,8 @@ function runTimer(){
 }
 function upTimer(){
   const el=document.getElementById('g-timer');
-  el.textContent=`⏱ ${A.gs.timeLeft}`;
+  const t=A.gs.timeLeft;
+  el.textContent=A.curGame?.missions?`⏱ ${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`:`⏱ ${t}`;
   el.setAttribute('aria-label',`เวลาที่เหลือ ${A.gs.timeLeft} วินาที`);
   el.classList.toggle('warn',A.gs.timeLeft<=10);
 }
@@ -362,8 +370,7 @@ function announceGameFeedback(isCorrect, customMessage){
   feedback.textContent=customMessage || (isCorrect ? '✨ ถูกต้อง! เดินทางต่อกันเลย' : '🌱 ไม่เป็นไร ลองดูเฉลยแล้วไปต่อ');
 }
 function renderGame(){
-  if(A.curGame?.mode==='pizza'){renderPizzaGame();return;}
-  if(A.curGame?.mode==='chart-builder'){renderChartBuilder();return;}
+  if(A.curGame?.missions){renderMission();return;}
   const t=A.curGame.type;
   if(t==='mcq')          renderMCQ();
   else if(t==='truefalse') renderTF();
@@ -603,6 +610,8 @@ function renderWS(){
 
 /* ── FINISH ── */
 function finishGame(){
+  if(!A.gs || A.gs.finished) return;
+  A.gs.finished=true;
   clearInterval(A.tmr);
   cleanupGameInteraction();
   const sc=Math.min(100,Math.max(0,A.gs.earned)), pct=sc;
@@ -629,7 +638,10 @@ function finishGame(){
     reviewBox.id='g-review-box';
     document.getElementById('g-result').appendChild(reviewBox);
   }
-  if(reviewBox){
+  if(reviewBox && A.gs?.mission){
+    reviewBox.style.display='block';
+    reviewBox.innerHTML=missionReviewHtml();
+  } else if(reviewBox){
     const wrongs=(A.gs?.attempts||[]).filter(a=>!a.is_correct).slice(0,5);
     reviewBox.style.display=wrongs.length?'block':'none';
     reviewBox.innerHTML=wrongs.length?`
@@ -837,11 +849,7 @@ function renderMCQ(){
   A.gs.answered=false;
   upQP(qi+1,totalQ);
   const letters=['A','B','C','D','E','F'];
-  const context=A.curGame.mode==='data-detective'?renderDataTable(q):'';
   document.getElementById('g-content').innerHTML=`
-    ${context}
-    ${A.curGame.mode==='treasure'?'<div class="math-story-icon" aria-hidden="true">🗝️ 🔒</div>':''}
-    ${A.curGame.mode==='decimal-shop'?'<div class="math-story-icon" aria-hidden="true">🧺 🪙</div>':''}
     <div class="qt">${q.q}</div>
     ${renderMathHint(q)}
     <div class="choices choices-media">
@@ -883,9 +891,6 @@ function ansMCQ(btn,chose,correct){
   setTimeout(()=>{A.gs.qi++;A.gs.answered=false;renderGame();},1100);
 }
 
-function parseMathPayload(question){
-  try{return JSON.parse(question?.img||'{}');}catch{return {};}
-}
 function renderMathHint(question){
   return question?.hint?`<div class="math-hint-wrap"><button type="button" class="math-hint-btn" onclick="toggleMathHint(this)">💡 ดูคำใบ้</button><div class="hint-box math-hint" hidden>${question.hint}</div></div>`:'';
 }
@@ -894,22 +899,6 @@ function toggleMathHint(button){
   if(!hint)return;
   hint.hidden=!hint.hidden;
   button.textContent=hint.hidden?'💡 ดูคำใบ้':'🙈 ซ่อนคำใบ้';
-}
-function renderDataTable(question){
-  const data=parseMathPayload(question);
-  if(!Array.isArray(data.labels)||!Array.isArray(data.values))return '';
-  return `<div class="math-data-card"><div class="math-data-title">📋 ตารางข้อมูล</div><table><thead><tr><th scope="col">สัตว์</th><th scope="col">คะแนนโหวต</th></tr></thead><tbody>${data.labels.map((label,index)=>`<tr><th scope="row">${label}</th><td>${data.values[index]}</td></tr>`).join('')}</tbody></table></div>`;
-}
-function mathSubmitAnswer({question,studentAnswer,correctAnswer,isCorrect,feedback}){
-  if(!A.gs||A.gs.answered)return false;
-  A.gs.answered=true;
-  recordAttempt({prompt:question?.q||'',correctAnswer,studentAnswer,isCorrect,wrongQuestion:isCorrect?null:{...question}});
-  if(isCorrect)A.gs.earned=Math.min(100,A.gs.earned+Math.round(100/A.gs.totalQ));
-  document.getElementById('g-live').textContent=`⭐ คะแนน ${A.gs.earned}`;
-  announceGameFeedback(isCorrect,feedback||(isCorrect?'✨ ถูกต้อง! ได้รับดาวเพิ่ม':'คำตอบที่ถูกต้อง: '+correctAnswer));
-  document.querySelectorAll('#g-content button,#g-content input').forEach(control=>control.disabled=true);
-  setTimeout(()=>{A.gs.qi++;A.gs.answered=false;renderGame();},1250);
-  return true;
 }
 function pizzaWedgePath(index,count){
   const start=-90+index*360/count, end=-90+(index+1)*360/count, points=[];
@@ -921,72 +910,454 @@ function pizzaWedgePath(index,count){
   points.push(`${50+45*Math.cos(last)} ${50+45*Math.sin(last)}`);
   return `M50 50 L${points.join(' L')} Z`;
 }
-function renderPizzaGame(){
-  const question=A.curGame.qs[A.gs.qi];
-  if(!question){finishGame();return;}
-  A.gs.answered=false;upQP(A.gs.qi+1,A.gs.totalQ);
-  const data=parseMathPayload(question), denominator=Math.max(2,Math.min(16,Number(data.denominator)||4));
-  const numerator=Math.max(1,Math.min(denominator,Number(data.numerator)||1));
-  window.mathPizzaSelected=new Set();
-  document.getElementById('g-content').innerHTML=`
-    <div class="qt">${question.q}</div>
-    ${renderMathHint(question)}
-    <div class="pizza-board" role="group" aria-label="เลือกชิ้นพิซซ่า จำนวน ${numerator} ชิ้น จาก ${denominator} ชิ้น">
-      ${Array.from({length:denominator},(_,index)=>`<button type="button" class="pizza-piece" data-piece="${index}" aria-pressed="false" aria-label="ชิ้นที่ ${index+1}" onclick="togglePizzaPiece(this)"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="${pizzaWedgePath(index,denominator)}" fill="${['#FDBA74','#FCA5A5','#FDE68A','#C4B5FD'][index%4]}" stroke="#fff" stroke-width="3"/><circle cx="${50+23*Math.cos((-90+(index+.5)*360/denominator)*Math.PI/180)}" cy="${50+23*Math.sin((-90+(index+.5)*360/denominator)*Math.PI/180)}" r="5" fill="#d85436"/></svg></button>`).join('')}
+
+/* ── MATH MISSIONS ──
+   A round is a list of multi-step missions from MathKit. Each step is scored once:
+   full credit on the first try, less on retries and per hint, and nothing after
+   MISSION_MAX_ATTEMPTS misses, when the worked solution is revealed. */
+const MISSION_MAX_ATTEMPTS=3;
+const MISSION_ATTEMPT_CREDIT=[1,0.6,0.3];
+const MISSION_HINT_COST=0.15;
+const MISSION_BONUS={multiStep:5,noHint:5};
+const MISSION_SKILLS={analysis:'วิเคราะห์ข้อมูล',calculation:'วิธีคำนวณ',planning:'วางแผน',final:'คำตอบสุดท้าย',interpretation:'ตีความ'};
+const MISSION_LEVELS={easy:'🌱 ง่าย',medium:'🚀 ปานกลาง',hard:'🐉 ยาก',challenge:'🏆 ท้าทายพิเศษ'};
+const PIZZA_COLORS=['#F97316','#2563EB','#059669','#9333EA','#DC2626'];
+
+function missionBonusMax(mission){
+  return mission.steps.length>=3?MISSION_BONUS.multiStep+MISSION_BONUS.noHint:0;
+}
+// Teacher-edited missions from the database come first; generated ones fill any shortfall.
+async function missionRound(gm, level){
+  const size=MathKit.GENERATORS[gm.code].size;
+  let stored=[];
+  try{
+    const res=A.curDbGameId?await Promise.race([apiPlayQuestions(A.curDbGameId),new Promise(resolve=>setTimeout(()=>resolve(null),4000))]):null;
+    stored=(res?.missions||[]).filter(m=>m.difficulty===level).map(m=>MathKit.normalizeMission(JSON.parse(JSON.stringify(m)))).filter(m=>{
+      const errors=MathKit.validateMission(m);
+      if(errors.length) console.warn('[mission] skipped stored mission',m.id,errors);
+      return !errors.length;
+    });
+  }catch(e){ console.warn('[mission] DB load failed, using generated missions:',e); }
+  const picked=shuffleItems(stored).slice(0,size);
+  return picked.length<size?picked.concat(MathKit.buildRound(gm.code,level).slice(0,size-picked.length)):picked;
+}
+async function startMissionGame(gid, gm){
+  const list=await missionRound(gm,pendingDifficulty);
+  A.curGame={...gm,missions:true,qs:[],time:gm.time};
+  const max=list.reduce((total,mission)=>total+mission.steps.reduce((s,step)=>s+step.points,0)+missionBonusMax(mission),0);
+  A.gs={gid,qi:0,earned:0,timeLeft:gm.time,totalQ:list.reduce((n,m)=>n+m.steps.length,0),lessonNo:pendingLesson,attempts:[],wrongQuestions:[],
+    mission:{list,mi:0,si:0,store:{},cur:null,board:null,results:[],bonuses:[],points:0,max}};
+  document.getElementById('g-title').textContent=gm.name;
+  runTimer();
+  renderGame();
+}
+function missionCurrent(){
+  const M=A.gs?.mission, mission=M?.list[M.mi];
+  return {M,mission,step:mission?.steps[M.si]};
+}
+function missionStepsDone(){
+  return A.gs.mission.results.length;
+}
+function missionContextHtml(block){
+  if(block.type==='table') return `<div class="math-data-card"><div class="math-data-title">${block.title}</div><div class="ms-table-scroll"><table><thead><tr>${block.head.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${block.rows.map(row=>`<tr>${row.map((cell,i)=>i?`<td>${cell}</td>`:`<th scope="row">${cell}</th>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  if(block.type==='note') return `<div class="ms-note">${block.text}</div>`;
+  if(block.type==='chart') return `<div class="math-chart-card"><div class="math-data-title">${block.title}</div>${staticChartHtml(block)}</div>`;
+  return '';
+}
+function staticChartHtml(block){
+  const ticks=block.ticks, top=ticks[ticks.length-1], span=ticks.length-1;
+  const pos=value=>{
+    if(value<=ticks[0]) return 0;
+    for(let i=1;i<ticks.length;i++) if(value<=ticks[i]) return (i-1+(value-ticks[i-1])/(ticks[i]-ticks[i-1]))/span*100;
+    return 100;
+  };
+  const heights=block.values.map(value=>Math.min(100,pos(value)));
+  return `<div class="cb-area cb-static" style="--n:${block.labels.length}">
+    <div class="cb-yaxis" aria-hidden="true">${ticks.map((t,i)=>`<span style="bottom:${i/span*100}%">${t}</span>`).join('')}</div>
+    <div class="cb-plot">${ticks.map((_,i)=>`<i class="cb-grid" style="bottom:${i/span*100}%"></i>`).join('')}
+      ${block.labels.map((label,i)=>`<div class="cb-col${block.chartType==='line'?' line':''}"><div class="cb-bar" style="height:${heights[i]}%"></div></div>`).join('')}
+      ${block.chartType==='line'?chartLineSvg(heights):''}
     </div>
-    <div class="pizza-selected-count" id="pizza-count" aria-live="polite">เลือกแล้ว 0 / ${numerator} ชิ้น</div>
-    <button type="button" class="btn btn-p math-check-btn" onclick="checkPizzaAnswer(${numerator},${denominator},${JSON.stringify(question.q).replace(/"/g,'&quot;')})">🍕 ตรวจคำตอบ</button>`;
+  </div>
+  <div class="cb-xlabels static" style="--n:${block.labels.length}">${block.labels.map(label=>`<span>${label}</span>`).join('')}</div>
+  <div class="ms-chart-caption">หน่วย: ${block.unit} · แกน Y สูงสุด ${top}</div>`;
 }
-function togglePizzaPiece(button){
-  const selected=window.mathPizzaSelected;
-  if(!selected)return;
-  const index=button.dataset.piece;
-  if(selected.has(index))selected.delete(index);else selected.add(index);
-  button.classList.toggle('selected',selected.has(index));
-  button.setAttribute('aria-pressed',String(selected.has(index)));
-  const needed=Number(document.querySelector('.pizza-board')?.getAttribute('aria-label')?.match(/จำนวน (\d+) ชิ้น/)?.[1]||0);
-  const count=document.getElementById('pizza-count');
-  if(count)count.textContent=`เลือกแล้ว ${selected.size} / ${needed} ชิ้น`;
+function chartLineSvg(heights){
+  if(heights.some(h=>h===null)) return '';
+  const n=heights.length;
+  return `<svg class="cb-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${heights.map((h,i)=>`${(i+.5)/n*100},${100-h}`).join(' ')}" vector-effect="non-scaling-stroke"/></svg>`;
 }
-function checkPizzaAnswer(numerator,denominator,prompt){
-  const question=A.curGame.qs[A.gs.qi];
-  const selected=window.mathPizzaSelected?.size||0;
-  const isCorrect=selected===numerator;
-  const correctAnswer=`${numerator}/${denominator} ถาด`;
-  mathSubmitAnswer({question,studentAnswer:`เลือก ${selected}/${denominator}`,correctAnswer,isCorrect,
-    feedback:isCorrect?'🍕 ยอดเยี่ยม! เลือกได้พอดีตามเศษส่วน':`เฉลย: ${correctAnswer} — ${question.explanation||'จำนวนชิ้นที่เลือกเป็นตัวเศษ และจำนวนชิ้นทั้งหมดเป็นตัวส่วน'}`});
-}
-function renderChartBuilder(){
-  const question=A.curGame.qs[A.gs.qi];
-  if(!question){finishGame();return;}
-  A.gs.answered=false;upQP(A.gs.qi+1,A.gs.totalQ);
-  const data=parseMathPayload(question), labels=data.labels||[], values=data.values||[];
-  const max=Math.max(1,...values);
+
+function renderMission(){
+  const {M,mission,step}=missionCurrent();
+  if(!mission){finishGame();return;}
+  if(!M.cur){
+    M.cur={attempts:0,hints:0,phase:'open',wrongChoices:[],feedback:null};
+    M.board=missionInitialBoard(step);
+  }
+  upQP(missionStepsDone()+1,A.gs.totalQ);
+  const doneHere=M.results.filter(r=>r.mi===M.mi);
   document.getElementById('g-content').innerHTML=`
-    <div class="qt">${question.q}</div>
-    ${renderMathHint(question)}
-    <div class="chart-builder-grid"><div class="math-data-card"><div class="math-data-title">📋 ข้อมูลที่ได้รับ</div><table><thead><tr><th scope="col">วัน</th><th scope="col">คะแนน</th></tr></thead><tbody>${labels.map((label,index)=>`<tr><th scope="row">${label}</th><td>${values[index]}</td></tr>`).join('')}</tbody></table></div>
-      <div class="math-chart-card"><div class="math-data-title">📊 กราฟของฉัน</div><div class="math-bars" id="math-bars">${labels.map((label,index)=>`<label class="math-bar-row"><span>${label}</span><span class="math-bar-track"><span class="math-bar-fill" id="math-bar-${index}" style="width:0%"></span></span><input type="number" inputmode="numeric" min="0" max="20" value="" aria-label="จำนวนของ ${label}" oninput="updateMathBar(${index},this.value,${max})"></label>`).join('')}</div></div></div>
-    <button type="button" class="btn btn-p math-check-btn" onclick="checkBuiltChart()">📊 ตรวจกราฟ</button>`;
-  window.mathChartPayload=data;
+    <div class="ms-head">
+      <span class="ms-icon" aria-hidden="true">${mission.icon}</span>
+      <div><div class="ms-kicker">ภารกิจที่ ${M.mi+1} จาก ${M.list.length} · ${MISSION_LEVELS[mission.difficulty]||''}</div><h2 class="ms-title">${mission.title}</h2></div>
+    </div>
+    <div class="ms-story">${mission.story.map(line=>`<p>${line}</p>`).join('')}${mission.tip?`<p class="ms-tip">💡 เคล็ดลับ: ${mission.tip}</p>`:''}</div>
+    ${mission.context.length?`<div class="ms-context">${mission.context.map(missionContextHtml).join('')}</div>`:''}
+    <ol class="ms-track" aria-label="ขั้นตอนของภารกิจ">${mission.steps.map((s,i)=>{
+      const r=doneHere.find(x=>x.si===i);
+      const state=r?(r.ok?'ok':'miss'):i===M.si?'now':'todo';
+      return `<li class="ms-dot ${state}" aria-current="${i===M.si?'step':'false'}"><span>${r?(r.ok?'✓':'!'):i+1}</span><small>${MISSION_SKILLS[s.skill]}</small></li>`;
+    }).join('')}</ol>
+    ${doneHere.length?`<details class="ms-done"><summary>ขั้นที่ทำแล้ว (${doneHere.length})</summary>${doneHere.map(r=>`<div class="ms-done-row ${r.ok?'ok':'miss'}"><b>ขั้นที่ ${r.si+1}</b> ${mission.steps[r.si].prompt}<br><span>คำตอบ: ${MathKit.answerText(mission.steps[r.si])}</span></div>`).join('')}</details>`:''}
+    <section class="ms-step" aria-labelledby="ms-prompt">
+      <div class="ms-step-label">ขั้นที่ ${M.si+1}/${mission.steps.length} · ${MISSION_SKILLS[step.skill]} · ${step.points} คะแนน</div>
+      <div class="qt" id="ms-prompt">${step.prompt}</div>
+      <div id="ms-input">${missionInputHtml(step)}</div>
+      <div id="ms-hints">${missionHintsHtml(step)}</div>
+      <div id="ms-feedback" aria-live="polite">${M.cur.feedback||''}</div>
+      <div class="ms-actions" id="ms-actions">${missionActionsHtml(step)}</div>
+    </section>`;
+  animateQuestionEntry();
+  if(step.kind==='chart') bindChartBuilder();
 }
-function updateMathBar(index,value,max){
-  const bar=document.getElementById(`math-bar-${index}`);
-  if(bar)bar.style.width=`${Math.max(0,Math.min(100,(Number(value)/max)*100))}%`;
+function missionInitialBoard(step){
+  const M=A.gs.mission;
+  if(step.kind==='pizza'){
+    const cut=M.store.cut||step.defaultCut;
+    return {cut,active:0,assign:Array.from({length:step.trays},()=>Array(cut).fill(-1))};
+  }
+  if(step.kind==='chart') return {order:Array(step.labels.length).fill(null),values:Object.fromEntries(step.labels.map(l=>[l,0])),selected:null};
+  if(step.kind==='plan') return {picks:{},wrong:[]};
+  return null;
 }
-function checkBuiltChart(){
-  const question=A.curGame.qs[A.gs.qi], data=window.mathChartPayload||{};
-  const inputs=[...document.querySelectorAll('.math-bar-row input')];
-  if(inputs.some(input=>input.value==='')){
-    announceGameFeedback(false,'กรอกคะแนนให้ครบทุกวันก่อนตรวจกราฟ');
+function missionActionsHtml(step){
+  const M=A.gs.mission, cur=M.cur;
+  if(cur.phase==='done'){
+    const lastStep=M.si===M.list[M.mi].steps.length-1, lastMission=M.mi===M.list.length-1;
+    return `<button type="button" class="btn btn-p math-check-btn" onclick="missionNext()">${lastStep?(lastMission?'🏁 ดูผลสรุปภารกิจ':'➜ ภารกิจถัดไป'):'➜ ไปขั้นต่อไป'}</button>`;
+  }
+  const hintLeft=step.hints.length-cur.hints;
+  return `${step.kind==='choice'?'':`<button type="button" class="btn btn-p math-check-btn" onclick="missionCheck()">✔ ${step.kind==='pizza'?'ส่งแผนจัดออเดอร์':step.kind==='chart'?'ส่งกราฟ':'ตรวจคำตอบ'}</button>`}
+    ${hintLeft>0?`<button type="button" class="math-hint-btn ms-hint-btn" onclick="missionHint()">💡 ขอคำใบ้ (${cur.hints+1}/${step.hints.length}) · หักคะแนนเล็กน้อย</button>`:''}
+    <div class="ms-attempts">ตรวจได้อีก ${MISSION_MAX_ATTEMPTS-cur.attempts} ครั้งก่อนเฉลย</div>`;
+}
+function missionHintsHtml(step){
+  const used=A.gs.mission.cur.hints;
+  return step.hints.slice(0,used).map((hint,i)=>`<div class="hint-box ms-hint">💡 คำใบ้ระดับ ${i+1}: ${hint}</div>`).join('');
+}
+function missionInputHtml(step){
+  const M=A.gs.mission, done=M.cur.phase==='done';
+  if(['number','fixed','fraction'].includes(step.kind)){
+    const help=step.kind==='fraction'?'พิมพ์ เช่น 5/8 หรือจำนวนคละ 1 3/8':step.kind==='fixed'?`ทศนิยมไม่เกิน ${step.places} ตำแหน่ง`:'จำนวนเต็ม';
+    return `<div class="ms-answer-row"><input id="ms-answer" class="fi ms-answer" autocomplete="off" inputmode="${step.kind==='fraction'?'text':step.kind==='fixed'?'decimal':'numeric'}" aria-label="คำตอบ" aria-describedby="ms-answer-help" placeholder="คำตอบ" ${done?'disabled':''} onkeydown="if(event.key==='Enter')missionCheck()">${step.unit?`<span class="ms-unit">${step.unit}</span>`:''}</div><div class="ms-help" id="ms-answer-help">${help}</div>`;
+  }
+  if(step.kind==='choice'){
+    return `<div class="choices ms-choices">${step.options.map((option,i)=>{
+      const wrong=M.cur.wrongChoices.includes(i), right=done&&i===step.answer;
+      return `<button type="button" class="ch${wrong?' no':''}${right?' ok':''}" ${done||wrong?'disabled':''} onclick="missionChoose(${i})"><span class="ch-letter">${'ABCDE'[i]}</span><span class="ch-text">${option.text}</span></button>`;
+    }).join('')}</div>`;
+  }
+  if(step.kind==='plan'){
+    return step.fields.map(field=>`<fieldset class="ms-field${M.board.wrong.includes(field.id)?' is-wrong':''}"><legend>${field.label}</legend><div class="ms-options">${field.options.map((option,k)=>{
+      const on=M.board.picks[field.id]===k;
+      return `<button type="button" class="ms-option${on?' on':''}" aria-pressed="${on}" ${done?'disabled':''} onclick="missionPlanPick('${field.id}',${k})">${option.text}</button>`;
+    }).join('')}</div></fieldset>`).join('');
+  }
+  if(step.kind==='pizza') return `<div id="ms-board">${pizzaBoardHtml(step)}</div>`;
+  if(step.kind==='chart') return `<div id="ms-board">${chartBoardHtml(step)}</div>`;
+  return '';
+}
+function missionRefresh(part){
+  const {step}=missionCurrent();
+  if(part==='board'){
+    const el=document.getElementById('ms-board');
+    if(el) el.innerHTML=step.kind==='pizza'?pizzaBoardHtml(step):chartBoardHtml(step);
+    document.querySelector('#ms-feedback .ms-fb.warn')?.remove();
+    if(step.kind==='chart') bindChartBuilder();
     return;
   }
-  const entered=inputs.map(input=>Number(input.value));
-  const correct=(data.values||[]).every((value,index)=>entered[index]===Number(value));
-  const correctAnswer=(data.labels||[]).map((label,index)=>`${label} ${data.values[index]}`).join(', ');
-  const studentAnswer=(data.labels||[]).map((label,index)=>`${label} ${entered[index]}`).join(', ');
-  mathSubmitAnswer({question,studentAnswer,correctAnswer,isCorrect:correct,
-    feedback:correct?'📊 กราฟถูกต้องทุกแท่ง!':`เฉลย: ${correctAnswer} — ${question.explanation||'ตรวจค่าของแต่ละแท่งกับตารางข้อมูล'}`});
+  document.getElementById('ms-input').innerHTML=missionInputHtml(step);
+  document.getElementById('ms-hints').innerHTML=missionHintsHtml(step);
+  document.getElementById('ms-feedback').innerHTML=A.gs.mission.cur.feedback||'';
+  document.getElementById('ms-actions').innerHTML=missionActionsHtml(step);
+  if(step.kind==='chart') bindChartBuilder();
+}
+function missionReadInput(step){
+  const board=A.gs.mission.board;
+  if(['number','fixed','fraction'].includes(step.kind)) return document.getElementById('ms-answer')?.value||'';
+  if(step.kind==='plan') return board.picks;
+  if(step.kind==='pizza') return {cut:board.cut,assign:board.assign};
+  if(step.kind==='chart') return {order:board.order,values:board.values};
+  return null;
+}
+function missionChoose(index){
+  const {M,step}=missionCurrent();
+  if(M.cur.phase!=='open'||M.cur.wrongChoices.includes(index)) return;
+  missionSubmit(index);
+}
+function missionPlanPick(fieldId,index){
+  const {M}=missionCurrent();
+  if(M.cur.phase!=='open') return;
+  M.board.picks[fieldId]=index;
+  M.board.wrong=M.board.wrong.filter(id=>id!==fieldId);
+  missionRefresh();
+}
+function missionCheck(){
+  const {M,step}=missionCurrent();
+  if(!M||M.cur.phase!=='open') return;
+  missionSubmit(missionReadInput(step));
+}
+function missionSubmit(input){
+  const {M,mission,step}=missionCurrent();
+  const result=MathKit.checkStep(step,input);
+  if(result.invalid){
+    document.getElementById('ms-feedback').innerHTML=`<div class="ms-fb warn">✋ ${result.invalid}</div>`;
+    return;
+  }
+  M.cur.attempts++;
+  if(result.ok||M.cur.attempts>=MISSION_MAX_ATTEMPTS){
+    missionComplete(result);
+    return;
+  }
+  if(step.kind==='choice') M.cur.wrongChoices.push(input);
+  if(step.kind==='plan') M.board.wrong=result.wrongFields;
+  const nudge=M.cur.hints<step.hints.length?'ลองขอคำใบ้ถัดไปถ้ายังไม่แน่ใจ':'ทบทวนคำใบ้ด้านบนแล้วลองอีกครั้ง';
+  M.cur.feedback=`<div class="ms-fb retry"><b>ยังไม่ถูก (ครั้งที่ ${M.cur.attempts}/${MISSION_MAX_ATTEMPTS})</b><ul>${result.why.map(w=>`<li>${w}</li>`).join('')}</ul><div>แก้คำตอบได้เลย ${nudge}</div></div>`;
+  announceGameFeedback(false,'🌱 ยังไม่ถูก ลองแก้ไขอีกครั้ง');
+  missionRefresh();
+}
+function missionComplete(result){
+  const {M,mission,step}=missionCurrent();
+  const ok=result.ok;
+  const credit=ok?Math.max(0.2,MISSION_ATTEMPT_CREDIT[M.cur.attempts-1]-MISSION_HINT_COST*M.cur.hints):0;
+  const earned=Math.round(step.points*credit);
+  M.cur.phase='done';
+  M.results.push({mi:M.mi,si:M.si,skill:step.skill,points:step.points,earned,ok,attempts:M.cur.attempts,hints:M.cur.hints});
+  M.points+=earned;
+  if(step.store) M.store[step.store]=step.options[step.answer].value;
+  (step.fields||[]).forEach(field=>{if(field.store) M.store[field.store]=field.options[field.answer].value;});
+  recordAttempt({prompt:`${mission.title}: ${step.prompt}`,correctAnswer:MathKit.answerText(step),studentAnswer:result.shown,isCorrect:ok,questionKey:`m${M.mi+1}s${M.si+1}`});
+  let bonusHtml='';
+  if(M.si===mission.steps.length-1){
+    const mine=M.results.filter(r=>r.mi===M.mi);
+    const allOk=mine.every(r=>r.ok), noHints=mine.every(r=>!r.hints);
+    const bonus=missionBonusMax(mission)?(allOk?MISSION_BONUS.multiStep:0)+(allOk&&noHints?MISSION_BONUS.noHint:0):0;
+    M.points+=bonus;
+    M.bonuses.push({mi:M.mi,bonus});
+    bonusHtml=`<div class="ms-bonus">🏅 จบภารกิจ! ${bonus?`โบนัสโจทย์หลายขั้นตอน +${allOk?MISSION_BONUS.multiStep:0}${allOk&&noHints?` · โบนัสไม่ใช้คำใบ้ +${MISSION_BONUS.noHint}`:''}`:'ภารกิจหน้าลองทำให้ถูกทุกขั้นเพื่อรับโบนัส'}</div>`;
+  }
+  A.gs.earned=Math.round(100*M.points/M.max);
+  document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;
+  const head=ok
+    ?`<b>✓ ถูกต้อง! +${earned} คะแนน</b>${M.cur.attempts>1||M.cur.hints?' (คะแนนลดลงตามจำนวนครั้งที่ตรวจและคำใบ้)':''}`
+    :`<b>เฉลย: ${MathKit.answerText(step)}</b><div>ไม่เป็นไร ดูวิธีคิดด้านล่าง แล้วนำไปใช้ในขั้นต่อไป</div>`;
+  M.cur.feedback=`<div class="ms-fb ${ok?'ok':'reveal'}">${head}<div class="ms-solution"><div class="ms-solution-title">🧠 วิธีคิดทีละขั้น</div><ol>${step.solution.map(line=>`<li>${line}</li>`).join('')}</ol></div>${bonusHtml}</div>`;
+  announceGameFeedback(ok,ok?'✨ ถูกต้อง! ดูวิธีคิดแล้วไปขั้นต่อไป':'📘 ดูเฉลยและวิธีคิดก่อนไปต่อ');
+  upQP(missionStepsDone(),A.gs.totalQ);
+  missionRefresh();
+  document.getElementById('ms-feedback')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function missionHint(){
+  const {M,step}=missionCurrent();
+  if(M.cur.phase!=='open'||M.cur.hints>=step.hints.length) return;
+  M.cur.hints++;
+  missionRefresh();
+}
+function missionNext(){
+  const {M,mission}=missionCurrent();
+  if(!M||M.cur?.phase!=='done') return;
+  M.cur=null;
+  M.si++;
+  if(M.si>=mission.steps.length){M.mi++;M.si=0;M.store={};}
+  if(M.mi>=M.list.length){finishGame();return;}
+  renderMission();
+  document.getElementById('g-content')?.scrollIntoView({block:'start',behavior:'smooth'});
+}
+function missionReviewHtml(){
+  const M=A.gs?.mission;
+  if(!M) return '';
+  const bySkill={};
+  M.results.forEach(r=>{
+    const s=bySkill[r.skill]||(bySkill[r.skill]={earned:0,points:0});
+    s.earned+=r.earned; s.points+=r.points;
+  });
+  const noHint=M.results.filter(r=>!r.hints).length;
+  const bonus=M.bonuses.reduce((n,b)=>n+b.bonus,0);
+  const missed=M.results.filter(r=>!r.ok).slice(0,5);
+  return `<div class="ms-review">
+    <div class="ms-review-title">คะแนนแยกตามทักษะการคิด</div>
+    ${Object.entries(MISSION_SKILLS).filter(([key])=>bySkill[key]).map(([key,label])=>{
+      const s=bySkill[key], pct=Math.round(100*s.earned/s.points);
+      return `<div class="ms-skill"><span>${label}</span><span class="ms-skill-bar"><i style="width:${pct}%"></i></span><b>${pct}%</b></div>`;
+    }).join('')}
+    <div class="ms-skill"><span>ใช้คำใบ้น้อย</span><span class="ms-skill-bar"><i style="width:${M.results.length?Math.round(100*noHint/M.results.length):0}%"></i></span><b>${noHint}/${M.results.length}</b></div>
+    <div class="ms-review-note">โบนัสภารกิจหลายขั้นตอนและไม่ใช้คำใบ้: +${bonus} คะแนน · ทำเสร็จ ${M.results.length} จาก ${A.gs.totalQ} ขั้น</div>
+    ${missed.length?`<div class="ms-review-title">ขั้นที่ควรทบทวน</div>${missed.map(r=>{
+      const step=M.list[r.mi].steps[r.si];
+      return `<div class="ms-review-row"><b>${M.list[r.mi].title}</b> ${step.prompt}<br><span>เฉลย: ${MathKit.answerText(step)}</span></div>`;
+    }).join('')}`:''}
+  </div>`;
+}
+
+/* Pizza allocation board: pick a customer, then tap slices to give or take back. */
+function pizzaBoardHtml(step){
+  const board=A.gs.mission.board, done=A.gs.mission.cur.phase==='done';
+  const {cut,assign,active}=board;
+  const counts=step.orders.map((_,i)=>assign.flat().filter(v=>v===i).length);
+  const free=assign.flat().filter(v=>v<0).length;
+  return `
+    <div class="pz-cuts" role="group" aria-label="วิธีตัดพิซซ่า">
+      <span>ตัดถาดละ</span>${MathKit.CUTS.map(c=>`<button type="button" class="pz-cut${c===cut?' on':''}" aria-pressed="${c===cut}" ${done?'disabled':''} onclick="pizzaSetCut(${c})">${c} ชิ้น</button>`).join('')}
+    </div>
+    <div class="pz-customers" role="group" aria-label="เลือกลูกค้าที่จะมอบชิ้นพิซซ่า">
+      ${step.orders.map((order,i)=>`<button type="button" class="pz-cust${i===active?' on':''}" style="--c:${PIZZA_COLORS[i%PIZZA_COLORS.length]}" aria-pressed="${i===active}" ${done?'disabled':''} onclick="pizzaPickCustomer(${i})">
+        <b>${order.name}</b><small>สั่ง ${MathKit.fText(order.f)} ถาด · ได้แล้ว ${counts[i]}/${cut} ถาด</small>
+        ${step.together?.includes(i)?'<em>ถาดเดียวกับคู่</em>':''}${step.own===i?'<em>ถาดแยก</em>':''}
+      </button>`).join('')}
+    </div>
+    <div class="pz-trays">
+      ${assign.map((tray,t)=>`<figure class="pz-tray"><svg viewBox="0 0 100 100" role="group" aria-label="ถาดที่ ${t+1}">
+        <circle cx="50" cy="50" r="48" fill="#E7B36A"/>
+        ${tray.map((owner,j)=>`<path d="${pizzaWedgePath(j,cut)}" class="pz-slice${owner>=0?' taken':''}" fill="${owner>=0?PIZZA_COLORS[owner%PIZZA_COLORS.length]:'#FDE68A'}" role="button" tabindex="${done?-1:0}"
+          aria-label="ถาด ${t+1} ชิ้นที่ ${j+1} ${owner>=0?'ของ'+step.orders[owner].name:'ว่าง'}" onclick="pizzaTap(${t},${j})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();pizzaTap(${t},${j})}"/>`).join('')}
+      </svg><figcaption>ถาดที่ ${t+1} · ว่าง ${tray.filter(v=>v<0).length}/${cut}</figcaption></figure>`).join('')}
+    </div>
+    <div class="pz-summary">ชิ้นละ 1/${cut} ถาด · ยังว่างทั้งหมด ${free} ชิ้น ${done?'':`<button type="button" class="pz-clear" onclick="pizzaClear()">↺ ล้างถาดแล้ววางแผนใหม่</button>`}</div>`;
+}
+function pizzaBoardOpen(){
+  const {M}=missionCurrent();
+  return M?.cur?.phase==='open'&&M.board?.assign;
+}
+function pizzaSetCut(cut){
+  if(!pizzaBoardOpen()) return;
+  const {M,step}=missionCurrent();
+  M.board={...M.board,cut,assign:Array.from({length:step.trays},()=>Array(cut).fill(-1))};
+  missionRefresh('board');
+}
+function pizzaPickCustomer(index){
+  if(!pizzaBoardOpen()) return;
+  A.gs.mission.board.active=index;
+  missionRefresh('board');
+}
+function pizzaTap(tray,slice){
+  if(!pizzaBoardOpen()) return;
+  const board=A.gs.mission.board, owner=board.assign[tray][slice];
+  board.assign[tray][slice]=owner===board.active?-1:board.active;
+  missionRefresh('board');
+}
+function pizzaClear(){
+  if(!pizzaBoardOpen()) return;
+  const board=A.gs.mission.board;
+  board.assign=board.assign.map(tray=>tray.map(()=>-1));
+  missionRefresh('board');
+}
+
+/* Chart builder: place categories on the X axis, then set each bar by tapping or dragging. */
+function chartSetup(step){
+  const M=A.gs.mission;
+  const scale=M.store.scale||step.defaultScale, type=M.store.chartType||step.defaultType;
+  const rows=Math.min(step.grid,Math.ceil(Math.max(...step.values)/scale)+1);
+  return {scale,type,top:rows*scale,rows};
+}
+function chartBoardHtml(step){
+  const board=A.gs.mission.board, done=A.gs.mission.cur.phase==='done';
+  const {scale,type,top,rows}=chartSetup(step);
+  const n=step.labels.length;
+  const heights=board.order.map(label=>label===null?null:board.values[label]/top*100);
+  const bank=step.labels.filter(label=>!board.order.includes(label));
+  const sel=board.selected;
+  return `
+    <div class="cb-meta">${type==='line'?'กราฟเส้น':'แผนภูมิแท่ง'} · สเกลช่องละ ${scale} ${step.unit}</div>
+    <div class="cb-area" style="--n:${n}">
+      <div class="cb-yaxis" aria-hidden="true">${Array.from({length:rows+1},(_,i)=>`<span style="bottom:${i/rows*100}%">${i*scale}</span>`).join('')}</div>
+      <div class="cb-plot" id="cb-plot">${Array.from({length:rows+1},(_,i)=>`<i class="cb-grid" style="bottom:${i/rows*100}%"></i>`).join('')}
+        ${board.order.map((label,i)=>`<div class="cb-col${type==='line'?' line':''}${sel===i?' sel':''}${label===null?' empty':''}" data-i="${i}" role="slider" tabindex="${label===null||done?-1:0}"
+          aria-label="${label===null?`ช่องที่ ${i+1} ยังว่าง`:`ค่าของ ${label}`}" aria-valuemin="0" aria-valuemax="${top}" aria-valuenow="${label===null?0:board.values[label]}">
+          ${label===null?'':`<div class="cb-bar" style="height:${heights[i]}%"></div><span class="cb-val" style="bottom:${heights[i]}%">${board.values[label]}</span>`}
+        </div>`).join('')}
+        ${type==='line'&&board.order.every(label=>label!==null)?chartLineSvg(heights):''}
+      </div>
+    </div>
+    <div class="cb-xlabels" style="--n:${n}">${board.order.map((label,i)=>`<button type="button" class="cb-slot${label===null?'':' filled'}" ${done||label===null?'disabled':''} onclick="chartUnplace(${i})" aria-label="${label===null?`ช่องที่ ${i+1} ว่าง`:`เอา ${label} ออกจากแกน X`}">${label??`ช่อง ${i+1}`}</button>`).join('')}</div>
+    <div class="cb-axis-title">แกน X: แตะชื่อหมวดหมู่ด้านล่างเพื่อวางทีละช่อง</div>
+    <div class="cb-bank">${bank.map(label=>`<button type="button" class="chip" ${done?'disabled':''} onclick="chartPlace('${label}')">${label}</button>`).join('')||'<span class="ms-help">วางหมวดหมู่ครบแล้ว</span>'}</div>
+    ${sel!==null&&board.order[sel]!==null&&!done?`<div class="cb-tune"><span>${board.order[sel]}</span>
+      <button type="button" onclick="chartNudge(-1)" aria-label="ลดค่า">−</button><b>${board.values[board.order[sel]]} ${step.unit}</b><button type="button" onclick="chartNudge(1)" aria-label="เพิ่มค่า">+</button>
+      <small>ปรับทีละ ${step.fine}</small></div>`:'<div class="cb-tune muted">แตะหรือลากในคอลัมน์เพื่อกำหนดความสูง</div>'}`;
+}
+function chartBoardOpen(){
+  const {M,step}=missionCurrent();
+  return step?.kind==='chart'&&M.cur?.phase==='open';
+}
+function chartPlace(label){
+  if(!chartBoardOpen()) return;
+  const board=A.gs.mission.board, slot=board.order.indexOf(null);
+  if(slot<0||board.order.includes(label)) return;
+  board.order[slot]=label;
+  board.selected=slot;
+  missionRefresh('board');
+}
+function chartUnplace(slot){
+  if(!chartBoardOpen()) return;
+  const board=A.gs.mission.board;
+  board.order[slot]=null;
+  if(board.selected===slot) board.selected=null;
+  missionRefresh('board');
+}
+function chartSetValue(slot,value,redraw){
+  const {M,step}=missionCurrent(), board=M.board, label=board.order[slot];
+  if(label===null) return;
+  const {top}=chartSetup(step);
+  board.values[label]=Math.max(0,Math.min(top,Math.round(value/step.fine)*step.fine));
+  board.selected=slot;
+  if(redraw){missionRefresh('board');return;}
+  const col=document.querySelector(`.cb-col[data-i="${slot}"]`);
+  const h=board.values[label]/top*100;
+  col?.querySelector('.cb-bar')?.style.setProperty('height',`${h}%`);
+  const val=col?.querySelector('.cb-val');
+  if(val){val.style.bottom=`${h}%`;val.textContent=board.values[label];}
+}
+function chartNudge(dir){
+  if(!chartBoardOpen()) return;
+  const {M,step}=missionCurrent(), board=M.board;
+  if(board.selected===null) return;
+  chartSetValue(board.selected,board.values[board.order[board.selected]]+dir*step.fine,true);
+}
+function bindChartBuilder(){
+  const plot=document.getElementById('cb-plot');
+  if(!plot||!chartBoardOpen()) return;
+  let dragSlot=null;
+  const valueAt=ev=>{
+    const rect=plot.getBoundingClientRect(), {top}=chartSetup(missionCurrent().step);
+    return (rect.bottom-ev.clientY)/rect.height*top;
+  };
+  plot.addEventListener('pointerdown',ev=>{
+    const col=ev.target.closest('.cb-col');
+    if(!col||col.classList.contains('empty')||!chartBoardOpen()) return;
+    dragSlot=Number(col.dataset.i);
+    plot.setPointerCapture?.(ev.pointerId);
+    ev.preventDefault();
+    chartSetValue(dragSlot,valueAt(ev),false);
+  });
+  plot.addEventListener('pointermove',ev=>{
+    if(dragSlot===null) return;
+    ev.preventDefault();
+    chartSetValue(dragSlot,valueAt(ev),false);
+  });
+  const end=()=>{if(dragSlot===null) return;dragSlot=null;missionRefresh('board');};
+  plot.addEventListener('pointerup',end);
+  plot.addEventListener('pointercancel',end);
+  plot.addEventListener('keydown',ev=>{
+    const col=ev.target.closest('.cb-col');
+    if(!col||col.classList.contains('empty')) return;
+    const delta={ArrowUp:1,ArrowRight:1,ArrowDown:-1,ArrowLeft:-1}[ev.key];
+    if(!delta) return;
+    ev.preventDefault();
+    const slot=Number(col.dataset.i), board=A.gs.mission.board;
+    chartSetValue(slot,board.values[board.order[slot]]+delta*missionCurrent().step.fine,true);
+    document.querySelector(`.cb-col[data-i="${slot}"]`)?.focus();
+  });
 }
 
 function renderMatch(){

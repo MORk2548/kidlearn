@@ -158,16 +158,16 @@ function accountDateFilter(string $column): array {
     return [" AND $column >= NOW() - INTERVAL '{$intervals[$range]}' AND $column <= NOW()", []];
 }
 
-function canEditContent(?array $content): bool {
+function canEditContent(?array $content, bool $allowUnowned = false): bool {
     if (!in_array(myRole(), ['teacher', 'admin', 'officer'], true)) return false;
     if (myRole() !== 'teacher') return true;
     $ownerId = (int)($content['created_by'] ?? 0);
     if (!$ownerId) $ownerId = (int)($content['updated_by'] ?? 0);
-    return $content !== null && $ownerId === myId();
+    return $content !== null && ($ownerId === myId() || ($allowUnowned && !$ownerId));
 }
 
-function requireContentOwner(?array $content): void {
-    if (!canEditContent($content)) DB::fail('แก้ไขได้เฉพาะเนื้อหาที่คุณเป็นเจ้าของ', 403);
+function requireContentOwner(?array $content, bool $allowUnowned = false): void {
+    if (!canEditContent($content, $allowUnowned)) DB::fail('แก้ไขได้เฉพาะเนื้อหาที่คุณเป็นเจ้าของ', 403);
 }
 
 function csrfToken(): string {
@@ -2651,7 +2651,8 @@ function handleGetGameQuestionsV2(): never {
     );
 
     foreach ($questions as &$question) {
-        $question['can_edit'] = canEditContent($question);
+        $question['can_edit'] = canEditContent($question, true);
+        $question['can_delete'] = canEditContent($question);
         $question['answers'] = $db->all(
             "SELECT answer_id, question_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order
              FROM answers
@@ -2684,13 +2685,13 @@ function handleSaveQuestionV2(): never {
     $answers = is_array($body['answers'] ?? null) ? $body['answers'] : [];
 
     if (!$gid || $text === '') DB::fail('Missing game_id or question_text', 400);
-    if (!in_array($difficulty, ['easy', 'medium', 'hard'], true)) DB::fail('Invalid question difficulty', 400);
+    if (!in_array($difficulty, ['easy', 'medium', 'hard', 'challenge'], true)) DB::fail('Invalid question difficulty', 400);
 
     if ($qid) {
         $existing = $db->one("SELECT game_id, created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
         if (!$existing) DB::fail('Question not found', 404);
         if ((int)$existing['game_id'] !== $gid) DB::fail('Question does not belong to this game', 400);
-        requireContentOwner($existing);
+        requireContentOwner($existing, true);
         $db->run(
             "UPDATE questions SET question_text=?, question_img=?, hint=?, difficulty=?, explanation=?, order_no=?, created_by=COALESCE(created_by, ?), updated_by=? WHERE question_id=?",
             [$text, $questionImg ?: null, $hint ?: null, $difficulty, $explanation ?: null, $order, myId(), myId(), $qid],
@@ -2763,6 +2764,14 @@ function handlePlayQuestionsV2(): never {
         [$gid],
         'i'
     );
+
+    $missions = [];
+    foreach ($questions as $question) {
+        $mission = json_decode((string)($question['question_img'] ?? ''), true);
+        if (!is_array($mission) || !is_array($mission['steps'] ?? null)) continue;
+        $missions[] = ['id' => (int)$question['question_id'], 'title' => $question['question_text'], 'difficulty' => $question['difficulty'] ?? 'medium'] + $mission;
+    }
+    if ($missions) DB::ok(['game' => $game, 'type' => 'mission', 'missions' => $missions]);
 
     if (in_array($type, ['mcq', 'truefalse', 'fill'], true) && $requestedCount > 0) {
         $questions = arrayTakeRandom($questions, $requestedCount);

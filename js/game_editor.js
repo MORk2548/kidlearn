@@ -144,13 +144,14 @@ function _geRenderQList(type){
           display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex-shrink:0">${i+1}</span>
         <span style="flex:1;font-size:.88rem;font-weight:600">${q.question_text}</span>
         ${q.can_edit?`<button class="btn btn-sm" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;font-size:.75rem"
-          onclick="geOpenForm(${i})">✏️ แก้ไข</button>
+          onclick="geOpenForm(${i})">✏️ แก้ไข</button>`:''}
+        ${q.can_delete?`
         <button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;font-size:.75rem"
           onclick="geDeleteQ(${i})">🗑</button>`:''}
       </div>
       <div style="font-size:.72rem;color:var(--mu);margin:-.2rem 0 .45rem 2rem">แก้ไขล่าสุด ${formatDateTimeTH(q.updated_at)}</div>
       <div class="ge-q-body">
-        ${q.question_img?`${String(q.question_img).trim().startsWith('{')?'<div style="font-size:.76rem;color:#155e8b;background:#eff8ff;border-radius:8px;padding:.45rem .65rem;margin-bottom:.6rem">📊 มีข้อมูลภาพ/กราฟประกอบโจทย์</div>':`<div style="margin-bottom:.65rem"><img src="${q.question_img}" alt="question" style="max-width:220px;width:100%;border-radius:12px;border:1px solid #E5E7EB"></div>`}`:''}
+        ${meSummaryHtml(q)||(q.question_img?`${String(q.question_img).trim().startsWith('{')?'<div style="font-size:.76rem;color:#155e8b;background:#eff8ff;border-radius:8px;padding:.45rem .65rem;margin-bottom:.6rem">📊 มีข้อมูลภาพ/กราฟประกอบโจทย์</div>':`<div style="margin-bottom:.65rem"><img src="${q.question_img}" alt="question" style="max-width:220px;width:100%;border-radius:12px;border:1px solid #E5E7EB"></div>`}`:'')}
         ${(q.answers||[]).map(a=>`
           <div style="display:flex;align-items:center;gap:.5rem;padding:.18rem 0">
             <span style="width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -168,6 +169,7 @@ function _geRenderQList(type){
 }
 
 function geOpenForm(idx){
+  if(meIsMissionGame()&&(idx<0||meParse(_geQuestions[idx]))) return meOpenForm(idx);
   const q=idx>=0?_geQuestions[idx]:null;
   const type=geCurrentType();
   _geAnsCount=4;
@@ -375,7 +377,7 @@ function _geFormHtml(type, q){
     pairs.forEach((a,i)=>{ html+=_gePairRow(i,a.pair_left||'',a.pair_right||''); _geAnsCount=i+1; });
     html+='</div>';
 
-  } else if(type==='sequence'){
+  } else if(type==='sequence' || type==='letterorder'){
     html+=`<label style="font-weight:700;font-size:.82rem">รายการเรียงลำดับ</label>
       <button type="button" onclick="geAddSeqRow()"
         style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
@@ -907,6 +909,8 @@ function _geFormHtml(type, q){
   const qt = q?.question_text||'';
   const qimg = q?.question_img||'';
   const hint = q?.hint||'';
+  const difficulty = q?.difficulty||'medium';
+  const explanation = q?.explanation||'';
   const answers = q?.answers||[];
   let html=`
     <div style="margin-bottom:.85rem">
@@ -966,7 +970,7 @@ function _geFormHtml(type, q){
     const pairs = answers.length ? answers : [{pair_left:'',pair_right:'',pair_left_img:'',pair_right_img:''}];
     pairs.forEach((a,i)=>{ html+=_gePairRow(i,a.pair_left||'',a.pair_right||'',a.pair_left_img||'',a.pair_right_img||''); _geAnsCount=i+1; });
     html+='</div>';
-  } else if(type==='sequence'){
+  } else if(type==='sequence' || type==='letterorder'){
     html+=`<label style="font-weight:700;font-size:.82rem">${type==='letterorder'?'ตัวอักษรตามลำดับคำตอบ':'รายการเรียงลำดับ'}</label><button type="button" onclick="geAddSeqRow()" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มรายการ</button>`;
     html+='</div><div id="ge-ans-wrap">';
     const items = answers.length ? answers : [{answer_text:'',seq_order:1}];
@@ -1005,9 +1009,14 @@ async function geSaveQ(idx){
       const img=document.getElementById(`ge-ai-${id}`)?.value.trim()||'';
       if(t || img) answers.push({answer_text:t,answer_img:img,is_correct:String(id)===correctVal?1:0});
     });
+    if(answers.length<2 || answers.filter(answer=>answer.is_correct).length!==1){
+      if(msg)msg.innerHTML='<span style="color:#EF4444">เพิ่มตัวเลือกอย่างน้อย 2 ข้อ และเลือกคำตอบที่ถูกเพียง 1 ข้อ</span>';
+      return;
+    }
   } else if(type==='truefalse'){
-    const v0=document.getElementById('ge-tf-0')?.value.trim()||'จริง';
-    const v1=document.getElementById('ge-tf-1')?.value.trim()||'เท็จ';
+    const v0=document.getElementById('ge-tf-0')?.value.trim()||'';
+    const v1=document.getElementById('ge-tf-1')?.value.trim()||'';
+    if(!v0||!v1){if(msg)msg.innerHTML='<span style="color:#EF4444">กรอกข้อความสำหรับตัวเลือกทั้งสองฝั่ง</span>';return;}
     const correctIdx=document.querySelector('input[name="ge-tf"]:checked')?.value||'0';
     answers=[{answer_text:v0,is_correct:correctIdx==='0'?1:0},{answer_text:v1,is_correct:correctIdx==='1'?1:0}];
   } else if(type==='fill'){
@@ -1015,20 +1024,25 @@ async function geSaveQ(idx){
     if(!ans){if(msg)msg.innerHTML='<span style="color:#EF4444">ใส่คำตอบที่ถูกก่อน</span>';return;}
     answers=[{answer_text:ans,is_correct:1}];
   } else if(type==='matching'){
+    let incompletePair=false;
     document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach(row=>{
       const id=row.id.replace('ge-ar-','');
       const left=document.getElementById(`ge-pl-${id}`)?.value.trim()||'';
       const right=document.getElementById(`ge-pr-${id}`)?.value.trim()||'';
       const leftImg=document.getElementById(`ge-pli-${id}`)?.value.trim()||'';
       const rightImg=document.getElementById(`ge-pri-${id}`)?.value.trim()||'';
-      if(left || right || leftImg || rightImg) answers.push({answer_text:right||left,pair_left:left,pair_right:right,pair_left_img:leftImg,pair_right_img:rightImg,is_correct:1});
+      const hasLeft=Boolean(left||leftImg),hasRight=Boolean(right||rightImg);
+      if(hasLeft!==hasRight){incompletePair=true;return;}
+      if(hasLeft&&hasRight) answers.push({answer_text:right||left,pair_left:left,pair_right:right,pair_left_img:leftImg,pair_right_img:rightImg,is_correct:1});
     });
+    if(incompletePair){if(msg)msg.innerHTML='<span style="color:#EF4444">แต่ละคู่ต้องมีข้อมูลทั้งฝั่งซ้ายและขวา</span>';return;}
   } else if(type==='sequence' || type==='letterorder'){
     document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach((row,i)=>{
       const id=row.id.replace('ge-ar-','');
       const t=document.getElementById(`ge-at-${id}`)?.value.trim()||'';
       if(t) answers.push({answer_text:t,is_correct:1,seq_order:i+1});
     });
+    if(answers.length<2){if(msg)msg.innerHTML='<span style="color:#EF4444">เกมเรียงลำดับต้องมีรายการอย่างน้อย 2 รายการ</span>';return;}
   } else if(type==='wordsearch'){
     document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach(row=>{
       const id=row.id.replace('ge-ar-','');

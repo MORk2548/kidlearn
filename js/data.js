@@ -79,12 +79,12 @@ const GAMES_DB = {
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 1 — คณิตศาสตร์                     ║
 // ╚═══════════════════════════════════════╝
-'1_1':{ id:'1_1', code:'math_fraction_quest', sid:1, name:'ภารกิจพิชิตอาณาจักรเศษส่วน', type:'mcq', mode:'fraction-quest', icon:'🏰', lvl:'medium', time:120 },
-'1_2':{ id:'1_2', code:'math_pizza_chef', sid:1, name:'เชฟน้อยพิชิตพิซซ่า', type:'mcq', mode:'pizza', icon:'🍕', lvl:'medium', time:120 },
-'1_3':{ id:'1_3', code:'math_decimal_shop', sid:1, name:'ร้านค้าคณิตคิดเงินไว', type:'mcq', mode:'decimal-shop', icon:'🛍️', lvl:'medium', time:120 },
-'1_4':{ id:'1_4', code:'math_decimal_treasure', sid:1, name:'นักล่าสมบัติทศนิยม', type:'mcq', mode:'treasure', icon:'🗝️', lvl:'medium', time:120 },
-'1_5':{ id:'1_5', code:'math_data_detective', sid:1, name:'นักสืบข้อมูลมหัศจรรย์', type:'mcq', mode:'data-detective', icon:'🕵️', lvl:'medium', time:120 },
-'1_6':{ id:'1_6', code:'math_chart_builder', sid:1, name:'สร้างกราฟพิชิตคะแนน', type:'mcq', mode:'chart-builder', icon:'📊', lvl:'medium', time:150 },
+'1_1':{ id:'1_1', code:'math_fraction_quest', sid:1, name:'ภารกิจพิชิตอาณาจักรเศษส่วน', type:'mcq', mode:'fraction-quest', icon:'🏰', lvl:'medium', time:1200 },
+'1_2':{ id:'1_2', code:'math_pizza_chef', sid:1, name:'เชฟน้อยพิชิตพิซซ่า: ภารกิจร้านอาหารมหัศจรรย์', type:'mcq', mode:'pizza', icon:'🍕', lvl:'medium', time:1500 },
+'1_3':{ id:'1_3', code:'math_decimal_shop', sid:1, name:'ร้านค้าคณิตคิดเงินไว', type:'mcq', mode:'decimal-shop', icon:'🛍️', lvl:'medium', time:1200 },
+'1_4':{ id:'1_4', code:'math_decimal_treasure', sid:1, name:'นักล่าสมบัติทศนิยม', type:'mcq', mode:'treasure', icon:'🗝️', lvl:'medium', time:1200 },
+'1_5':{ id:'1_5', code:'math_data_detective', sid:1, name:'นักสืบข้อมูลมหัศจรรย์', type:'mcq', mode:'data-detective', icon:'🕵️', lvl:'medium', time:1200 },
+'1_6':{ id:'1_6', code:'math_chart_builder', sid:1, name:'สร้างกราฟพิชิตคะแนน: นักวิเคราะห์ข้อมูลมือโปร', type:'mcq', mode:'chart-builder', icon:'📊', lvl:'medium', time:1500 },
 
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 2 — วิทยาศาสตร์                  ║
