@@ -97,7 +97,10 @@ async function startGame(gid){
 
   // merge metadata จาก static (icon, sid ฯลฯ)
   const questionSource = Array.isArray(gameData?.qs) && gameData.qs.length ? gameData.qs : (gmStatic?.qs||[]);
-  const levelQuestions = questionSource.filter(q=>!q.difficulty || q.difficulty===pendingDifficulty);
+  // Only games with a difficulty picker (gm.code) filter by level; others play every question.
+  const levelQuestions = gmStatic?.code
+    ? questionSource.filter(q=>!q.difficulty || q.difficulty===pendingDifficulty)
+    : questionSource;
   const selectedQuestions = shuffleItems(levelQuestions).slice(0,10).map(question=>{
     if(!Array.isArray(question.opts))return question;
     const choices=shuffleItems(question.opts.map((option,index)=>({option,isCorrect:index===Number(question.ans)})));
