@@ -65,17 +65,6 @@ async function syncChildren() {
   }
 }
 
-async function linkChild() {
-  let phone = document.getElementById('link-phone')?.value.trim().replace(/\D/g,'');
-  if (phone && phone.length === 9) phone = '0' + phone; // normalize
-  if (!phone || phone.length < 9) { showAl('ch-err','กรุณากรอกเบอร์โทร 9-10 หลัก'); return; }
-  const res = await apiLinkChild({ parent_phone: phone }).catch(()=>({ok:false,error:'เกิดข้อผิดพลาด'}));
-  if (!res.ok) { showAl('ch-err', res.error||'เชื่อมไม่สำเร็จ'); return; }
-  showAl('ch-ok', `✅ เชื่อมสำเร็จ ${res.linked} บัญชี`);
-  if(document.getElementById('link-phone')) document.getElementById('link-phone').value='';
-  setTimeout(loadChildren, 800);
-}
-
 async function removeChild(sid) {
   if (!confirm('ยืนยันลบบุตรหลานนี้ออก?')) return;
   const res = await apiUnlinkChild({ student_id: sid }).catch(()=>({ok:false}));

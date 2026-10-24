@@ -17,6 +17,17 @@ function jsKeyToDbId(key) {
   return parseInt(key) || 1; // fallback ถ้าเป็นตัวเลขอยู่แล้ว
 }
 
+// เกมที่มี code (ภารกิจคณิต/สุขศึกษา) ได้ game_id จากฐานข้อมูล ต้องโหลด catalog ของวิชาก่อนถ้ายังไม่เคยโหลด
+async function resolveGameDbId(key) {
+  const game = GAMES_DB[key];
+  if (!game?.code || GAME_DB_IDS[game.code]) return jsKeyToDbId(key);
+  const catalog = await apiGames(game.sid).catch(() => ({ ok: false }));
+  (catalog.games || []).forEach(g => {
+    if (g.game_code) GAME_DB_IDS[g.game_code] = Number(g.game_id);
+  });
+  return jsKeyToDbId(key);
+}
+
 // ══════════════════════════════════════════════════════
 // PROGRESS CACHE — fetch ครั้งเดียว ไม่หายเมื่อสลับแท็บ
 // ══════════════════════════════════════════════════════
@@ -117,8 +128,6 @@ function loadHome(){
   }
 }
 
-function getSubProgress(uid, subId){ return getProgData(subId).pct; }
-
 function subCard(sub, prog, played, i){
   if (played === undefined) { played = 0; } // backward compat
   const color = prog>0?sub.color:'#D1D5DB';
@@ -174,14 +183,6 @@ const LESSON_NAMES = {
   '6_5':['ความปลอดภัยในชีวิตและการขอความช่วยเหลือ'],
   '6_6':['การทำงานเป็นทีมและน้ำใจนักกีฬา'],
 };
-
-// ── helper: ดึงคะแนนสูงสุดที่เคยได้ในบทนั้น ──
-function getLessonBestScore(gameId, lessonNo){
-  const key=`${gameId}_L${lessonNo}`;
-  const uid=A.user?.id;
-  const sc=(SCORES[uid]||[]).filter(s=>s.lessonKey===key);
-  return sc.length?Math.max(...sc.map(s=>s.score)):0;
-}
 
 // ══════════════════════════════════════════════════════
 // SUBJECTS + GAMES LIST
@@ -383,8 +384,3 @@ function gamesBack() {
     sec('subs');
   }
 }
-
-// legacy stubs
-function openLessons(gid){ openGameContent(gid); }
-function openContent(gid){ openGameContent(gid); }
-function closeContent(){ closeLessons(); }

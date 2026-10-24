@@ -63,6 +63,7 @@ function startFromModal(){
 async function startGame(gid){
   clearInterval(A.tmr);
   cleanupGameInteraction();
+  const start = A.gameStart = Symbol(gid);
   const gmStatic = GAMES_DB[gid];  // metadata เกม (icon, name, type ฯลฯ)
   A.curDbGameId  = typeof jsKeyToDbId==='function' ? jsKeyToDbId(gid) : parseInt(gid);
 
@@ -87,6 +88,7 @@ async function startGame(gid){
     const res = await loadPlayQuestionsFast(A.curDbGameId, gmStatic);
     if (res.ok) gameData = res;
   } catch(e) { console.warn('[game] DB load failed, fallback to static:', e); }
+  if (A.gameStart !== start) return;
 
   // Fallback: ใช้คำถามจาก data.js ถ้า DB ไม่มีหรือโหลดไม่ได้
   if (!gameData || _countQ(gameData) === 0) {
@@ -191,6 +193,16 @@ function cleanupGameInteraction(){
     try{A.gameCleanup();}catch(e){console.warn('[game] cleanup failed',e);}
   }
   A.gameCleanup=null;
+}
+// A new game replaces A.gs, so a timer left over from the previous game must not advance or render it.
+function nextQuestionAfter(delay, render){
+  const gs=A.gs;
+  setTimeout(()=>{
+    if(A.gs!==gs) return;
+    gs.qi++;
+    gs.answered=false;
+    render();
+  },delay);
 }
 function renderQuestionImage(q){
   if(!q?.img) return '';
@@ -360,51 +372,6 @@ function upQP(cur,tot){
 }
 
 /* ── MCQ ── */
-function renderMCQ(){
-  const{qi,totalQ}=A.gs, q=A.curGame.qs[qi];
-  if(!q){finishGame();return;}
-  upQP(qi+1,totalQ);
-  const letters=['A','B','C','D','E','F'];
-  document.getElementById('g-content').innerHTML=`
-    ${renderQuestionImage(q)}
-    <div class="qt">${q.q}</div>
-    <div class="choices">
-      ${q.opts.map((o,i)=>`
-        <button class="ch" onclick="ansMCQ(this,${i},${q.ans})" data-idx="${i}">
-          <span class="ch-letter">${letters[i]||i+1}</span>
-          <span class="ch-text">${o}</span>
-        </button>`).join('')}
-    </div>`;
-}
-function ansMCQ(btn,chose,correct){
-  document.querySelectorAll('.ch').forEach(b=>b.disabled=true);
-  const q = A.curGame.qs[A.gs.qi];
-  if(chose===correct){
-    recordAttempt({
-      prompt: q?.q || '',
-      correctAnswer: q?.opts?.[correct] ?? correct,
-      studentAnswer: q?.opts?.[chose] ?? chose,
-      isCorrect: true
-    });
-    btn.classList.add('ok');
-    btn.innerHTML=`<span class="ch-letter ch-letter-ok">✓</span><span class="ch-text">${btn.querySelector('.ch-text').textContent}</span><span class="ch-fb">+${Math.round(100/A.gs.totalQ)}</span>`;
-    A.gs.earned+=Math.round(100/A.gs.totalQ);
-  } else {
-    recordAttempt({
-      prompt: q?.q || '',
-      correctAnswer: q?.opts?.[correct] ?? correct,
-      studentAnswer: q?.opts?.[chose] ?? chose,
-      isCorrect: false,
-      wrongQuestion: q ? { ...q } : null
-    });
-    btn.classList.add('no');
-    btn.innerHTML=`<span class="ch-letter ch-letter-no">✗</span><span class="ch-text">${btn.querySelector('.ch-text').textContent}</span>`;
-    const cb=document.querySelectorAll('.ch')[correct];
-    if(cb){cb.classList.add('ok');cb.innerHTML=`<span class="ch-letter ch-letter-ok">✓</span><span class="ch-text">${cb.querySelector('.ch-text').textContent}</span>`;}
-  }
-  document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
-  setTimeout(()=>{A.gs.qi++;renderMCQ();},1100);
-}
 
 /* ── TRUE/FALSE ── */
 function renderTF(){
@@ -444,7 +411,7 @@ function ansTF(btn,chose,correct){
   btn.classList.add(ok?'ok':'no');
   if(ok){A.gs.earned+=Math.round(100/A.gs.totalQ);document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;}
   announceGameFeedback(ok);
-  setTimeout(()=>{A.gs.qi++;renderTF();},1100);
+  nextQuestionAfter(1100,renderTF);
 }
 
 /* ── FILL ── */
@@ -484,7 +451,7 @@ function chkFill(){
     document.getElementById('g-content').appendChild(n);
   }
   document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
-  setTimeout(()=>{A.gs.qi++;renderFill();},1300);
+  nextQuestionAfter(1300,renderFill);
 }
 
 /* Health mission boards (multi, order, sort, meal, schedule). Every move works by tapping; cards
@@ -722,96 +689,10 @@ function scheduleRemove(k){
 }
 
 /* ── MATCHING ── */
-function renderMatch(){
-  const pairs=A.curGame.pairs;
-  if(!pairs?.length){finishGame();return;}
-  const left=[...pairs].sort(()=>Math.random()-.5);
-  const right=[...pairs].sort(()=>Math.random()-.5);
-  let selL=null, matched=0;
-  upQP(0,pairs.length);
-  document.getElementById('g-content').innerHTML=`
-    <div style="font-size:.83rem;color:var(--mu);margin-bottom:.8rem">คลิกฝั่งซ้าย → แล้วคลิกฝั่งขวาเพื่อจับคู่</div>
-    <div class="mg">
-      <div class="mc" id="ml">${left.map(p=>`<div class="mi" data-k="${p.left}" onclick="mL(this)">${p.left}</div>`).join('')}</div>
-      <div class="mc" id="mr">${right.map(p=>`<div class="mi" data-k="${p.left}" onclick="mR(this)">${p.right}</div>`).join('')}</div>
-    </div>`;
-  window.mL=el=>{document.querySelectorAll('#ml .mi:not(.matched)').forEach(e=>e.classList.remove('sel'));el.classList.add('sel');selL=el.dataset.k;};
-  window.mR=el=>{
-    if(!selL||el.classList.contains('matched'))return;
-    if(selL===el.dataset.k){
-      document.querySelector(`#ml [data-k="${selL}"]`).classList.replace('sel','matched');
-      el.classList.add('matched');matched++;
-      A.gs.earned=Math.round(matched/pairs.length*100);
-      document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
-      upQP(matched,pairs.length);
-      if(matched===pairs.length){clearInterval(A.tmr);setTimeout(finishGame,600);}
-    } else {
-      const pair = pairs.find(p=>p.left===selL);
-      recordAttempt({
-        prompt: 'จับคู่คำให้ถูกต้อง',
-        correctAnswer: pair?.right || '',
-        studentAnswer: el.textContent || '',
-        isCorrect: false
-      });
-      el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),600);
-    }
-    selL=null;document.querySelectorAll('#ml .mi').forEach(e=>e.classList.remove('sel'));
-  };
-}
 
 /* ── SEQUENCE ── */
 
 /* ── WORD SEARCH ── */
-function renderWS(){
-  // ถ้ามี gridData จาก static data
-  const gridData = A.curGame.gridData;
-  const words    = A.curGame.words;
-  if(!words?.length){finishGame();return;}
-
-  // สร้าง grid ใหม่ถ้าไม่มี gridData
-  const gd = gridData || (A.curGame.sid===4 ? wsGridEn(words) : wsGrid(words));
-  const{grid,placed}=gd;
-  let found=[], sel=[];
-  upQP(0,words.length);
-
-  const draw=()=>{
-    document.getElementById('g-content').innerHTML=`
-      <div class="ws-wl">${words.map(w=>`<span class="wsw ${found.includes(w)?'fd':''}">${w}</span>`).join('')}</div>
-      <div class="wsg" style="grid-template-columns:repeat(${grid[0].length},1fr)">
-        ${grid.map((row,r)=>row.map((ch,c)=>{
-          const isFd=found.some(fw=>{const p=placed.find(pl=>pl.word===fw);return p&&p.row===r&&p.cols.includes(c);});
-          const isSel=sel.some(s=>s.r===r&&s.c===c);
-          return `<div class="wsc${isFd?' fd':isSel?' hl':''}" data-r="${r}" data-c="${c}" onclick="wsClick(${r},${c})">${ch}</div>`;
-        }).join('')).join('')}
-      </div>
-      <div style="font-size:.78rem;color:var(--mu);margin-top:.5rem">พบแล้ว ${found.length}/${words.length} คำ</div>`;
-  };
-  window.wsClick=(r,c)=>{
-    sel.push({r,c});draw();
-    if(sel.length===2){
-      placed.forEach(p=>{
-        if(!found.includes(p.word)){
-          const covered=p.cols.every(col=>sel.some(s=>s.r===p.row&&s.c===col));
-          if(covered&&sel.every(s=>s.r===p.row)){
-            found.push(p.word);A.gs.earned=Math.round(found.length/words.length*100);
-            document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
-          }
-        }
-      });
-      sel=[];draw();upQP(found.length,words.length);
-      if(found.length===words.length){
-        recordAttempt({
-          prompt:'ค้นหาคำทั้งหมดในตาราง',
-          correctAnswer:words.join(', '),
-          studentAnswer:found.join(', '),
-          isCorrect:true
-        });
-        clearInterval(A.tmr);setTimeout(finishGame,600);
-      }
-    }
-  };
-  draw();
-}
 
 /* ── FINISH ── */
 function finishGame(){
@@ -927,7 +808,7 @@ function renderWS(){
     if(match){
       found.push(match.word);
       A.gs.earned=Math.round(found.length/words.length*100);
-      document.getElementById('g-live').textContent='เธเธฐเนเธเธ: '+A.gs.earned;
+      document.getElementById('g-live').textContent='คะแนน: '+A.gs.earned;
       announceGameFeedback(true,`🔎 เจอคำว่า ${match.word} แล้ว!`);
       upQP(found.length,words.length);
       if(found.length===words.length){
@@ -1055,6 +936,7 @@ function renderMCQ(){
   upQP(qi+1,totalQ);
   const letters=['A','B','C','D','E','F'];
   document.getElementById('g-content').innerHTML=`
+    ${renderQuestionImage(q)}
     <div class="qt">${q.q}</div>
     ${renderMathHint(q)}
     <div class="choices choices-media">
@@ -1093,7 +975,7 @@ function ansMCQ(btn,chose,correct){
   const correctText=gameChoiceAnswerLabel(correctOpt);
   announceGameFeedback(ok,ok?'⭐ ถูกต้อง! ไปต่อกันเลย':`เฉลย: ${correctText}${q?.explanation?` — ${q.explanation}`:''}`);
   document.getElementById('g-live').innerHTML=`<span aria-hidden="true">⭐</span> คะแนน ${A.gs.earned}`;
-  setTimeout(()=>{A.gs.qi++;A.gs.answered=false;renderGame();},1100);
+  nextQuestionAfter(1100,renderGame);
 }
 
 function renderMathHint(question){
@@ -1153,7 +1035,9 @@ async function missionRound(gm, level, kit){
 }
 async function startMissionGame(gid, gm){
   const kit=missionKit(gm.code);
+  const start=A.gameStart;
   const list=await missionRound(gm,pendingDifficulty,kit);
+  if(A.gameStart!==start) return;
   list.forEach(mission=>{mission.bonusMax=missionBonusMax(mission);});
   A.curGame={...gm,missions:true,kit,qs:[],time:gm.time};
   const max=list.reduce((total,mission)=>total+mission.steps.reduce((s,step)=>s+step.points,0)+mission.bonusMax,0);

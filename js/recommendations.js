@@ -227,7 +227,7 @@ function recOpenScores(){ if(typeof sec==='function') sec('scores'); }
 function recLooksBroken(text){
   const value = String(text || '').trim();
   if(!value) return true;
-  return /เธ|เน|โ€|ยท|�/.test(value);
+  return /[\u0080-\u009f]|โ€|โ”|เน€|ยท|�/.test(value);
 }
 
 function recSafeText(text){

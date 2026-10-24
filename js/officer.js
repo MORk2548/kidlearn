@@ -23,143 +23,8 @@ function _renderOfficerPanel(){
   _ofRenderCurrentTab();
 }
 
-function _ofSwitchTab(tab) {
-  _ofTab = tab;
-  _renderOfficerPanel();
-}
 
-function _ofRenderCurrentTab() {
-  if (_ofTab === 'users') {
-    _ofRenderUsersTab();
-  } else if (_ofTab === 'lessons') {
-    const t = document.getElementById('of-tab-lessons');
-    if (!t) return;
-    // Create a temporary lesson panel inside officer tab
-    t.innerHTML = '<div id="of-lesson-panel"></div>';
-    const origId = 'tc-lesson-panel';
-    const el = document.getElementById(origId);
-    if (el) { el.id = 'of-lesson-panel'; }
-    else {
-      const div = document.createElement('div');
-      div.id = 'of-lesson-panel';
-      t.appendChild(div);
-    }
-    _renderLessonEditorIn('of-lesson-panel');
-  } else if (_ofTab === 'games') {
-    const t = document.getElementById('of-tab-games');
-    if (!t) return;
-    t.innerHTML = '<div id="of-game-panel"></div>';
-    const el = document.getElementById('tc-game-panel');
-    if (el) { el.id = 'of-game-panel'; }
-    else {
-      const div = document.createElement('div');
-      div.id = 'of-game-panel';
-      t.appendChild(div);
-    }
-    _renderGameEditorIn('of-game-panel');
-  }
-}
 
-function _ofRenderUsersTab() {
-  const wrap = document.getElementById('of-tab-users');
-  if(!wrap) return;
-  wrap.innerHTML = `
-    <style>
-      .of-user-card { border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem;
-        background: #fff; transition: all .2s; }
-      .of-user-card:hover { border-color: #C7D2FE; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
-      .of-user-head { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; }
-      .of-user-av { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,var(--s),#A5B4FC);
-        display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; }
-      .of-user-info { flex: 1; }
-      .of-user-name { font-weight: 700; font-size: .95rem; }
-      .of-user-role { font-size: .82rem; color: var(--mu); }
-      .of-user-meta { display: grid; grid-template-columns: 1fr auto; gap: .4rem; 
-        font-size: .8rem; color: #666; }
-      .of-user-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
-      .of-btn-sm { padding: .4rem .7rem; font-size: .75rem; border: 1px solid #E2E8F0; 
-        border-radius: 6px; background: #fff; cursor: pointer; font-family: 'Kanit',sans-serif;
-        transition: all .15s; }
-      .of-btn-sm:hover { background: #EEF2FF; border-color: #A5B4FC; color: var(--s); }
-      .of-btn-danger:hover { background: #FEE2E2; border-color: #FECACA; color: #DC2626; }
-    </style>
-    
-    <div style="display: grid; grid-template-columns: 220px 1fr; gap: 1rem; align-items: start;" id="of-grid">
-      <!-- ซ้าย: ตัวกรอง -->
-      <div style="background: #fff; border-radius: 14px; padding: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,.06); max-height: 76vh; overflow-y: auto;">
-        <div style="font-weight: 800; font-size: .88rem; color: var(--s); margin-bottom: .85rem;">🔍 กรองตาม Role</div>
-        <div style="display: flex; flex-direction: column; gap: .4rem;">
-          <button class="of-btn-sm ${_ofFilter === 'all' ? 'active' : ''}" 
-            onclick="ofSetFilter('all')" 
-            style="border: ${_ofFilter === 'all' ? '2px solid var(--s)' : '1px solid #E2E8F0'}; 
-                   background: ${_ofFilter === 'all' ? '#EEF2FF' : '#fff'}; 
-                   color: ${_ofFilter === 'all' ? 'var(--s)' : 'var(--tx)'}; text-align: left;">
-            👥 ทั้งหมด
-          </button>
-          <button class="of-btn-sm" onclick="ofSetFilter('student')" 
-            style="border: ${_ofFilter === 'student' ? '2px solid var(--s)' : '1px solid #E2E8F0'}; 
-                   background: ${_ofFilter === 'student' ? '#EEF2FF' : '#fff'}; 
-                   color: ${_ofFilter === 'student' ? 'var(--s)' : 'var(--tx)'}; text-align: left;">
-            👦 นักเรียน
-          </button>
-          <button class="of-btn-sm" onclick="ofSetFilter('parent')" 
-            style="border: ${_ofFilter === 'parent' ? '2px solid var(--s)' : '1px solid #E2E8F0'}; 
-                   background: ${_ofFilter === 'parent' ? '#EEF2FF' : '#fff'}; 
-                   color: ${_ofFilter === 'parent' ? 'var(--s)' : 'var(--tx)'}; text-align: left;">
-            👨‍👩 ผู้ปกครอง
-          </button>
-          <button class="of-btn-sm" onclick="ofSetFilter('teacher')" 
-            style="border: ${_ofFilter === 'teacher' ? '2px solid var(--s)' : '1px solid #E2E8F0'}; 
-                   background: ${_ofFilter === 'teacher' ? '#EEF2FF' : '#fff'}; 
-                   color: ${_ofFilter === 'teacher' ? 'var(--s)' : 'var(--tx)'}; text-align: left;">
-            👩‍🏫 ครู
-          </button>
-          <button class="of-btn-sm" onclick="ofSetFilter('officer')" 
-            style="border: ${_ofFilter === 'officer' ? '2px solid var(--s)' : '1px solid #E2E8F0'}; 
-                   background: ${_ofFilter === 'officer' ? '#EEF2FF' : '#fff'}; 
-                   color: ${_ofFilter === 'officer' ? 'var(--s)' : 'var(--tx)'}; text-align: left;">
-            👔 เจ้าหน้าที่
-          </button>
-          <button class="of-btn-sm" onclick="ofSetFilter('executive')" 
-            style="border: ${_ofFilter === 'executive' ? '2px solid var(--s)' : '1px solid #E2E8F0'}; 
-                   background: ${_ofFilter === 'executive' ? '#EEF2FF' : '#fff'}; 
-                   color: ${_ofFilter === 'executive' ? 'var(--s)' : 'var(--tx)'}; text-align: left;">
-            💼 ผู้บริหาร
-          </button>
-        </div>
-        <div style="font-weight:800;font-size:.88rem;color:var(--s);margin:.9rem 0 .5rem">📅 ช่วงวันที่สมัคร</div>
-        <select class="fc" style="padding:.5rem;font-size:.82rem" onchange="ofSetDateRange(this.value)">
-          <option value="all"${_ofDateRange==='all'?' selected':''}>ทุกช่วง</option>
-          <option value="7d"${_ofDateRange==='7d'?' selected':''}>ย้อนหลัง 7 วัน</option>
-          <option value="1m"${_ofDateRange==='1m'?' selected':''}>ย้อนหลัง 1 เดือน</option>
-          <option value="1y"${_ofDateRange==='1y'?' selected':''}>ย้อนหลัง 1 ปี</option>
-        </select>
-        <div style="font-size:.72rem;color:var(--mu);margin-top:.35rem">นับย้อนหลังจากเวลาปัจจุบัน ไม่ใช่เดือนหรือปีปฏิทิน</div>
-      </div>
-      
-      <!-- ขวา: รายชื่อผู้ใช้ -->
-      <div id="of-users-list" style="background: #fff; border-radius: 14px; padding: 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,.06);">
-        <div style="display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; padding: .75rem 1rem; 
-          background: linear-gradient(135deg,#EEF2FF,#F0F9FF); border-radius: 12px;">
-          <span style="font-size: 1.5rem;">👔</span>
-          <div style="flex: 1;">
-            <div style="font-weight: 800; font-size: .95rem;">จัดการข้อมูลผู้ใช้</div>
-            <div style="font-size: .73rem; color: var(--mu);">ดูแลและอัปเดตข้อมูลสมาชิก</div>
-          </div>
-          <button class="lp-btn-play" style="padding: .5rem 1.25rem; font-size: .85rem;" onclick="ofReloadUsers()">🔄 รีโหลด</button>
-          <button class="lp-btn-play" style="padding: .5rem 1.25rem; font-size: .85rem; background:var(--g);" onclick="ofOpenCreateStaff()">➕ เพิ่มบุคลากร</button>
-        </div>
-        <div id="of-users-content" style="color: var(--mu); padding: 2rem; text-align: center;">⏳ กำลังโหลด...</div>
-      </div>
-    </div>`;
-  
-  if(window.innerWidth < 768) {
-    const g = document.getElementById('of-grid');
-    if(g) g.style.gridTemplateColumns = '1fr';
-  }
-  
-  ofLoadUsers();
-}
 
 async function ofLoadUsers() {
   const content = document.getElementById('of-users-content');
@@ -520,6 +385,14 @@ function _ofRenderUsersTab() {
               ${labels[r]}</button>`;
           }).join('')}
         </div>
+        <div style="font-weight:800;font-size:.88rem;color:var(--s);margin:.9rem 0 .5rem">📅 ช่วงวันที่สมัคร</div>
+        <select class="fc" style="padding:.5rem;font-size:.82rem" onchange="ofSetDateRange(this.value)">
+          <option value="all"${_ofDateRange==='all'?' selected':''}>ทุกช่วง</option>
+          <option value="7d"${_ofDateRange==='7d'?' selected':''}>ย้อนหลัง 7 วัน</option>
+          <option value="1m"${_ofDateRange==='1m'?' selected':''}>ย้อนหลัง 1 เดือน</option>
+          <option value="1y"${_ofDateRange==='1y'?' selected':''}>ย้อนหลัง 1 ปี</option>
+        </select>
+        <div style="font-size:.72rem;color:var(--mu);margin-top:.35rem">นับย้อนหลังจากเวลาปัจจุบัน ไม่ใช่เดือนหรือปีปฏิทิน</div>
       </div>
       <div id="of-users-list" style="background:#fff;border-radius:14px;padding:1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06)">
         <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding:.75rem 1rem;background:linear-gradient(135deg,#EEF2FF,#F0F9FF);border-radius:12px">

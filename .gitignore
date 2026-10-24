@@ -1,5 +1,6 @@
-backups/*
-!backups/.gitkeep
+backups/
+.audit/
+.playwright-cli/
 
 *.log
 *.tmp
@@ -8,6 +9,7 @@ backups/*
 
 .env
 .env.*
+!.env.example
 
 .DS_Store
 Thumbs.db

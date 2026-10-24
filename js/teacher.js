@@ -41,19 +41,6 @@ async function loadTeach() {
     hist.innerHTML='<div style="color:var(--mu);font-size:.85rem;padding:.5rem 0">👈 กดชื่อนักเรียนเพื่อดูคะแนน</div>';
 }
 
-function _renderTcTabs(){
-  const wrap=document.getElementById('tc-tabs');
-  if(!wrap)return;
-  wrap.innerHTML=`
-    <button class="rec-tab${A.tcTab==='scores'?' active':''}"  onclick="switchTcTab('scores')">🏆 คะแนนนักเรียน</button>
-    <button class="rec-tab${A.tcTab==='lessons'?' active':''}" onclick="switchTcTab('lessons')">📝 แก้ไขบทเรียน</button>
-    <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">🎮 แก้ไขเกม</button>`;
-  document.getElementById('tc-score-panel').style.display =A.tcTab==='scores' ?'block':'none';
-  document.getElementById('tc-lesson-panel').style.display=A.tcTab==='lessons'?'block':'none';
-  const gPanel=document.getElementById('tc-game-panel');
-  if(gPanel) gPanel.style.display=A.tcTab==='games'?'block':'none';
-}
-function switchTcTab(tab){A.tcTab=tab;_renderTcTabs();if(tab==='lessons')_renderLessonEditor();if(tab==='games')_renderGameEditor();}
 
 // ════════ SCORES ════════
 function _renderTcSubjectFilter(){
@@ -287,7 +274,7 @@ function _renderLessonEditor(){
 
 async function selectEdGame(jsKey){
   _edGid=jsKey;
-  _edDbGid=typeof jsKeyToDbId!=='undefined'?jsKeyToDbId(jsKey):parseInt(jsKey);
+  _edDbGid=await resolveGameDbId(jsKey);
 
   // อัป active state ปุ่ม
   document.querySelectorAll('.ed-game-btn').forEach(b=>{
@@ -519,24 +506,6 @@ function edAutoPreview(){
 // compat: เก็บข้อมูลว่าเกมไหนมีเนื้อหา
 let _edHasContent={};
 
-async function saveLesson(){
-  const title=document.getElementById('ed-title')?.value.trim();
-  const body=document.getElementById('ed-body')?.value.trim();
-  const summary=document.getElementById('ed-summary')?.value.trim();
-  const readTime=parseInt(document.getElementById('ed-readtime')?.value)||5;
-  const msg=document.getElementById('ed-msg');
-  if(!title){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ ใส่ชื่อบทเรียนด้วย</span>';return;}
-  if(msg)msg.innerHTML='<span style="color:var(--mu)">⏳ กำลังบันทึก...</span>';
-  const res=await apiSaveLesson({game_id:_edDbGid,lesson_no:1,title,body,summary,read_time:readTime}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
-  if(res.ok){
-    _edHasContent[_edGid]=true;
-    if(msg)msg.innerHTML='<span style="color:#10B981">✅ บันทึกสำเร็จ!</span>';
-    setTimeout(()=>{if(msg)msg.innerHTML='';},3000);
-    selectEdGame(_edGid);
-  }else{
-    if(msg)msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'ไม่สำเร็จ'}</span>`;
-  }
-}
 async function deleteLesson(){
   if(!confirm('ยืนยันลบเนื้อหาบทเรียนนี้?'))return;
   const res=await apiDeleteLesson({game_id:_edDbGid,lesson_no:1});
@@ -581,75 +550,7 @@ function ensureTcPlanPanel(){
   else teach.appendChild(panel);
 }
 
-async function renderTcPlanPanel(){
-  ensureTcPlanPanel();
-  const panel=document.getElementById('tc-plan-panel');
-  if(!panel) return;
-  const sid=A.tcStudent || null;
-  const plansRes=sid ? await apiStudentPlans(sid).catch(()=>({ok:false,plans:[]})) : {ok:false,plans:[]};
-  const rows=plansRes.ok ? (plansRes.plans||[]) : [];
-  const grouped={};
-  rows.forEach(row=>{
-    if(!grouped[row.plan_id]){
-      grouped[row.plan_id]={...row,items:[]};
-    }
-    if(row.item_id) grouped[row.plan_id].items.push(row);
-  });
-  const selectedGames=Object.values(GAMES_DB).filter(g=>A.tcSubject?g.sid==A.tcSubject:true).slice(0,12);
-  panel.innerHTML=`
-    <div class="ts">
-      <h3>มอบหมายแผนการเรียน/ภารกิจรายสัปดาห์</h3>
-      <div style="margin-bottom:.75rem;padding:.65rem .8rem;border-radius:12px;background:${sid?'#EEF2FF':'#FEF3C7'};color:${sid?'#3730A3':'#92400E'};font-size:.82rem;font-weight:700">
-        ${sid ? `กำลังมอบหมายให้: ${(A.tcStudents.find(s=>s.student_id==sid)?.full_name)||'นักเรียนที่เลือก'}` : 'เลือกนักเรียนจากแท็บคะแนนก่อน แล้วค่อยสร้างแผนรายสัปดาห์'}
-      </div>
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.75rem">
-        <input id="tc-plan-title" class="fc" placeholder="เช่น ทบทวนคณิตสัปดาห์นี้">
-        <input id="tc-plan-week" class="fc" type="date" value="${new Date().toISOString().slice(0,10)}">
-        <input id="tc-plan-due" class="fc" type="datetime-local">
-      </div>
-      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="อธิบายเป้าหมายหรือคำแนะนำสำหรับผู้ปกครอง"></textarea>
-      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">เลือกเกมสำหรับแผน</div>
-      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
-        ${selectedGames.map(g=>`
-          <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .75rem;border:1px solid #E5E7EB;border-radius:999px;background:#fff">
-            <input type="checkbox" class="tc-plan-game" value="${typeof jsKeyToDbId==='function' ? jsKeyToDbId(g.id) : parseInt(g.id,10)}">
-            <span>${g.icon||'🎮'} ${g.name}</span>
-          </label>`).join('')}
-      </div>
-      <div style="margin-top:.85rem;display:flex;justify-content:flex-end">
-        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${sid?'':'disabled style="opacity:.55;cursor:not-allowed"'}>มอบหมายแผน</button>
-      </div>
-    </div>
-    <div class="ts">
-      <h3>แผนที่มอบหมายแล้ว</h3>
-      ${Object.values(grouped).length?Object.values(grouped).map(plan=>`
-        <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
-          <div style="display:flex;justify-content:space-between;gap:.75rem">
-            <strong>${plan.title}</strong>
-            <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.items.filter(i=>(+i.best_score||0) >= (+i.target_score||80)).length}/${plan.items.length}</span>
-          </div>
-          <div style="font-size:.75rem;color:var(--mu);margin:.2rem 0">สัปดาห์ ${plan.week_start||'-'} ${plan.due_at?`• ครบกำหนด ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
-          <div style="font-size:.78rem;color:#475569">${plan.description||''}</div>
-          <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.35rem">
-            ${plan.items.map(item=>`<span class="badge" style="background:${(+item.best_score||0) >= (+item.target_score||80)?'#DCFCE7':'#FEF3C7'};color:${(+item.best_score||0) >= (+item.target_score||80)?'#166534':'#92400E'}">${item.game_name} ${item.best_score||0}/${item.target_score||80}</span>`).join('')}
-          </div>
-        </div>`).join(''):'<div style="color:var(--mu)">ยังไม่มีแผนที่มอบหมาย</div>'}
-    </div>`;
-}
 
-async function submitWeeklyPlan(){
-  const sid=A.tcStudent;
-  if(!sid){ alert('เลือกนักเรียนก่อน'); return; }
-  const title=document.getElementById('tc-plan-title')?.value.trim() || 'แผนรายสัปดาห์';
-  const description=document.getElementById('tc-plan-desc')?.value.trim() || '';
-  const weekStart=document.getElementById('tc-plan-week')?.value || new Date().toISOString().slice(0,10);
-  const dueAt=document.getElementById('tc-plan-due')?.value || '';
-  const items=[...document.querySelectorAll('.tc-plan-game:checked')].map((el,idx)=>({ game_id:+el.value, lesson_no:1, target_score:80, sort_order:idx+1 }));
-  if(!items.length){ alert('เลือกเกมอย่างน้อย 1 เกม'); return; }
-  const res=await apiCreatePlan({ student_id:sid, title, description, week_start:weekStart, due_at:dueAt, items }).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
-  if(!res.ok){ alert(res.error||'สร้างแผนไม่สำเร็จ'); return; }
-  renderTcPlanPanel();
-}
 
 async function saveLesson(status='draft'){
   const title=document.getElementById('ed-title')?.value.trim();
@@ -741,120 +642,7 @@ function setTcPlanFilter(studentId){
   renderTcPlanPanel();
 }
 
-async function renderTcPlanPanel(){
-  ensureTcPlanPanel();
-  const panel=document.getElementById('tc-plan-panel');
-  if(!panel) return;
 
-  if((!A.tcPlanStudents || !A.tcPlanStudents.length) && A.tcStudent) A.tcPlanStudents=[+A.tcStudent];
-  const filterId=A.tcPlanFilter || A.tcStudent || null;
-  const plansRes=await apiStudentPlans(filterId).catch(()=>({ok:false,plans:[]}));
-  const rows=plansRes.ok ? (plansRes.plans||[]) : [];
-  const grouped={};
-  rows.forEach(row=>{
-    if(!grouped[row.plan_id]) grouped[row.plan_id]={...row,items:[]};
-    if(row.item_id) grouped[row.plan_id].items.push(row);
-  });
-
-  const selectedStudentIds=getSelectedTcPlanStudents();
-  const selectedStudentNames=selectedStudentIds
-    .map(id=>(A.tcStudents||[]).find(s=>+s.student_id===+id)?.full_name)
-    .filter(Boolean);
-  const selectedGames=Object.values(GAMES_DB).filter(g=>A.tcSubject?g.sid==A.tcSubject:true).slice(0,12);
-  const planList=Object.values(grouped);
-
-  panel.innerHTML=`
-    <div class="ts">
-      <h3>�ͺ����Ἱ������¹/��áԨ����ѻ����</h3>
-      <div style="margin-bottom:.75rem;padding:.75rem;border-radius:14px;background:#F8FAFC;border:1px solid #E2E8F0">
-        <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
-          <div>
-            <div style="font-size:.82rem;font-weight:800;color:#0F172A">���͡�ѡ���¹�˹�ҹ�������</div>
-            <div style="font-size:.76rem;color:#64748B">���͡���Ф��������¤����� ������Ἱ���ǡѹ�觾�����ѹ</div>
-          </div>
-          <div style="display:flex;gap:.45rem;flex-wrap:wrap">
-            <button class="btn btn-sm" onclick="selectAllTcPlanStudents()">���͡������</button>
-            <button class="btn btn-sm" onclick="clearTcPlanStudents()">��ҧ������͡</button>
-            <button class="btn btn-sm" onclick="setTcPlanFilter(null)">�ٷءἹ</button>
-          </div>
-        </div>
-        <div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:.5rem">
-          ${(A.tcStudents||[]).map(student=>{
-            const sid=+student.student_id;
-            const checked=selectedStudentIds.includes(sid);
-            const active=filterId===sid;
-            return `
-              <label style="display:flex;align-items:center;gap:.45rem;padding:.55rem .75rem;border:1px solid ${active?'#818CF8':'#CBD5E1'};border-radius:999px;background:${active?'#EEF2FF':'#fff'};cursor:pointer">
-                <input type="checkbox" class="tc-plan-student" value="${sid}" ${checked?'checked':''} onchange="toggleTcPlanStudent(${sid}, this.checked)">
-                <span style="font-weight:700;color:#0F172A">${student.full_name}</span>
-                <button type="button" class="btn btn-sm" style="padding:.2rem .5rem" onclick="event.preventDefault();event.stopPropagation();selectOnlyTcPlanStudent(${sid})">��Ἱ</button>
-              </label>`;
-          }).join('') || '<div style="color:var(--mu)">�ѧ��辺�ѡ���¹</div>'}
-        </div>
-        <div style="margin-top:.7rem;font-size:.78rem;color:${selectedStudentIds.length?'#166534':'#92400E'};font-weight:700">
-          ${selectedStudentIds.length ? `������ͺ������� ${selectedStudentIds.length} ��: ${selectedStudentNames.join(', ')}` : '�ѧ��������͡�ѡ���¹����Ѻ�ͺ����'}
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.75rem">
-        <input id="tc-plan-title" class="fc" placeholder="�� ���ǹ��Ե�ѻ������">
-        <input id="tc-plan-week" class="fc" type="date" value="${new Date().toISOString().slice(0,10)}">
-        <input id="tc-plan-due" class="fc" type="datetime-local">
-      </div>
-      <textarea id="tc-plan-desc" class="fc" style="margin-top:.75rem;min-height:88px" placeholder="͸Ժ������������ͤ��й�����Ѻ��黡��ͧ"></textarea>
-      <div style="margin-top:.75rem;font-size:.8rem;font-weight:700;color:var(--s)">���͡������ѺἹ</div>
-      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
-        ${selectedGames.map(g=>`
-          <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .75rem;border:1px solid #E5E7EB;border-radius:999px;background:#fff">
-            <input type="checkbox" class="tc-plan-game" value="${typeof jsKeyToDbId==='function' ? jsKeyToDbId(g.id) : parseInt(g.id,10)}">
-            <span>${g.icon||'??'} ${g.name}</span>
-          </label>`).join('')}
-      </div>
-      <div style="margin-top:.85rem;display:flex;justify-content:space-between;gap:.75rem;align-items:center;flex-wrap:wrap">
-        <div style="font-size:.76rem;color:var(--mu)">${filterId ? `���ѧ��Ἱ�ͧ ${(A.tcStudents||[]).find(s=>+s.student_id===+filterId)?.full_name || '�ѡ���¹������͡'}` : '���ѧ��Ἱ�ͧ�ѡ���¹������'}</div>
-        <button class="btn btn-p" onclick="submitWeeklyPlan()" ${selectedStudentIds.length?'':'disabled style="opacity:.55;cursor:not-allowed"'}>�ͺ����Ἱ</button>
-      </div>
-    </div>
-    <div class="ts">
-      <h3>Ἱ����ͺ��������</h3>
-      ${planList.length?planList.map(plan=>`
-        <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
-          <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start">
-            <div>
-              <strong>${plan.title}</strong>
-              <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${plan.student_name||'�ѡ���¹'} � �ѻ���� ${plan.week_start||'-'} ${plan.due_at?`� �ú��˹� ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
-            </div>
-            <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.items.filter(i=>(+i.best_score||0) >= (+i.target_score||80)).length}/${plan.items.length}</span>
-          </div>
-          <div style="font-size:.78rem;color:#475569;margin-top:.35rem">${plan.description||''}</div>
-          <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.35rem">
-            ${plan.items.map(item=>`<span class="badge" style="background:${(+item.best_score||0) >= (+item.target_score||80)?'#DCFCE7':'#FEF3C7'};color:${(+item.best_score||0) >= (+item.target_score||80)?'#166534':'#92400E'}">${item.game_name} ${item.best_score||0}/${item.target_score||80}</span>`).join('')}
-          </div>
-        </div>`).join(''):'<div style="color:var(--mu)">�ѧ�����Ἱ����ͺ����</div>'}
-    </div>`;
-}
-
-async function submitWeeklyPlan(){
-  const selectedStudentIds=[...new Set([...[...document.querySelectorAll('.tc-plan-student:checked')].map(el=>+el.value), ...getSelectedTcPlanStudents()])].filter(Boolean);
-  if(!selectedStudentIds.length){ alert('���͡�ѡ���¹���ҧ���� 1 ��'); return; }
-  const title=document.getElementById('tc-plan-title')?.value.trim() || 'Ἱ����ѻ����';
-  const description=document.getElementById('tc-plan-desc')?.value.trim() || '';
-  const weekStart=document.getElementById('tc-plan-week')?.value || new Date().toISOString().slice(0,10);
-  const dueAt=document.getElementById('tc-plan-due')?.value || '';
-  const items=[...document.querySelectorAll('.tc-plan-game:checked')].map((el,idx)=>({ game_id:+el.value, lesson_no:1, target_score:80, sort_order:idx+1 }));
-  if(!items.length){ alert('���͡�����ҧ���� 1 ��'); return; }
-
-  A.tcPlanStudents=selectedStudentIds;
-  const payload={ title, description, week_start:weekStart, due_at:dueAt, items };
-  if(selectedStudentIds.length===1) payload.student_id=selectedStudentIds[0];
-  else payload.student_ids=selectedStudentIds;
-
-  const res=await apiCreatePlan(payload).catch(()=>({ok:false,error:'�������������'}));
-  if(!res.ok){ alert(res.error||'���ҧἹ��������'); return; }
-
-  A.tcPlanFilter=selectedStudentIds.length===1 ? selectedStudentIds[0] : null;
-  alert(`�ͺ����Ἱ����� ${res.created_count || selectedStudentIds.length} ��`);
-  renderTcPlanPanel();
-}
 
 const TC_PLAN_TEXT = {
   heading: '\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22\u0e41\u0e1c\u0e19\u0e01\u0e32\u0e23\u0e40\u0e23\u0e35\u0e22\u0e19/\u0e20\u0e32\u0e23\u0e01\u0e34\u0e08\u0e23\u0e32\u0e22\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c',

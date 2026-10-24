@@ -26,7 +26,4 @@ function formatPhone(p) {
   return s;
 }
 
-// stub สำหรับ code เก่าที่ยังเรียก persistSave/Load
-function persistSave(){}
-function persistLoad(){}
 if(typeof A.tcSubject==='undefined') A.tcSubject = null;

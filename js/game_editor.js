@@ -50,14 +50,7 @@ function _renderGameEditor(){
 
 async function selectGeGame(jsKey){
   _geGid=jsKey;
-  _geDbGid=typeof jsKeyToDbId==='function'?jsKeyToDbId(jsKey):parseInt(jsKey);
-  if(!_geDbGid && GAMES_DB[jsKey]?.code){
-    const catalog=await apiGames(GAMES_DB[jsKey].sid).catch(()=>({ok:false}));
-    (catalog.games||[]).forEach(game=>{
-      if(game.game_code) GAME_DB_IDS[game.game_code]=Number(game.game_id);
-    });
-    _geDbGid=jsKeyToDbId(jsKey);
-  }
+  _geDbGid=await resolveGameDbId(jsKey);
   if(!_geDbGid){
     const panel=document.getElementById('ge-editor');
     if(panel)panel.innerHTML='<div style="color:#9a3412;background:#fff7ed;border-radius:12px;padding:1rem">ยังไม่พบเกมนี้ในฐานข้อมูล กรุณารัน migration และ seed เกมคณิต ป.5 ก่อน</div>';
@@ -243,177 +236,8 @@ function geUpdateInlinePreview(previewId, src='', emptyText='ยังไม่�
   wrap.innerHTML=gePreviewHtml(src, emptyText);
 }
 
-function geAnswerSummary(answer={}){
-  const txt=String(answer?.answer_text||'').trim();
-  const img=String(answer?.answer_img||'').trim();
-  if(txt && img) return `${txt} [image]`;
-  if(txt) return txt;
-  if(img) return '[image]';
-  return '';
-}
-
-function gePairSummary(answer={}){
-  const leftTxt=String(answer?.pair_left||'').trim();
-  const rightTxt=String(answer?.pair_right||'').trim();
-  const leftImg=String(answer?.pair_left_img||'').trim();
-  const rightImg=String(answer?.pair_right_img||'').trim();
-  const left=leftTxt || (leftImg ? '[image]' : '');
-  const right=rightTxt || (rightImg ? '[image]' : '');
-  return left || right ? `${left} → ${right}` : '';
-}
-
-function _geFormHtml(type, q){
-  const qt = q?.question_text||'';
-  const qimg = q?.question_img||'';
-  const hint = q?.hint||'';
-  const difficulty = q?.difficulty||'medium';
-  const explanation = q?.explanation||'';
-  const answers = q?.answers||[];
-
-  // คำถามข้อความ (ทุก type)
-  let html=`
-    <div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำถาม *</label>
-      <textarea id="ge-qtext" rows="3"
-        style="width:100%;padding:.65rem .8rem;border:1.5px solid #E2E8F0;border-radius:10px;
-          font-family:'Kanit',sans-serif;font-size:.88rem;resize:vertical;outline:none;box-sizing:border-box"
-        onfocus="this.style.borderColor='var(--s)'" onblur="this.style.borderColor='#E2E8F0'"
-      >${_geEsc(qt)}</textarea>
-    </div>
-    <div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">รูปภาพคำถาม</label>
-      <input id="ge-qimg" type="text" class="fc" value="${_geEsc(qimg)}"
-        placeholder="วาง URL รูปภาพ หรือ data:image/... ได้" style="font-size:.85rem;padding:.55rem .8rem">
-      <div style="display:flex;gap:.5rem;align-items:center;margin-top:.55rem;flex-wrap:wrap">
-        <input id="ge-qimg-file" type="file" accept="image/*" style="font-size:.78rem">
-        <button type="button" id="ge-qimg-clear" class="btn btn-sm" style="background:#F8FAFC;border:1px solid #CBD5E1">ล้างรูป</button>
-      </div>
-      <div id="ge-qimg-preview" style="margin-top:.7rem"></div>
-    </div>`;
-
-  html+=`<div style="margin-bottom:.85rem">
-    <label for="ge-hint" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">💡 คำใบ้</label>
-    <input id="ge-hint" type="text" class="fc" value="${_geEsc(hint)}"
-      placeholder="เช่น เริ่มจากเปรียบเทียบตัวเศษ" style="font-size:.85rem;padding:.55rem .8rem">
-  </div>`;
-
-  html+=`<div style="display:grid;grid-template-columns:minmax(140px,.7fr) 1.3fr;gap:.65rem;margin-bottom:.85rem">
-    <div><label for="ge-difficulty" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ระดับความยาก</label>
-      <select id="ge-difficulty" class="fc" style="font-size:.85rem;padding:.55rem .7rem">
-        <option value="easy" ${difficulty==='easy'?'selected':''}>ง่าย</option>
-        <option value="medium" ${difficulty==='medium'?'selected':''}>ปานกลาง</option>
-        <option value="hard" ${difficulty==='hard'?'selected':''}>ยาก</option>
-      </select>
-    </div>
-    <div><label for="ge-explanation" style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำอธิบายเฉลย</label>
-      <input id="ge-explanation" type="text" class="fc" value="${_geEsc(explanation)}" placeholder="อธิบายวิธีคิดสั้น ๆ" style="font-size:.85rem;padding:.55rem .8rem">
-    </div>
-  </div>`;
-
-  // ตัวเลือก ตาม type
-  html+='<div style="margin-bottom:1rem"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">';
-
-  if(type==='mcq'){
-    html+=`<label style="font-weight:700;font-size:.82rem">ตัวเลือก (เลือก ○ คำตอบที่ถูก)</label>
-      <button type="button" onclick="geAddAnsRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มตัวเลือก</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const opts = answers.length ? answers : [{answer_text:'',is_correct:1},{answer_text:'',is_correct:0},{answer_text:'',is_correct:0},{answer_text:'',is_correct:0}];
-    opts.forEach((a,i)=>{ html+=_geAnsRowMCQ(i,a.answer_text,a.is_correct); _geAnsCount=i+1; });
-    html+='</div>';
-
-  } else if(type==='truefalse'){
-    const trueAnswer = answers.find(a=>Number(a.seq_order)===1) || answers[0] || {};
-    const falseAnswer = answers.find(a=>Number(a.seq_order)===2) || answers[1] || {};
-    const correctValue = trueAnswer.is_correct ? 'true' : (falseAnswer.is_correct ? 'false' : 'true');
-    html+=`<label style="font-weight:700;font-size:.82rem">ตัวเลือกคำตอบ</label></div>
-      <div id="ge-ans-wrap" style="display:grid;gap:.85rem">
-        <div>
-          <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:.35rem">ข้อความปุ่มฝั่งถูก</label>
-          <input id="ge-tf-true-text" class="ge-in" placeholder="เช่น จริง, ใช่, ถูกต้อง" value="${_geEsc(trueAnswer.answer_text||'จริง')}">
-        </div>
-        <div>
-          <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:.35rem">ข้อความปุ่มฝั่งผิด</label>
-          <input id="ge-tf-false-text" class="ge-in" placeholder="เช่น เท็จ, ไม่ใช่, ไม่ถูกต้อง" value="${_geEsc(falseAnswer.answer_text||'เท็จ')}">
-        </div>
-        <label style="font-weight:700;font-size:.82rem">คำตอบที่ถูก</label>
-        <div style="display:flex;gap:1rem;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;font-weight:600">
-          <input type="radio" name="ge-tf" value="true" ${correctValue==='true'?'checked':''} style="accent-color:var(--g)"> ✅ ฝั่งถูก
-        </label>
-        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;font-weight:600">
-          <input type="radio" name="ge-tf" value="false" ${correctValue==='false'?'checked':''} style="accent-color:#EF4444"> ❌ ฝั่งผิด
-        </label>
-        </div>
-      </div>`;
-
-  } else if(type==='fill'){
-    const ans = answers.find(a=>a.is_correct)?.answer_text||'';
-    html+=`<label style="font-weight:700;font-size:.82rem">คำตอบที่ถูกต้อง *</label></div>
-      <div id="ge-ans-wrap">
-        <input id="ge-fill-ans" type="text" class="fc" value="${_geEsc(ans)}"
-          placeholder="คำตอบที่ถูก" style="font-size:.88rem;padding:.6rem .8rem">
-      </div>`;
-
-  } else if(type==='matching'){
-    html+=`<label style="font-weight:700;font-size:.82rem">คู่จับคู่ (ซ้าย → ขวา)</label>
-      <button type="button" onclick="geAddPairRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มคู่</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const pairs = answers.length ? answers : [{pair_left:'',pair_right:''}];
-    pairs.forEach((a,i)=>{ html+=_gePairRow(i,a.pair_left||'',a.pair_right||''); _geAnsCount=i+1; });
-    html+='</div>';
-
-  } else if(type==='sequence' || type==='letterorder'){
-    html+=`<label style="font-weight:700;font-size:.82rem">รายการเรียงลำดับ</label>
-      <button type="button" onclick="geAddSeqRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มรายการ</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const items = answers.length ? answers : [{answer_text:'',seq_order:1}];
-    items.sort((a,b)=>(a.seq_order||0)-(b.seq_order||0));
-    items.forEach((a,i)=>{ html+=_geSeqRow(i,a.answer_text,i+1); _geAnsCount=i+1; });
-    html+='</div>';
-
-  } else if(type==='wordsearch'){
-    html+=`<label style="font-weight:700;font-size:.82rem">คำที่ต้องหา</label>
-      <button type="button" onclick="geAddWordRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มคำ</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const words = answers.length ? answers : [{answer_text:''}];
-    words.forEach((a,i)=>{ html+=_geWordRow(i,a.answer_text); _geAnsCount=i+1; });
-    html+='</div>';
-  } else {
-    html+='</div>';
-  }
-
-  return html;
-}
 
 // ── Row builders ──
-function _geAnsRowMCQ(i,text='',correct=false){
-  return `<div id="ge-ar-${i}" style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
-    <input type="radio" name="ge-correct" value="${i}" ${correct?'checked':''} style="accent-color:var(--g);cursor:pointer;flex-shrink:0">
-    <input type="text" value="${_geEsc(text)}" placeholder="ตัวเลือก ${i+1}" id="ge-at-${i}" class="fc"
-      style="flex:1;padding:.5rem .75rem;font-size:.85rem">
-    <button type="button" onclick="document.getElementById('ge-ar-${i}').remove()"
-      style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;padding:.1rem">✕</button>
-  </div>`;
-}
-function _gePairRow(i,left='',right=''){
-  return `<div id="ge-ar-${i}" style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
-    <input type="text" value="${_geEsc(left)}" placeholder="ฝั่งซ้าย" id="ge-pl-${i}" class="fc"
-      style="flex:1;padding:.5rem .75rem;font-size:.85rem">
-    <span style="color:var(--mu);font-weight:700">→</span>
-    <input type="text" value="${_geEsc(right)}" placeholder="ฝั่งขวา" id="ge-pr-${i}" class="fc"
-      style="flex:1;padding:.5rem .75rem;font-size:.85rem">
-    <button type="button" onclick="document.getElementById('ge-ar-${i}').remove()"
-      style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;padding:.1rem">✕</button>
-  </div>`;
-}
 function _geSeqRow(i,text='',order=1){
   return `<div id="ge-ar-${i}" style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
     <span style="background:var(--s);color:#fff;width:24px;height:24px;border-radius:50%;
@@ -433,113 +257,10 @@ function _geWordRow(i,word=''){
   </div>`;
 }
 
-function geAddAnsRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_geAnsRowMCQ(_geAnsCount++);w.appendChild(d.firstElementChild); }
-function geAddPairRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_gePairRow(_geAnsCount++);w.appendChild(d.firstElementChild); }
 function geAddSeqRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const cnt=document.querySelectorAll('[id^="ge-ar-"]').length+1;const d=document.createElement('div');d.innerHTML=_geSeqRow(_geAnsCount,``,cnt);w.appendChild(d.firstElementChild);_geAnsCount++; }
 function geAddWordRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_geWordRow(_geAnsCount++);w.appendChild(d.firstElementChild); }
 
-async function geSaveGameSettings(){
-  const input=document.getElementById('ge-time-limit');
-  const nameInput=document.getElementById('ge-game-name');
-  const msg=document.getElementById('ge-game-msg');
-  const timeLimit=parseInt(input?.value,10);
-  const name=nameInput?.value.trim()||'';
-  if(!name||name.length>100){
-    if(msg) msg.innerHTML='<span style="color:#EF4444">❌ ใส่ชื่อเกมไม่เกิน 100 ตัวอักษร</span>';
-    nameInput?.focus();
-    return;
-  }
-  if(!Number.isFinite(timeLimit)||timeLimit<10||timeLimit>3600){
-    if(msg) msg.innerHTML='<span style="color:#EF4444">❌ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
-    return;
-  }
-  if(msg) msg.innerHTML='<span style="color:var(--mu)">⏳ กำลังบันทึกชื่อและการตั้งค่าเกม...</span>';
-  const res=await apiSaveGameSettings({game_id:_geDbGid,name,time_limit:timeLimit}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
-  if(res.ok){
-    if(_geGameMeta) _geGameMeta.time_limit=timeLimit;
-    if(_geGameMeta) _geGameMeta.name=name;
-    if(GAMES_DB[_geGid]) GAMES_DB[_geGid].name=name;
-    document.querySelectorAll('.ge-btn').forEach(button=>{
-      if((button.getAttribute('onclick')||'').includes(`'${_geGid}'`))button.textContent=`${GAMES_DB[_geGid]?.icon||'🎮'} ${name}`;
-    });
-    if(msg) msg.innerHTML='<span style="color:#10B981">✅ บันทึกชื่อและการตั้งค่าเกมแล้ว</span>';
-    setTimeout(()=>{ if(msg) msg.innerHTML=''; },3000);
-  }else{
-    if(msg) msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
-  }
-}
 
-async function geSaveQ(idx){
-  const text=document.getElementById('ge-qtext')?.value.trim();
-  const msg=document.getElementById('ge-form-msg');
-  if(!text){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ กรุณาใส่คำถาม</span>';return;}
-
-  const type=geCurrentType();
-  const q=idx>=0?_geQuestions[idx]:null;
-  const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
-  const hint=document.getElementById('ge-hint')?.value.trim()||'';
-  const difficulty=document.getElementById('ge-difficulty')?.value||'medium';
-  const explanation=document.getElementById('ge-explanation')?.value.trim()||'';
-
-  // สร้าง answers ตาม type
-  let answers=[];
-  if(type==='mcq'){
-    const correctVal=document.querySelector('input[name="ge-correct"]:checked')?.value;
-    document.querySelectorAll('[id^="ge-at-"]').forEach((el,i)=>{
-      const t=el.value.trim();
-      if(t) answers.push({answer_text:t,is_correct:String(i)===correctVal?1:0});
-    });
-  } else if(type==='truefalse'){
-    const correct=document.querySelector('input[name="ge-tf"]:checked')?.value||'true';
-    const trueText=document.getElementById('ge-tf-true-text')?.value.trim()||'จริง';
-    const falseText=document.getElementById('ge-tf-false-text')?.value.trim()||'เท็จ';
-    answers=[
-      {answer_text:trueText,is_correct:correct==='true'?1:0,seq_order:1},
-      {answer_text:falseText,is_correct:correct==='false'?1:0,seq_order:2}
-    ];
-  } else if(type==='fill'){
-    const ans=document.getElementById('ge-fill-ans')?.value.trim();
-    if(!ans){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ ใส่คำตอบที่ถูก</span>';return;}
-    answers=[{answer_text:ans,is_correct:1}];
-  } else if(type==='matching'){
-    for(let i=0;i<20;i++){
-      const pl=document.getElementById(`ge-pl-${i}`);
-      const pr=document.getElementById(`ge-pr-${i}`);
-      if(!pl||!pr)continue;
-      const l=pl.value.trim(),r=pr.value.trim();
-      if(l&&r) answers.push({answer_text:l,is_correct:1,pair_left:l,pair_right:r});
-    }
-  } else if(type==='sequence'){
-    document.querySelectorAll('[id^="ge-at-"]').forEach((el,i)=>{
-      const t=el.value.trim();
-      if(t) answers.push({answer_text:t,is_correct:1,seq_order:i+1});
-    });
-  } else if(type==='wordsearch'){
-    document.querySelectorAll('[id^="ge-at-"]').forEach(el=>{
-      const t=el.value.trim();
-      if(t) answers.push({answer_text:t,is_correct:1});
-    });
-  }
-
-  if(!answers.length){if(msg)msg.innerHTML='<span style="color:#EF4444">⚠️ ใส่คำตอบอย่างน้อย 1 รายการ</span>';return;}
-
-  const payload={game_id:_geDbGid,question_text:text,question_img,hint,difficulty,explanation,
-    order_no:idx>=0?idx+1:_geQuestions.length+1,answers};
-  if(q?.question_id) payload.question_id=q.question_id;
-
-  if(msg)msg.innerHTML='<span style="color:var(--mu)">⏳ กำลังบันทึก...</span>';
-
-  let res;
-  try { res=await apiSaveQuestion(payload); }
-  catch(e){ res={ok:false,error:'เชื่อมต่อ Docker container ไม่ได้ — ตรวจสอบว่า kidlearn_web รันอยู่'}; }
-
-  if(res.ok){
-    document.getElementById('ge-modal')?.remove();
-    await selectGeGame(_geGid);
-  } else {
-    if(msg)msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
-  }
-}
 
 async function geDeleteQ(idx){
   const q=_geQuestions[idx];if(!q)return;
@@ -555,146 +276,11 @@ async function geDeleteQ(idx){
 
 function _geEsc(s){ return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function _geAnsRowMCQ(i,text='',correct=false,img=''){
-  return `<div id="ge-ar-${i}" style="display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;margin-bottom:.65rem;align-items:start">
-    <input type="radio" name="ge-correct" value="${i}" ${correct?'checked':''} style="accent-color:var(--g);cursor:pointer;flex-shrink:0;margin-top:.55rem">
-    <div style="display:grid;gap:.45rem">
-      <input type="text" value="${_geEsc(text)}" placeholder="ข้อความตัวเลือก ${i+1}" id="ge-at-${i}" class="fc"
-        style="padding:.5rem .75rem;font-size:.85rem">
-      <input type="text" value="${_geEsc(img)}" placeholder="URL รูปตัวเลือก ${i+1} (ถ้ามี)" id="ge-ai-${i}" class="fc"
-        oninput="geUpdateInlinePreview('ge-ai-preview-${i}', this.value, 'ยังไม่มีรูปตัวเลือก')"
-        style="padding:.5rem .75rem;font-size:.8rem">
-      <div id="ge-ai-preview-${i}">${gePreviewHtml(img,'ยังไม่มีรูปตัวเลือก')}</div>
-    </div>
-    <button type="button" onclick="document.getElementById('ge-ar-${i}').remove()"
-      style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;padding:.1rem">x</button>
-  </div>`;
-}
 
-function _gePairRow(i,left='',right='',leftImg='',rightImg=''){
-  return `<div id="ge-ar-${i}" style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:.5rem;margin-bottom:.65rem;align-items:start">
-    <div style="display:grid;gap:.45rem">
-      <input type="text" value="${_geEsc(left)}" placeholder="ฝั่งซ้าย" id="ge-pl-${i}" class="fc"
-        style="padding:.5rem .75rem;font-size:.85rem">
-      <input type="text" value="${_geEsc(leftImg)}" placeholder="URL รูปฝั่งซ้าย (ถ้ามี)" id="ge-pli-${i}" class="fc"
-        oninput="geUpdateInlinePreview('ge-pli-preview-${i}', this.value, 'ยังไม่มีรูปฝั่งซ้าย')"
-        style="padding:.5rem .75rem;font-size:.8rem">
-      <div id="ge-pli-preview-${i}">${gePreviewHtml(leftImg,'ยังไม่มีรูปฝั่งซ้าย')}</div>
-    </div>
-    <span style="color:var(--mu);font-weight:700;margin-top:.65rem">-></span>
-    <div style="display:grid;gap:.45rem">
-      <input type="text" value="${_geEsc(right)}" placeholder="ฝั่งขวา" id="ge-pr-${i}" class="fc"
-        style="padding:.5rem .75rem;font-size:.85rem">
-      <input type="text" value="${_geEsc(rightImg)}" placeholder="URL รูปฝั่งขวา (ถ้ามี)" id="ge-pri-${i}" class="fc"
-        oninput="geUpdateInlinePreview('ge-pri-preview-${i}', this.value, 'ยังไม่มีรูปฝั่งขวา')"
-        style="padding:.5rem .75rem;font-size:.8rem">
-      <div id="ge-pri-preview-${i}">${gePreviewHtml(rightImg,'ยังไม่มีรูปฝั่งขวา')}</div>
-    </div>
-    <button type="button" onclick="document.getElementById('ge-ar-${i}').remove()"
-      style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;padding:.1rem">x</button>
-  </div>`;
-}
 
 function geAddAnsRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_geAnsRowMCQ(_geAnsCount++);w.appendChild(d.firstElementChild); }
 function geAddPairRow(){ const w=document.getElementById('ge-ans-wrap');if(!w)return;const d=document.createElement('div');d.innerHTML=_gePairRow(_geAnsCount++);w.appendChild(d.firstElementChild); }
 
-function _geFormHtml(type, q){
-  const qt = q?.question_text||'';
-  const qimg = q?.question_img||'';
-  const hint = q?.hint||'';
-  const difficulty = q?.difficulty||'medium';
-  const explanation = q?.explanation||'';
-  const answers = q?.answers||[];
-  let html=`
-    <div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำถาม *</label>
-      <textarea id="ge-qtext" rows="3"
-        style="width:100%;padding:.65rem .8rem;border:1.5px solid #E2E8F0;border-radius:10px;
-          font-family:'Kanit',sans-serif;font-size:.88rem;resize:vertical;outline:none;box-sizing:border-box"
-      >${_geEsc(qt)}</textarea>
-    </div>
-    <div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">รูปคำถาม</label>
-      <input id="ge-qimg" type="text" class="fc" value="${_geEsc(qimg)}"
-        placeholder="วาง URL รูปภาพ หรือ data:image/..." style="font-size:.85rem;padding:.55rem .8rem">
-      <div style="display:flex;gap:.5rem;align-items:center;margin-top:.55rem;flex-wrap:wrap">
-        <input id="ge-qimg-file" type="file" accept="image/*" style="font-size:.78rem">
-        <button type="button" id="ge-qimg-clear" class="btn btn-sm" style="background:#F8FAFC;border:1px solid #CBD5E1">ล้างรูป</button>
-      </div>
-      <div id="ge-qimg-preview" style="margin-top:.7rem">${gePreviewHtml(qimg)}</div>
-    </div>`;
-
-  if(type==='fill'){
-    html+=`<div style="margin-bottom:.85rem">
-      <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">คำใบ้</label>
-      <input id="ge-hint" type="text" class="fc" value="${_geEsc(hint)}"
-        placeholder="เช่น ขึ้นต้นด้วย..." style="font-size:.85rem;padding:.55rem .8rem">
-    </div>`;
-  }
-
-  html+='<div style="margin-bottom:1rem"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">';
-
-  if(type==='mcq'){
-    html+=`<label style="font-weight:700;font-size:.82rem">ตัวเลือก</label>
-      <button type="button" onclick="geAddAnsRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มตัวเลือก</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const opts = answers.length ? answers : [{answer_text:'',answer_img:'',is_correct:1},{answer_text:'',answer_img:'',is_correct:0},{answer_text:'',answer_img:'',is_correct:0},{answer_text:'',answer_img:'',is_correct:0}];
-    opts.forEach((a,i)=>{ html+=_geAnsRowMCQ(i,a.answer_text||'',a.is_correct,a.answer_img||''); _geAnsCount=i+1; });
-    html+='</div>';
-  } else if(type==='truefalse'){
-    const correctAns = answers.find(a=>a.is_correct)?.answer_text||'ถูก';
-    html+=`<label style="font-weight:700;font-size:.82rem">คำตอบที่ถูก</label></div>
-      <div id="ge-ans-wrap" style="display:flex;gap:1rem">
-        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;font-weight:600">
-          <input type="radio" name="ge-tf" value="ถูก" ${correctAns==='ถูก'?'checked':''} style="accent-color:var(--g)"> ถูก
-        </label>
-        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;font-weight:600">
-          <input type="radio" name="ge-tf" value="ผิด" ${correctAns==='ผิด'?'checked':''} style="accent-color:#EF4444"> ผิด
-        </label>
-      </div>`;
-  } else if(type==='fill'){
-    const ans = answers.find(a=>a.is_correct)?.answer_text||'';
-    html+=`<label style="font-weight:700;font-size:.82rem">คำตอบที่ถูกต้อง *</label></div>
-      <div id="ge-ans-wrap">
-        <input id="ge-fill-ans" type="text" class="fc" value="${_geEsc(ans)}"
-          placeholder="คำตอบที่ถูก" style="font-size:.88rem;padding:.6rem .8rem">
-      </div>`;
-  } else if(type==='matching'){
-    html+=`<label style="font-weight:700;font-size:.82rem">คู่จับคู่</label>
-      <button type="button" onclick="geAddPairRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มคู่</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const pairs = answers.length ? answers : [{pair_left:'',pair_right:'',pair_left_img:'',pair_right_img:''}];
-    pairs.forEach((a,i)=>{ html+=_gePairRow(i,a.pair_left||'',a.pair_right||'',a.pair_left_img||'',a.pair_right_img||''); _geAnsCount=i+1; });
-    html+='</div>';
-  } else if(type==='sequence' || type==='letterorder'){
-    html+=`<label style="font-weight:700;font-size:.82rem">รายการเรียงลำดับ</label>
-      <button type="button" onclick="geAddSeqRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มรายการ</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const items = answers.length ? answers : [{answer_text:'',seq_order:1}];
-    items.sort((a,b)=>(a.seq_order||0)-(b.seq_order||0));
-    items.forEach((a,i)=>{ html+=_geSeqRow(i,a.answer_text||'',i+1); _geAnsCount=i+1; });
-    html+='</div>';
-  } else if(type==='wordsearch'){
-    html+=`<label style="font-weight:700;font-size:.82rem">คลังคำสำหรับสุ่ม</label>
-      <button type="button" onclick="geAddWordRow()"
-        style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;border-radius:8px;
-          padding:.28rem .7rem;font-size:.78rem;font-family:'Kanit',sans-serif;cursor:pointer">+ เพิ่มคำ</button>`;
-    html+='</div><div id="ge-ans-wrap">';
-    const words = answers.length ? answers : [{answer_text:''}];
-    words.forEach((a,i)=>{ html+=_geWordRow(i,a.answer_text||''); _geAnsCount=i+1; });
-    html+='</div><div style="font-size:.74rem;color:var(--mu);margin-top:.45rem">ระบบจะสุ่มมาเล่นรอบละ 10 คำ และสุ่มใหม่ทุกครั้ง</div>';
-  } else {
-    html+='</div>';
-  }
-
-  return html;
-}
 
 async function geSaveGameSettings(){
   const input=document.getElementById('ge-time-limit');
@@ -707,7 +293,7 @@ async function geSaveGameSettings(){
   const gameType=typeInput?.value||geCurrentType();
   let questionCount=parseInt(countInput?.value,10);
   if(!Number.isFinite(timeLimit)||timeLimit<10||timeLimit>3600){
-    if(msg) msg.innerHTML='<span style="color:#EF4444">โ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
+    if(msg) msg.innerHTML='<span style="color:#EF4444">❌ เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที</span>';
     return;
   }
   if(!name || name.length>100){
@@ -725,78 +311,10 @@ async function geSaveGameSettings(){
     setTimeout(()=>selectGeGame(_geGid),450);
     setTimeout(()=>{ if(msg) msg.innerHTML=''; },3000);
   }else{
-    if(msg) msg.innerHTML=`<span style="color:#EF4444">โ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
+    if(msg) msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
   }
 }
 
-async function geSaveQ(idx){
-  const text=document.getElementById('ge-qtext')?.value.trim();
-  const msg=document.getElementById('ge-form-msg');
-  if(!text){if(msg)msg.innerHTML='<span style="color:#EF4444">กรุณาใส่คำถาม</span>';return;}
-
-  const type=geCurrentType();
-  const q=idx>=0?_geQuestions[idx]:null;
-  const question_img=document.getElementById('ge-qimg')?.value.trim()||'';
-  const hint=document.getElementById('ge-hint')?.value.trim()||'';
-  let answers=[];
-
-  if(type==='mcq'){
-    const correctVal=document.querySelector('input[name="ge-correct"]:checked')?.value;
-    document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach(row=>{
-      const id=row.id.replace('ge-ar-','');
-      const t=document.getElementById(`ge-at-${id}`)?.value.trim()||'';
-      const img=document.getElementById(`ge-ai-${id}`)?.value.trim()||'';
-      if(t || img) answers.push({answer_text:t,answer_img:img,is_correct:String(id)===correctVal?1:0});
-    });
-  } else if(type==='truefalse'){
-    const correct=document.querySelector('input[name="ge-tf"]:checked')?.value||'ถูก';
-    answers=[{answer_text:'ถูก',is_correct:correct==='ถูก'?1:0},{answer_text:'ผิด',is_correct:correct==='ผิด'?1:0}];
-  } else if(type==='fill'){
-    const ans=document.getElementById('ge-fill-ans')?.value.trim();
-    if(!ans){if(msg)msg.innerHTML='<span style="color:#EF4444">ใส่คำตอบที่ถูกก่อน</span>';return;}
-    answers=[{answer_text:ans,is_correct:1}];
-  } else if(type==='matching'){
-    document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach(row=>{
-      const id=row.id.replace('ge-ar-','');
-      const left=document.getElementById(`ge-pl-${id}`)?.value.trim()||'';
-      const right=document.getElementById(`ge-pr-${id}`)?.value.trim()||'';
-      const leftImg=document.getElementById(`ge-pli-${id}`)?.value.trim()||'';
-      const rightImg=document.getElementById(`ge-pri-${id}`)?.value.trim()||'';
-      if(left || right || leftImg || rightImg){
-        answers.push({answer_text:right||left,pair_left:left,pair_right:right,pair_left_img:leftImg,pair_right_img:rightImg,is_correct:1});
-      }
-    });
-  } else if(type==='sequence' || type==='letterorder'){
-    document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach((row,i)=>{
-      const id=row.id.replace('ge-ar-','');
-      const t=document.getElementById(`ge-at-${id}`)?.value.trim()||'';
-      if(t) answers.push({answer_text:t,is_correct:1,seq_order:i+1});
-    });
-  } else if(type==='wordsearch'){
-    document.querySelectorAll('#ge-ans-wrap > [id^="ge-ar-"]').forEach(row=>{
-      const id=row.id.replace('ge-ar-','');
-      const t=document.getElementById(`ge-at-${id}`)?.value.trim()||'';
-      if(t) answers.push({answer_text:t,is_correct:1});
-    });
-  }
-
-  if(!answers.length){if(msg)msg.innerHTML='<span style="color:#EF4444">ต้องมีคำตอบอย่างน้อย 1 รายการ</span>';return;}
-
-  const payload={game_id:_geDbGid,question_text:text,question_img,hint,order_no:idx>=0?idx+1:_geQuestions.length+1,answers};
-  if(q?.question_id) payload.question_id=q.question_id;
-  if(msg)msg.innerHTML='<span style="color:var(--mu)">กำลังบันทึก...</span>';
-
-  let res;
-  try { res=await apiSaveQuestion(payload); }
-  catch(e){ res={ok:false,error:'เชื่อมต่อ Docker container ไม่ได้'}; }
-
-  if(res.ok){
-    document.getElementById('ge-modal')?.remove();
-    await selectGeGame(_geGid);
-  } else {
-    if(msg)msg.innerHTML=`<span style="color:#EF4444">โ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
-  }
-}
 
 function geBindImagePicker(){
   const txt=document.getElementById('ge-qimg');
@@ -1018,6 +536,6 @@ async function geSaveQ(idx){
     document.getElementById('ge-modal')?.remove();
     await selectGeGame(_geGid);
   } else {
-    if(msg)msg.innerHTML=`<span style="color:#EF4444">โ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
+    if(msg)msg.innerHTML=`<span style="color:#EF4444">❌ ${res.error||'บันทึกไม่สำเร็จ'}</span>`;
   }
 }

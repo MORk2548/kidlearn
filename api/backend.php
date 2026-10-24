@@ -41,11 +41,11 @@ const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_EXTENSIONS = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/gif' => 'gif', 'image/webp' => 'webp'];
 
 header('Content-Type: application/json; charset=utf-8');
-// เธฃเธญเธเธฃเธฑเธเธ—เธฑเนเธ localhost เนเธฅเธฐ 127.0.0.1
-// CORS โ€” เธฃเธญเธเธฃเธฑเธเธ—เธธเธ origin เธ—เธตเนเน€เธเนเธ localhost
+// รองรับทั้ง localhost และ 127.0.0.1
+// CORS — รองรับทุก origin ที่เป็น localhost
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (empty($origin)) {
-    // เนเธกเนเธกเธต Origin header (same-origin request) โ€” เนเธกเนเธ•เนเธญเธเธชเนเธ CORS header
+    // ไม่มี Origin header (same-origin request) — ไม่ต้องส่ง CORS header
 } elseif (
     str_contains($origin, 'localhost') ||
     str_contains($origin, '127.0.0.1') ||
@@ -103,7 +103,7 @@ class DB {
     public function insertId(): int { return (int)$this->c->lastInsertId(); }
     public function affected(): int { return $this->lastStmt?->rowCount() ?? 0; }
 
-    // rawQuery โ€” เนเธกเน throw/exit เน€เธกเธทเนเธญ error (เนเธเนเธเธฑเธ CALL SP)
+    // rawQuery — ไม่ throw/exit เมื่อ error (ใช้กับ CALL SP)
     public function rawQuery(string $sql): bool {
         try {
             $this->c->exec($sql);
@@ -129,8 +129,8 @@ class DB {
 }
 
 if (session_status() === PHP_SESSION_NONE) {
-    // session config เธกเธฒเธเธฒเธ docker/php.ini
-    // เน€เธเธดเธ” session
+    // session config มาจาก docker/php.ini
+    // เปิด session
     $secureCookie = envBool('SESSION_COOKIE_SECURE', isProduction());
     session_set_cookie_params([
         'lifetime' => 86400,
@@ -200,7 +200,7 @@ function enforceRequestPolicy(string $action, array $body): void {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $postActions = [
         'login', 'logout', 'register', 'update_profile', 'change_password',
-        'save_score', 'link_child', 'auto_link', 'unlink_child', 'mark_notif_read',
+        'save_score', 'auto_link', 'unlink_child', 'mark_notif_read',
         'save_lesson', 'delete_lesson', 'save_game_settings', 'create_plan',
         'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
         'save_subject', 'toggle_subject', 'save_question', 'delete_question',
@@ -432,27 +432,27 @@ function inferSkillMeta(array $game): array {
     $gameName = mb_strtolower(trim((string)($game['name'] ?? '')), 'UTF-8');
 
     $map = [
-        1 => ['key' => 'math_foundation', 'name' => 'เธเธทเนเธเธเธฒเธเธเธ“เธดเธ•เธจเธฒเธชเธ•เธฃเน'],
-        2 => ['key' => 'science_concepts', 'name' => 'เนเธเธงเธเธดเธ”เธงเธดเธ—เธขเธฒเธจเธฒเธชเธ•เธฃเน'],
-        3 => ['key' => 'thai_language', 'name' => 'เธ เธฒเธฉเธฒเนเธ—เธข'],
-        4 => ['key' => 'english_language', 'name' => 'เธ เธฒเธฉเธฒเธญเธฑเธเธเธคเธฉ'],
-        5 => ['key' => 'social_studies', 'name' => 'เธชเธฑเธเธเธกเธจเธถเธเธฉเธฒ'],
-        6 => ['key' => 'health_education', 'name' => 'เธชเธธเธเธจเธถเธเธฉเธฒ'],
+        1 => ['key' => 'math_foundation', 'name' => 'พื้นฐานคณิตศาสตร์'],
+        2 => ['key' => 'science_concepts', 'name' => 'แนวคิดวิทยาศาสตร์'],
+        3 => ['key' => 'thai_language', 'name' => 'ภาษาไทย'],
+        4 => ['key' => 'english_language', 'name' => 'ภาษาอังกฤษ'],
+        5 => ['key' => 'social_studies', 'name' => 'สังคมศึกษา'],
+        6 => ['key' => 'health_education', 'name' => 'สุขศึกษา'],
     ];
 
-    $skill = $map[$subjectId] ?? ['key' => 'general_learning', 'name' => 'เธ—เธฑเธเธฉเธฐเธเธฒเธฃเน€เธฃเธตเธขเธเธฃเธนเน'];
+    $skill = $map[$subjectId] ?? ['key' => 'general_learning', 'name' => 'ทักษะการเรียนรู้'];
 
     $keywordMap = [
-        'เธเธงเธ' => ['addition', 'เธเธฒเธฃเธเธงเธเน€เธฅเธ'],
-        'เธฅเธ' => ['subtraction', 'เธเธฒเธฃเธฅเธเน€เธฅเธ'],
-        'เน€เธฅเธ' => ['number_sense', 'เธเธงเธฒเธกเน€เธเนเธฒเนเธเธเธณเธเธงเธ'],
-        'เธเธณเธจเธฑเธเธ—เน' => ['vocabulary', 'เธเธณเธจเธฑเธเธ—เน'],
-        'เธชเธฐเธเธ”' => ['spelling', 'เธเธฒเธฃเธชเธฐเธเธ”เธเธณ'],
-        'เธญเนเธฒเธ' => ['reading', 'เธเธฒเธฃเธญเนเธฒเธ'],
-        'เธเธฃเธฐเนเธขเธ' => ['sentence_building', 'เธเธฒเธฃเน€เธฃเธตเธขเธเธเธฃเธฐเนเธขเธ'],
-        'world search' => ['word_search', 'เธเธฒเธฃเธเนเธเธซเธฒเธเธณ'],
-        'english' => ['english_reading', 'เธเธฒเธฃเธญเนเธฒเธเธ เธฒเธฉเธฒเธญเธฑเธเธเธคเธฉ'],
-        'เธงเธดเธ—เธขเน' => ['science_reasoning', 'เธเธฒเธฃเธเธดเธ”เน€เธเธดเธเธงเธดเธ—เธขเธฒเธจเธฒเธชเธ•เธฃเน'],
+        'บวก' => ['addition', 'การบวกเลข'],
+        'ลบ' => ['subtraction', 'การลบเลข'],
+        'เลข' => ['number_sense', 'ความเข้าใจจำนวน'],
+        'คำศัพท์' => ['vocabulary', 'คำศัพท์'],
+        'สะกด' => ['spelling', 'การสะกดคำ'],
+        'อ่าน' => ['reading', 'การอ่าน'],
+        'ประโยค' => ['sentence_building', 'การเรียงประโยค'],
+        'world search' => ['word_search', 'การค้นหาคำ'],
+        'english' => ['english_reading', 'การอ่านภาษาอังกฤษ'],
+        'วิทย์' => ['science_reasoning', 'การคิดเชิงวิทยาศาสตร์'],
     ];
 
     foreach ($keywordMap as $needle => $mapped) {
@@ -498,7 +498,7 @@ function upsertMastery(int $studentId, int $subjectId, string $skillKey, string 
     );
 }
 
-function createParentNotification(int $studentId, string $title, string $message, string $type = 'info', string $icon = '๐””', string $eventKey = ''): void {
+function createParentNotification(int $studentId, string $title, string $message, string $type = 'info', string $icon = '🔔', string $eventKey = ''): void {
     $db = DB::get();
     $parents = $db->all(
         "SELECT p.parent_id
@@ -528,7 +528,7 @@ function awardBadge(int $studentId, string $badgeCode, string $title, string $de
         [$studentId, $badgeCode, $title, $description, jsonEncodeSafe($meta)],
         'issss'
     );
-    createParentNotification($studentId, 'เนเธ”เนเธฃเธฑเธเน€เธซเธฃเธตเธขเธเนเธซเธกเน', "เน€เธ”เนเธเนเธ”เนเธฃเธฑเธเน€เธซเธฃเธตเธขเธ \"$title\" เนเธฅเนเธง", 'praise', '๐…', 'badge_' . $badgeCode);
+    createParentNotification($studentId, 'ได้รับเหรียญใหม่', "เด็กได้รับเหรียญ \"$title\" แล้ว", 'praise', '🏅', 'badge_' . $badgeCode);
     return true;
 }
 
@@ -542,20 +542,20 @@ function recalcStudentBadges(int $studentId): void {
     ) ?: ['total_plays' => 0, 'best_score' => 0, 'active_days' => 0];
 
     if ((int)$summary['total_plays'] >= 1) {
-        awardBadge($studentId, 'first_steps', 'เธเนเธฒเธงเนเธฃเธเธเธญเธเธเธฑเธเน€เธฃเธตเธขเธ', 'เน€เธฃเธดเนเธกเน€เธฅเนเธเนเธฅเธฐเธเธฑเธเธ—เธถเธเธเธฐเนเธเธเธเธฃเธฑเนเธเนเธฃเธ');
+        awardBadge($studentId, 'first_steps', 'ก้าวแรกของนักเรียน', 'เริ่มเล่นและบันทึกคะแนนครั้งแรก');
     }
     if ((int)$summary['total_plays'] >= 5) {
-        awardBadge($studentId, 'five_sessions', 'เธเธฑเธเธเธถเธเธเธฃเธฐเธเธณ', 'เน€เธฅเนเธเธเธฃเธ 5 เธเธฃเธฑเนเธ');
+        awardBadge($studentId, 'five_sessions', 'นักฝึกประจำ', 'เล่นครบ 5 ครั้ง');
     }
     if ((int)$summary['best_score'] >= 100) {
-        awardBadge($studentId, 'perfect_score', 'เธเธฐเนเธเธเน€เธ•เนเธก 100', 'เธ—เธณเธเธฐเนเธเธเน€เธ•เนเธกเนเธเน€เธเธกเธญเธขเนเธฒเธเธเนเธญเธข 1 เธเธฃเธฑเนเธ');
+        awardBadge($studentId, 'perfect_score', 'คะแนนเต็ม 100', 'ทำคะแนนเต็มในเกมอย่างน้อย 1 ครั้ง');
     }
     if ((int)$summary['active_days'] >= 3) {
-        awardBadge($studentId, 'three_day_streak', 'เธชเธกเนเธณเน€เธชเธกเธญ 3 เธงเธฑเธ', 'เน€เธเนเธฒเน€เธฃเธตเธขเธเธญเธขเนเธฒเธเธเนเธญเธข 3 เธงเธฑเธ');
+        awardBadge($studentId, 'three_day_streak', 'สม่ำเสมอ 3 วัน', 'เข้าเรียนอย่างน้อย 3 วัน');
     }
 }
 
-// โ”€โ”€ ROUTER โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+// ── ROUTER ────────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
 $body   = parseRequestBody();
 
@@ -578,9 +578,7 @@ match ($action) {
     'save_score'      => handleSaveScoreV2(),
     'scores'          => handleScores(),
     'lesson_content'  => handleLessonContentV2(),
-    'get_content'     => handleGetContent(),
     'my_children'     => handleMyChildren(),
-    'link_child'      => handleLinkChild(),
     'auto_link'       => handleAutoLink(),
     'unlink_child'    => handleUnlinkChild(),
     'recommendations' => handleRecommendations(),
@@ -660,7 +658,7 @@ function handleLogin(): never {
 
     unset($user['password']);
 
-    // เธ”เธถเธ children list เธ–เนเธฒเน€เธเนเธ parent
+    // ดึง children list ถ้าเป็น parent
     if ($user['role'] === 'parent' && $user['parent_id']) {
         $kids = $db->all(
             "SELECT student_id FROM parent_student WHERE parent_id=?",
@@ -687,10 +685,10 @@ function handleLogout(): never {
     DB::ok();
 }
 
-// โ”€โ”€ normalize เน€เธเธญเธฃเนเนเธ—เธฃเนเธซเนเน€เธเนเธ 10 เธซเธฅเธฑเธเน€เธชเธกเธญ โ”€โ”€
+// ── normalize เบอร์โทรให้เป็น 10 หลักเสมอ ──
 function normalizePhone(string $raw): string {
     $p = preg_replace('/\D/', '', $raw);
-    if (strlen($p) === 9) $p = '0' . $p;  // 812345678 โ’ 0812345678
+    if (strlen($p) === 9) $p = '0' . $p;  // 812345678 → 0812345678
     return $p;
 }
 
@@ -703,14 +701,14 @@ function handleRegister(): never {
     $pass  = $body['password']        ?? '';
     $role  = $body['role']            ?? 'student';
 
-    if (!$name || !$uname || !$email || !$pass) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
-    if (strlen($pass) < 6)                      DB::fail('เธฃเธซเธฑเธชเธเนเธฒเธเธ•เนเธญเธเธกเธตเธญเธขเนเธฒเธเธเนเธญเธข 6 เธ•เธฑเธงเธญเธฑเธเธฉเธฃ', 400);
-    if (!in_array($role, ['student','parent','teacher','officer','executive'])) DB::fail('role เนเธกเนเธ–เธนเธเธ•เนเธญเธ', 400);
+    if (!$name || !$uname || !$email || !$pass) DB::fail('กรุณากรอกข้อมูลให้ครบ', 400);
+    if (strlen($pass) < 6)                      DB::fail('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 400);
+    if (!in_array($role, ['student','parent','teacher','officer','executive'])) DB::fail('role ไม่ถูกต้อง', 400);
 
     if ($db->one("SELECT 1 FROM users WHERE username=?", [$uname], 's'))
-        DB::fail('เธเธทเนเธญเธเธนเนเนเธเนเธเธตเนเธ–เธนเธเนเธเนเนเธฅเนเธง', 409);
+        DB::fail('ชื่อผู้ใช้นี้ถูกใช้แล้ว', 409);
     if ($db->one("SELECT 1 FROM users WHERE email=?", [$email], 's'))
-        DB::fail('เธญเธตเน€เธกเธฅเธเธตเนเธ–เธนเธเนเธเนเนเธฅเนเธง', 409);
+        DB::fail('อีเมลนี้ถูกใช้แล้ว', 409);
 
     $hash = password_hash($pass, PASSWORD_BCRYPT);
 
@@ -721,9 +719,9 @@ function handleRegister(): never {
 
     // INSERT role-specific table
     if ($role === 'student') {
-        $grade = $body['grade'] ?? 'เธ.1';
+        $grade = $body['grade'] ?? 'ป.1';
         $pp = normalizePhone($body['parent_phone'] ?? '');
-        if (!$pp || strlen($pp) < 9) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเน€เธเธญเธฃเนเนเธ—เธฃเธเธนเนเธเธเธเธฃเธญเธเนเธซเนเธ–เธนเธเธ•เนเธญเธ', 400);
+        if (!$pp || strlen($pp) < 9) DB::fail('กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง', 400);
         $db->run("INSERT INTO students (user_id,grade,parent_phone) VALUES (?,?,?)",
             [$uid, $grade, $pp], 'iss');
         $sid = $db->insertId();
@@ -737,12 +735,12 @@ function handleRegister(): never {
 
     if ($role === 'parent') {
         $phone = normalizePhone($body['phone'] ?? '');
-        if (!$phone || strlen($phone) < 9) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเน€เธเธญเธฃเนเนเธ—เธฃเนเธซเนเธ–เธนเธเธ•เนเธญเธ', 400);
+        if (!$phone || strlen($phone) < 9) DB::fail('กรุณากรอกเบอร์โทรให้ถูกต้อง', 400);
         if ($db->one("SELECT 1 FROM parents WHERE phone=?", [$phone], 's'))
-            DB::fail('เน€เธเธญเธฃเนเนเธ—เธฃเธเธตเนเธ–เธนเธเนเธเนเนเธฅเนเธง', 409);
+            DB::fail('เบอร์โทรนี้ถูกใช้แล้ว', 409);
         $db->run("INSERT INTO parents (user_id,phone) VALUES (?,?)", [$uid, $phone], 'is');
         $pid = $db->insertId();
-        // auto-link existing students โ€” match เธ—เธฑเนเธ 10 เธซเธฅเธฑเธ เนเธฅเธฐ 9 เธซเธฅเธฑเธ
+        // auto-link existing students — match ทั้ง 10 หลัก และ 9 หลัก
         $phone9 = ltrim($phone, '0');
         $students = $db->all(
             "SELECT student_id FROM students WHERE parent_phone=? OR parent_phone=?",
@@ -760,13 +758,13 @@ function handleRegister(): never {
     }
 
     if ($role === 'officer') {
-        $dept = trim($body['department'] ?? 'เธเนเธฒเธขเธเธธเธเธเธฅ');
+        $dept = trim($body['department'] ?? 'ฝ่ายบุคคล');
         $db->run("INSERT INTO officers (user_id,department) VALUES (?,?)", [$uid, $dept], 'is');
     }
 
     if ($role === 'executive') {
-        $title = trim($body['title'] ?? 'เธเธนเนเธเธฃเธดเธซเธฒเธฃ');
-        $dept  = trim($body['department'] ?? 'เธเธฃเธดเธซเธฒเธฃ');
+        $title = trim($body['title'] ?? 'ผู้บริหาร');
+        $dept  = trim($body['department'] ?? 'บริหาร');
         $db->run("INSERT INTO executives (user_id,title,department) VALUES (?,?,?)", [$uid, $title, $dept], 'iss');
     }
 
@@ -790,7 +788,7 @@ function handleMe(): never {
          LEFT JOIN executives e ON e.user_id = u.user_id
          WHERE u.user_id=?", [myId()], 'i'
     );
-    if (!$user) DB::fail('เนเธกเนเธเธเธเธนเนเนเธเน', 404);
+    if (!$user) DB::fail('ไม่พบผู้ใช้', 404);
 
     if ($user['role'] === 'parent' && $user['parent_id']) {
         $kids = DB::get()->all("SELECT student_id FROM parent_student WHERE parent_id=?",
@@ -874,7 +872,7 @@ function handleUpdateProfile(): never {
     $role = myRole();
     $name  = trim($body['full_name'] ?? '');
     $email = trim($body['email']     ?? '');
-    if (!$name || !$email) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
+    if (!$name || !$email) DB::fail('กรุณากรอกข้อมูลให้ครบ', 400);
 
     $db->run("UPDATE users SET full_name=?,email=? WHERE user_id=?", [$name, $email, $id], 'ssi');
     $accountDates = $db->one("SELECT created_at, updated_at FROM users WHERE user_id=?", [$id], 'i');
@@ -902,7 +900,7 @@ function handleUpdateProfile(): never {
     if ($role === 'parent') {
         $phone    = preg_replace('/\D/', '', $body['phone']     ?? '');
         $oldPhone = preg_replace('/\D/', '', $body['old_phone'] ?? '');
-        if ($phone && strlen($phone) < 9) DB::fail('เน€เธเธญเธฃเนเนเธ—เธฃเนเธกเนเธ–เธนเธเธ•เนเธญเธ', 400);
+        if ($phone && strlen($phone) < 9) DB::fail('เบอร์โทรไม่ถูกต้อง', 400);
         if ($phone) $db->run("UPDATE parents SET phone=? WHERE user_id=?", [$phone, $id], 'si');
         // re-link students using new phone
         if ($phone && $phone !== $oldPhone) {
@@ -922,7 +920,7 @@ function handleUpdateProfile(): never {
         $db->run("UPDATE teachers SET department=? WHERE user_id=?", [$dept, $id], 'si');
     }
 
-    // เธญเธฑเธเน€เธ”เธ• session
+    // อัปเดต session
     $_SESSION['user']['full_name'] = $name;
     DB::ok(['created_at' => $accountDates['created_at'] ?? null, 'updated_at' => $accountDates['updated_at'] ?? null]);
 }
@@ -954,44 +952,10 @@ function handleSubjects(): never {
 function handleGames(): never {
     auth();
     $sid = (int)($_GET['subject_id'] ?? 0);
-    if (!$sid) DB::fail('เธ•เนเธญเธเธชเนเธ subject_id', 400);
+    if (!$sid) DB::fail('ต้องส่ง subject_id', 400);
     DB::ok(['games' => DB::get()->all(
         "SELECT * FROM games WHERE subject_id=? AND is_active=TRUE ORDER BY game_id", [$sid], 'i'
     )]);
-}
-
-function handleSaveScore(): never {
-    global $body;
-    auth();
-    $db = DB::get();
-
-    $gameId    = (int)($body['game_id']    ?? 0);
-    $score     = (int)($body['score']      ?? 0);
-    $timeSpent = (int)($body['time_spent'] ?? 0);
-    $lessonNo  = (int)($body['lesson_no']  ?? 1);   // โ เธฃเธฑเธเธเธ—เธ—เธตเนเธ”เนเธงเธข
-    if ($lessonNo < 1 || $lessonNo > 6) $lessonNo = 1;
-
-    // เธซเธฒ student_id เธเธฒเธ user_id เธเธฑเธเธเธธเธเธฑเธ
-    $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
-    if (!$st) DB::fail('เธ•เนเธญเธเน€เธเนเธเธเธฑเธเน€เธฃเธตเธขเธเน€เธ—เนเธฒเธเธฑเนเธ', 403);
-    $studentId = $st['student_id'];
-
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
-
-    $db->run("INSERT INTO scores (student_id,game_id,lesson_no,score,time_spent) VALUES (?,?,?,?,?)",
-        [$studentId, $gameId, $lessonNo, $score, $timeSpent], 'iiiii');
-    $scoreId = $db->insertId();
-
-    // เธญเธฑเธเน€เธ”เธ• progress cache เธเนเธฒเธ rawQuery (เนเธกเน exit เธ–เนเธฒ SP เนเธกเนเธกเธต)
-    $game = $db->one("SELECT subject_id FROM games WHERE game_id=?", [$gameId], 'i');
-    if ($game) {
-        $db->rawQuery("CALL sp_update_progress($studentId,{$game['subject_id']})");
-    }
-
-    // Generate recommendations (เนเธเน try/catch เธเธฑเธเธเธฃเธ“เธต table เธขเธฑเธเนเธกเนเธกเธต)
-    try { generateRecommendations($studentId, myId()); } catch (Exception $e) {}
-
-    DB::ok(['score_id' => $scoreId, 'score' => $score]);
 }
 
 function handleSaveScoreV2(): never {
@@ -1007,9 +971,9 @@ function handleSaveScoreV2(): never {
     if ($lessonNo < 1 || $lessonNo > 6) $lessonNo = 1;
 
     $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
-    if (!$st) DB::fail('เธ•เนเธญเธเน€เธเนเธเธเธฑเธเน€เธฃเธตเธขเธเน€เธ—เนเธฒเธเธฑเนเธ', 403);
+    if (!$st) DB::fail('ต้องเป็นนักเรียนเท่านั้น', 403);
     $studentId = (int)$st['student_id'];
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
 
     $db->run(
         "INSERT INTO scores (student_id,game_id,lesson_no,score,time_spent) VALUES (?,?,?,?,?)",
@@ -1019,9 +983,6 @@ function handleSaveScoreV2(): never {
     $scoreId = $db->insertId();
 
     $game = $db->one("SELECT game_id, subject_id, name, game_type FROM games WHERE game_id=?", [$gameId], 'i');
-    if ($game) {
-        $db->rawQuery("CALL sp_update_progress($studentId,{$game['subject_id']})");
-    }
 
     $skillMeta = inferSkillMeta($game ?: []);
     $correctCount = 0;
@@ -1067,7 +1028,7 @@ function handleSaveScoreV2(): never {
     }
 
     recalcStudentBadges($studentId);
-    logAudit('score_saved', 'score', (string)$scoreId, 'เธเธฑเธเธ—เธถเธเธเธฅเธเธฒเธฃเน€เธฅเนเธเน€เธเธก', [
+    logAudit('score_saved', 'score', (string)$scoreId, 'บันทึกผลการเล่นเกม', [
         'student_id' => $studentId,
         'game_id' => $gameId,
         'lesson_no' => $lessonNo,
@@ -1081,16 +1042,16 @@ function handleSaveScoreV2(): never {
     DB::ok(['score_id' => $scoreId, 'score' => $score]);
 }
 
-// โ”€โ”€ เธ”เธถเธเน€เธเธทเนเธญเธซเธฒเธเธ—เน€เธฃเธตเธขเธ (GET ?action=lesson_content&game_id=X&lesson_no=Y) โ”€โ”€
+// ── ดึงเนื้อหาบทเรียน (GET ?action=lesson_content&game_id=X&lesson_no=Y) ──
 function handleLessonContent(): never {
-    // soft auth โ€” เธ–เนเธฒ session เธซเธกเธ”เธขเธฑเธเธ”เธถเธเน€เธเธทเนเธญเธซเธฒเนเธ”เน (เน€เธเธทเนเธญเธซเธฒเน€เธเนเธ public)
+    // soft auth — ถ้า session หมดยังดึงเนื้อหาได้ (เนื้อหาเป็น public)
     $db       = DB::get();
     $gameId   = (int)($_GET['game_id']   ?? 0);
     $lessonNo = (int)($_GET['lesson_no'] ?? 0);
 
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
 
-    // เธ”เธถเธเธ—เธธเธเธเธ—เธเธญเธเน€เธเธกเธเธฑเนเธ (เนเธกเนเธฃเธฐเธเธธ lesson_no) เธซเธฃเธทเธญเธเธ—เน€เธ”เธตเธขเธง
+    // ดึงทุกบทของเกมนั้น (ไม่ระบุ lesson_no) หรือบทเดียว
     if ($lessonNo) {
         $content = $db->one(
             "SELECT content_id, game_id, lesson_no, title, body, summary, read_time, created_by, updated_by, updated_at
@@ -1105,7 +1066,7 @@ function handleLessonContent(): never {
         $content['can_edit'] = canEditContent($content);
         DB::ok(['content' => $content]);
     } else {
-        // เธ”เธถเธเธฃเธฒเธขเธเธทเนเธญเธ—เธธเธเธเธ—เธเธญเธเน€เธเธกเธเธตเน (เธชเธณเธซเธฃเธฑเธ lesson selector)
+        // ดึงรายชื่อทุกบทของเกมนี้ (สำหรับ lesson selector)
         $list = $db->all(
             "SELECT content_id, lesson_no, title, summary, read_time, created_by, updated_by, updated_at FROM lesson_content
              WHERE game_id=? ORDER BY lesson_no",
@@ -1121,7 +1082,7 @@ function handleLessonContentV2(): never {
     $db       = DB::get();
     $gameId   = (int)($_GET['game_id'] ?? 0);
     $lessonNo = (int)($_GET['lesson_no'] ?? 0);
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
 
     if ($lessonNo) {
         $content = $db->one(
@@ -1151,7 +1112,7 @@ function handleLessonHistory(): never {
     authRole('teacher', 'admin', 'officer');
     $gameId = (int)($_GET['game_id'] ?? 0);
     $lessonNo = (int)($_GET['lesson_no'] ?? 1);
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
     $rows = DB::get()->all(
         "SELECT history_id, title, status, version_no, snapshot_at
          FROM lesson_content_history
@@ -1163,66 +1124,27 @@ function handleLessonHistory(): never {
     DB::ok(['history' => $rows]);
 }
 
-// โ”€โ”€ เธ”เธถเธเธเธฐเนเธเธเธชเธนเธเธชเธธเธ”เนเธ•เนเธฅเธฐเธเธ—เธเธญเธเธเธฑเธเน€เธฃเธตเธขเธเธเธเธเธตเน โ”€โ”€
-function handleGetContent(): never {
-    // soft auth
-    $db     = DB::get();
-    $gameId = (int)($_GET['game_id'] ?? 0);
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
-
-    // best score per lesson_no
-    $scores = [];
-    if (myRole() === 'student') {
-        $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
-        if ($st) {
-            $rows = $db->all(
-                "SELECT lesson_no, MAX(score) AS best_score
-                 FROM scores WHERE student_id=? AND game_id=?
-                 GROUP BY lesson_no",
-                [$st['student_id'], $gameId], 'ii'
-            );
-            foreach ($rows as $r) $scores[(int)$r['lesson_no']] = (int)$r['best_score'];
-        }
-    }
-
-    // lesson list with has_content flag
-    $lessons = $db->all(
-        "SELECT lesson_no, title, summary, read_time, created_by, updated_by, updated_at FROM lesson_content
-         WHERE game_id=? ORDER BY lesson_no",
-        [$gameId], 'i'
-    );
-    // เธชเธฃเนเธฒเธ map lesson_no => has_content
-    $hasContent = [];
-    foreach ($lessons as &$lesson) {
-        $hasContent[(int)$lesson['lesson_no']] = true;
-        $lesson['can_edit'] = canEditContent($lesson);
-    }
-    unset($lesson);
-
-    DB::ok(['lessons' => $lessons, 'best_scores' => $scores, 'has_content' => $hasContent]);
-}
-
 function handleScores(): never {
     auth();
     $db        = DB::get();
     $studentId = (int)($_GET['student_id'] ?? 0);
 
     if (myRole() === 'student') {
-        // เธเธฑเธเน€เธฃเธตเธขเธเธ”เธนเธเธฐเนเธเธเธ•เธฑเธงเน€เธญเธ
+        // นักเรียนดูคะแนนตัวเอง
         $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
         $studentId = $st ? $st['student_id'] : 0;
     } elseif (myRole() === 'parent' && $studentId) {
-        // เธเธนเนเธเธเธเธฃเธญเธเธ•เนเธญเธเน€เธเธทเนเธญเธกเธเธฑเธเธเธตเธเนเธญเธ
+        // ผู้ปกครองต้องเชื่อมบัญชีก่อน
         $p = $db->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
         if ($p) {
             $link = $db->one("SELECT 1 FROM parent_student WHERE parent_id=? AND student_id=?",
                 [$p['parent_id'], $studentId], 'ii');
-            if (!$link) DB::fail('เนเธกเนเธกเธตเธชเธดเธ—เธเธดเน', 403);
+            if (!$link) DB::fail('ไม่มีสิทธิ์', 403);
         }
     }
-    // teacher/admin เธชเนเธ student_id เธกเธฒเธ•เธฃเธเน เนเธกเนเธ•เนเธญเธ convert
+    // teacher/admin ส่ง student_id มาตรงๆ ไม่ต้อง convert
 
-    // เธฃเธญเธเธฃเธฑเธ filter subject_id (เธเธฃเธนเธเธฃเธญเธเธ•เธฒเธกเธงเธดเธเธฒ)
+    // รองรับ filter subject_id (ครูกรองตามวิชา)
     $subjectId = (int)($_GET['subject_id'] ?? 0);
 
     $where  = 'WHERE 1=1';
@@ -1276,42 +1198,7 @@ function handleMyChildren(): never {
     DB::ok(['children' => $kids]);
 }
 
-function handleLinkChild(): never {
-    global $body;
-    authRole('parent');
-    $phone = normalizePhone($body['parent_phone'] ?? '');
-    if (!$phone || strlen($phone) < 9) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเน€เธเธญเธฃเนเนเธ—เธฃเธ—เธตเนเธ–เธนเธเธ•เนเธญเธ', 400);
-
-    $db = DB::get();
-    $p  = $db->one("SELECT parent_id, phone FROM parents WHERE user_id=?", [myId()], 'i');
-    if (!$p) DB::fail('เนเธกเนเธเธเธเนเธญเธกเธนเธฅเธเธนเนเธเธเธเธฃเธญเธ', 404);
-
-    // normalize เน€เธเธญเธฃเนเนเธ DB เธ”เนเธงเธข เนเธฅเนเธงเน€เธ—เธตเธขเธเนเธซเนเธขเธทเธ”เธซเธขเธธเนเธ
-    $dbPhone  = normalizePhone($p['phone'] ?? '');
-    $phone9   = ltrim($phone, '0');
-    $dbPhone9 = ltrim($dbPhone, '0');
-    if ($dbPhone !== $phone && $dbPhone9 !== $phone9)
-        DB::fail('เน€เธเธญเธฃเนเนเธ—เธฃเนเธกเนเธ•เธฃเธเธเธฑเธเธเธฑเธเธเธตเธเธญเธเธเธธเธ“', 400);
-
-    // เธเนเธเธซเธฒเธเธฑเธเน€เธฃเธตเธขเธเธ—เธตเนเธเธฃเธญเธเน€เธเธญเธฃเนเธเธตเน (เธ—เธฑเนเธ 10 เธซเธฅเธฑเธเนเธฅเธฐ 9 เธซเธฅเธฑเธ)
-    $students = $db->all(
-        "SELECT st.student_id, u.full_name, st.grade FROM students st
-         JOIN users u ON u.user_id=st.user_id
-         WHERE st.parent_phone=? OR st.parent_phone=?",
-        [$phone, $phone9], 'ss'
-    );
-    if (!$students) DB::fail('เนเธกเนเธเธเธเธฑเธเน€เธฃเธตเธขเธเธ—เธตเนเธเธฃเธญเธเน€เธเธญเธฃเนเธเธตเนเนเธงเน โ€” เธ•เธฃเธงเธเธชเธญเธเธงเนเธฒเธเธฑเธเน€เธฃเธตเธขเธเธเธฃเธญเธเน€เธเธญเธฃเนเธ–เธนเธเธ•เนเธญเธ', 404);
-
-    $linked = 0;
-    foreach ($students as $s) {
-        $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
-            [$p['parent_id'], $s['student_id']], 'ii');
-        if ($db->affected() > 0) $linked++;
-    }
-    DB::ok(['linked' => $linked, 'students' => $students]);
-}
-
-// auto-link: parent เน€เธฃเธตเธขเธเน€เธญเธเน€เธเธทเนเธญ sync เธเธธเธ•เธฃเธซเธฅเธฒเธเธ—เธตเนเธเธฃเธญเธเน€เธเธญเธฃเนเธ•เธฃเธเธเธฑเธ
+// auto-link: parent เรียกเองเพื่อ sync บุตรหลานที่กรอกเบอร์ตรงกัน
 function handleAutoLink(): never {
     authRole('parent');
     $db = DB::get();
@@ -1338,7 +1225,7 @@ function handleUnlinkChild(): never {
     global $body;
     authRole('parent');
     $sid = (int)($body['student_id'] ?? 0);
-    if (!$sid) DB::fail('เธ•เนเธญเธเธชเนเธ student_id', 400);
+    if (!$sid) DB::fail('ต้องส่ง student_id', 400);
     $p = DB::get()->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
     if ($p) DB::get()->run("DELETE FROM parent_student WHERE parent_id=? AND student_id=?",
         [$p['parent_id'], $sid], 'ii');
@@ -1360,9 +1247,9 @@ function generateRecommendations(int $studentId, int $userId): void {
 
     foreach ($subjects as $sub) {
         $avg = (float)$sub['avg'];
-        if ($avg >= 80)     { $type='praise';    $msg='เน€เธขเธตเนเธขเธกเธกเธฒเธ! เธ—เธณเธเธฐเนเธเธเนเธ”เนเธ”เธตเนเธเธงเธดเธเธฒเธเธตเน เนเธซเนเธเธณเธฅเธฑเธเนเธเธ•เนเธญเนเธเน€เธฅเธข!'; }
-        elseif ($avg >= 55) { $type='improve';   $msg='เธเธณเธฅเธฑเธเธเธฑเธ’เธเธฒเธ”เธตเธเธถเนเธ! เน€เธฅเนเธเน€เธเธกเธงเธดเธเธฒเธเธตเนเธเนเธญเธขเธเธถเนเธเธญเธตเธเธเธดเธ”เธเธฐเธเธฃเธฑเธ'; }
-        else                { $type='low_score'; $msg='เธเธฐเนเธเธเธขเธฑเธเธเนเธญเธข เธเธงเธฃเธเธถเธเน€เธฅเนเธเน€เธเธกเนเธเธงเธดเธเธฒเธเธตเนเน€เธเธดเนเธกเน€เธ•เธดเธกเธเธฐเธเธฃเธฑเธ'; }
+        if ($avg >= 80)     { $type='praise';    $msg='เยี่ยมมาก! ทำคะแนนได้ดีในวิชานี้ ให้กำลังใจต่อไปเลย!'; }
+        elseif ($avg >= 55) { $type='improve';   $msg='กำลังพัฒนาดีขึ้น! เล่นเกมวิชานี้บ่อยขึ้นอีกนิดนะครับ'; }
+        else                { $type='low_score'; $msg='คะแนนยังน้อย ควรฝึกเล่นเกมในวิชานี้เพิ่มเติมนะครับ'; }
 
         $db->run(
             "INSERT INTO recommendations (student_id,subject_id,message,rec_type)
@@ -1373,8 +1260,8 @@ function generateRecommendations(int $studentId, int $userId): void {
         );
     }
 
-    // Notifications เนเธซเนเธเธนเนเธเธเธเธฃเธญเธ
-    $sName   = $db->one("SELECT full_name FROM users WHERE user_id=?", [$userId], 'i')['full_name'] ?? 'เธเธฑเธเน€เธฃเธตเธขเธ';
+    // Notifications ให้ผู้ปกครอง
+    $sName   = $db->one("SELECT full_name FROM users WHERE user_id=?", [$userId], 'i')['full_name'] ?? 'นักเรียน';
     $parents = $db->all(
         "SELECT p.parent_id, p.user_id FROM parent_student ps
          JOIN parents p ON p.parent_id=ps.parent_id
@@ -1388,18 +1275,18 @@ function generateRecommendations(int $studentId, int $userId): void {
         if ($lowSubs) {
             $db->run(
                 "INSERT INTO parent_notifications (parent_id,student_id,ico,title,message,notif_type)
-                 VALUES (?,?,'โ ๏ธ','เธ•เนเธญเธเธเธฒเธฃเธเธงเธฒเธกเธเนเธงเธขเน€เธซเธฅเธทเธญ',?,'warn')",
+                 VALUES (?,?,'⚠️','ต้องการความช่วยเหลือ',?,'warn')",
                 [$par['parent_id'], $studentId,
-                 "$sName เธกเธตเธงเธดเธเธฒเธ—เธตเนเธเธฐเนเธเธเธ•เนเธณเธเธงเนเธฒ 50% เธฅเธญเธเธเนเธงเธขเธ—เธเธ—เธงเธเธเธ—เน€เธฃเธตเธขเธเธฃเนเธงเธกเธเธฑเธเธ—เธตเนเธเนเธฒเธเธ”เธนเธเธฃเธฑเธ"],
+                 "$sName มีวิชาที่คะแนนต่ำกว่า 50% ลองช่วยทบทวนบทเรียนร่วมกันที่บ้านดูครับ"],
                 'iis'
             );
         }
         if ($highSubs) {
             $db->run(
                 "INSERT INTO parent_notifications (parent_id,student_id,ico,title,message,notif_type)
-                 VALUES (?,?,'โญ','เธเธฅเธเธฒเธฃเน€เธฃเธตเธขเธเธ”เธตเน€เธขเธตเนเธขเธก!',?,'praise')",
+                 VALUES (?,?,'⭐','ผลการเรียนดีเยี่ยม!',?,'praise')",
                 [$par['parent_id'], $studentId,
-                 "$sName เธ—เธณเธเธฐเนเธเธเนเธ”เนเธขเธญเธ”เน€เธขเธตเนเธขเธก! เนเธซเนเธเธณเธฅเธฑเธเนเธเธเธฑเธเธ”เนเธงเธขเธเธฐเธเธฃเธฑเธ"],
+                 "$sName ทำคะแนนได้ยอดเยี่ยม! ให้กำลังใจกันด้วยนะครับ"],
                 'iis'
             );
         }
@@ -1442,20 +1329,20 @@ function generateRecommendationsV2(int $studentId, int $userId): void {
 
         if ($avg >= 80) {
             $type = 'praise';
-            $msg = 'เธเธฃเนเธญเธกเธ•เนเธญเธขเธญเธ”เนเธฅเนเธง';
+            $msg = 'พร้อมต่อยอดแล้ว';
         } elseif ($avg >= 55) {
             $type = 'improve';
-            $msg = 'เธเธณเธฅเธฑเธเธ”เธตเธเธถเนเธ';
+            $msg = 'กำลังดีขึ้น';
         } else {
             $type = 'low_score';
-            $msg = 'เธเธงเธฃเธ—เธเธ—เธงเธเธเนเธญเธเน€เธฃเธตเธขเธเธ•เนเธญ';
+            $msg = 'ควรทบทวนก่อนเรียนต่อ';
         }
 
         if ($weakSkill) {
-            $msg .= ' เนเธ”เธขเน€เธเนเธเธซเธฑเธงเธเนเธญ "' . $weakSkill['skill_name'] . '"';
+            $msg .= ' โดยเน้นหัวข้อ "' . $weakSkill['skill_name'] . '"';
         }
         if ($nextGame) {
-            $msg .= ' เนเธฅเธฐเน€เธฅเนเธเน€เธเธก "' . $nextGame['name'] . '" เน€เธเนเธเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ';
+            $msg .= ' และเล่นเกม "' . $nextGame['name'] . '" เป็นลำดับถัดไป';
         }
 
         $db->run(
@@ -1473,16 +1360,16 @@ function generateRecommendationsV2(int $studentId, int $userId): void {
          JOIN users u ON u.user_id = st.user_id
          WHERE st.student_id=?",
         [$studentId], 'i'
-    )['full_name'] ?? 'เธเธฑเธเน€เธฃเธตเธขเธ';
+    )['full_name'] ?? 'นักเรียน';
 
     $weakest = $weakSkills[0] ?? null;
     if ($weakest && (float)$weakest['mastery_score'] < 60) {
         createParentNotification(
             $studentId,
-            'เธกเธตเธซเธฑเธงเธเนเธญเธ—เธตเนเธเธงเธฃเธ—เธเธ—เธงเธ',
-            $studentName . ' เธขเธฑเธเธญเนเธญเธเนเธเน€เธฃเธทเนเธญเธ "' . $weakest['skill_name'] . '" เธฅเธญเธเน€เธเธดเธ”เธเธถเธเน€เธเธเธฒเธฐเธเธธเธ”เธซเธฃเธทเธญเธกเธญเธเธซเธกเธฒเธขเนเธเธเธฃเธฒเธขเธชเธฑเธเธ”เธฒเธซเนเน€เธเธดเนเธก',
+            'มีหัวข้อที่ควรทบทวน',
+            $studentName . ' ยังอ่อนในเรื่อง "' . $weakest['skill_name'] . '" ลองเปิดฝึกเฉพาะจุดหรือมอบหมายแผนรายสัปดาห์เพิ่ม',
             'warn',
-            'โ ๏ธ',
+            '⚠️',
             'weak_skill_' . $weakest['skill_key']
         );
     }
@@ -1497,7 +1384,7 @@ function handleRecommendations(): never {
         $st  = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
         $sid = $st ? $st['student_id'] : 0;
     }
-    if (!$sid) DB::fail('เธ•เนเธญเธเธชเนเธ student_id', 400);
+    if (!$sid) DB::fail('ต้องส่ง student_id', 400);
 
     $recs = $db->all(
         "SELECT r.*, sub.name AS subject_name, sub.color, sub.icon
@@ -1544,26 +1431,17 @@ function handleMarkNotifRead(): never {
 function handleTeacherStats(): never {
     authRole('teacher', 'admin', 'officer');
     $db = DB::get();
-    // Try view first, fall back to direct query if view doesn't exist
-    $fallback_query = "SELECT sub.subject_id, sub.name AS subject_name, sub.color AS subject_color,
+    $stats = $db->all("SELECT sub.subject_id, sub.name AS subject_name, sub.color AS subject_color,
                      sub.icon,
                      COUNT(DISTINCT sc.student_id)        AS student_count,
                      COUNT(sc.score_id)                   AS total_plays,
-                     ROUND(AVG(CASE WHEN sc.max_score > 0 THEN sc.score / sc.max_score * 100 ELSE sc.score END), 1) AS avg_score,
+                     ROUND(AVG(sc.score), 1)              AS avg_score,
                      MAX(sc.score)                        AS best_score
               FROM subjects sub
-              LEFT JOIN scores sc ON sc.subject_id = sub.subject_id
+              LEFT JOIN games g ON g.subject_id = sub.subject_id
+              LEFT JOIN scores sc ON sc.game_id = g.game_id
               GROUP BY sub.subject_id, sub.name, sub.color, sub.icon
-              ORDER BY sub.subject_id";
-    try {
-        $stats = $db->all("SELECT * FROM v_teacher_stats ORDER BY subject_id");
-        // If view exists but returns nothing, fall back to direct query
-        if (empty($stats)) {
-            $stats = $db->all($fallback_query);
-        }
-    } catch (\Exception $e) {
-        $stats = $db->all($fallback_query);
-    }
+              ORDER BY sub.subject_id");
     $total = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=TRUE");
     DB::ok(['subjects' => $stats, 'total_students' => (int)$total['c']]);
 }
@@ -1587,7 +1465,7 @@ function handleAllStudents(): never {
 }
 
 // ============================================================
-// LESSON CONTENT EDITOR (เธเธฃเธนเนเธเนเนเธเนเธ”เน)
+// LESSON CONTENT EDITOR (ครูแก้ไขได้)
 // ============================================================
 
 function handleSaveLesson(): never {
@@ -1601,7 +1479,7 @@ function handleSaveLesson(): never {
     $summary  = trim($body['summary']    ?? '');
     $readTime = (int)($body['read_time'] ?? 5);
 
-    if (!$gameId || !$title) DB::fail('เธ•เนเธญเธเธชเนเธ game_id เนเธฅเธฐ title', 400);
+    if (!$gameId || !$title) DB::fail('ต้องส่ง game_id และ title', 400);
 
     // upsert
     $exists = $db->one(
@@ -1619,7 +1497,7 @@ function handleSaveLesson(): never {
             [$gameId, $lessonNo, $title, $bodyHtml, $summary, $readTime], 'iisssi'
         );
     }
-    DB::ok(['message' => 'เธเธฑเธเธ—เธถเธเธชเธณเน€เธฃเนเธ']);
+    DB::ok(['message' => 'บันทึกสำเร็จ']);
 }
 
 function handleSaveLessonV2(): never {
@@ -1634,7 +1512,7 @@ function handleSaveLessonV2(): never {
     $readTime = (int)($body['read_time'] ?? 5);
     $status   = trim((string)($body['status'] ?? 'draft'));
     if (!in_array($status, ['draft', 'published'], true)) $status = 'draft';
-    if (!$gameId || !$title) DB::fail('เธ•เนเธญเธเธชเนเธ game_id เนเธฅเธฐ title', 400);
+    if (!$gameId || !$title) DB::fail('ต้องส่ง game_id และ title', 400);
 
     $exists = $db->one(
         "SELECT * FROM lesson_content WHERE game_id=? AND lesson_no=?",
@@ -1694,7 +1572,7 @@ function handleSaveLessonV2(): never {
     );
 
     $contentDate = $db->one("SELECT updated_at FROM lesson_content WHERE content_id=?", [$contentId], 'i');
-    DB::ok(['message' => 'เธเธฑเธเธ—เธถเธเธชเธณเน€เธฃเนเธ', 'content_id' => $contentId, 'status' => $status, 'updated_at' => $contentDate['updated_at'] ?? null]);
+    DB::ok(['message' => 'บันทึกสำเร็จ', 'content_id' => $contentId, 'status' => $status, 'updated_at' => $contentDate['updated_at'] ?? null]);
 }
 
 function handleDeleteLesson(): never {
@@ -1702,7 +1580,7 @@ function handleDeleteLesson(): never {
     authRole('teacher', 'admin', 'officer');
     $gameId   = (int)($body['game_id']   ?? 0);
     $lessonNo = (int)($body['lesson_no'] ?? 1);
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
     $db = DB::get();
     $content = $db->one("SELECT created_by, updated_by FROM lesson_content WHERE game_id=? AND lesson_no=?", [$gameId, $lessonNo], 'ii');
     if (!$content) DB::fail('ไม่พบบทเรียน', 404);
@@ -1711,7 +1589,7 @@ function handleDeleteLesson(): never {
         "DELETE FROM lesson_content WHERE game_id=? AND lesson_no=?",
         [$gameId, $lessonNo], 'ii'
     );
-    DB::ok(['message' => 'เธฅเธเธชเธณเน€เธฃเนเธ']);
+    DB::ok(['message' => 'ลบสำเร็จ']);
 }
 
 function handleSaveGameSettings(): never {
@@ -1721,9 +1599,9 @@ function handleSaveGameSettings(): never {
     $gameId    = (int)($body['game_id'] ?? 0);
     $timeLimit = (int)($body['time_limit'] ?? 0);
 
-    if (!$gameId) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
     if ($timeLimit < 10 || $timeLimit > 3600) {
-        DB::fail('เน€เธงเธฅเธฒเน€เธฅเนเธเธ•เนเธญเธเธญเธขเธนเนเธฃเธฐเธซเธงเนเธฒเธ 10 เธ–เธถเธ 3600 เธงเธดเธเธฒเธ—เธต', 400);
+        DB::fail('เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที', 400);
     }
 
     $db->run(
@@ -1731,12 +1609,12 @@ function handleSaveGameSettings(): never {
         [$timeLimit, $gameId],
         'ii'
     );
-    DB::ok(['message' => 'เธเธฑเธเธ—เธถเธเน€เธงเธฅเธฒเน€เธฅเนเธเธชเธณเน€เธฃเนเธ', 'time_limit' => $timeLimit]);
+    DB::ok(['message' => 'บันทึกเวลาเล่นสำเร็จ', 'time_limit' => $timeLimit]);
 }
 
 
 // ============================================================
-// 2.0 เธเธฑเธ”เธเธฒเธฃเธเนเธญเธกเธนเธฅเธเธนเนเนเธเน (admin)
+// 2.0 จัดการข้อมูลผู้ใช้ (admin)
 // ============================================================
 function resolveStudentScope(int $requestedStudentId = 0): int {
     $db = DB::get();
@@ -1761,7 +1639,7 @@ function handleStudentAnalytics(): never {
     authRole('student', 'parent', 'teacher', 'admin');
     $db = DB::get();
     $studentId = resolveStudentScope((int)($_GET['student_id'] ?? 0));
-    if (!$studentId) DB::fail('เนเธกเนเธเธ student_id', 404);
+    if (!$studentId) DB::fail('ไม่พบ student_id', 404);
 
     $overview = $db->one(
         "SELECT COUNT(*) AS total_plays, ROUND(AVG(score),1) AS avg_score, SUM(time_spent) AS total_time,
@@ -1770,7 +1648,7 @@ function handleStudentAnalytics(): never {
         [$studentId], 'i'
     ) ?: [];
     $trend = $db->all(
-        "SELECT DATE_FORMAT(played_at, '%Y-%m-%d') AS played_day, score
+        "SELECT TO_CHAR(played_at, 'YYYY-MM-DD') AS played_day, score
          FROM scores WHERE student_id=?
          ORDER BY played_at DESC LIMIT 8",
         [$studentId], 'i'
@@ -1823,8 +1701,8 @@ function handleStudentAnalytics(): never {
         $daysSince = (int)floor((time() - strtotime($overview['last_played'])) / 86400);
     }
     $alerts = [];
-    if ($daysSince !== null && $daysSince >= 7) $alerts[] = 'เนเธกเนเนเธ”เนเน€เธเนเธฒเน€เธฃเธตเธขเธเน€เธเธดเธ 7 เธงเธฑเธ';
-    if (!empty($mastery) && (float)$mastery[0]['mastery_score'] < 60) $alerts[] = 'เธกเธตเธซเธฑเธงเธเนเธญเธญเนเธญเธเธ—เธตเนเธเธงเธฃเธ—เธเธ—เธงเธเธ—เธฑเธเธ—เธต';
+    if ($daysSince !== null && $daysSince >= 7) $alerts[] = 'ไม่ได้เข้าเรียนเกิน 7 วัน';
+    if (!empty($mastery) && (float)$mastery[0]['mastery_score'] < 60) $alerts[] = 'มีหัวข้ออ่อนที่ควรทบทวนทันที';
 
     DB::ok([
         'overview' => [
@@ -1848,7 +1726,7 @@ function handleStudentPlans(): never {
     authRole('student', 'parent', 'teacher', 'admin');
     $db = DB::get();
     $studentId = resolveStudentScope((int)($_GET['student_id'] ?? 0));
-    if (!$studentId) DB::fail('เนเธกเนเธเธ student_id', 404);
+    if (!$studentId) DB::fail('ไม่พบ student_id', 404);
     $plans = $db->all(
         "SELECT lp.plan_id, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
                 lpi.item_id, lpi.game_id, lpi.lesson_no, lpi.target_score, lpi.sort_order,
@@ -1876,12 +1754,12 @@ function handleCreatePlan(): never {
     authRole('teacher', 'admin');
     $db = DB::get();
     $studentId = (int)($body['student_id'] ?? 0);
-    $title = trim((string)($body['title'] ?? 'เนเธเธเธฃเธฒเธขเธชเธฑเธเธ”เธฒเธซเน'));
+    $title = trim((string)($body['title'] ?? 'แผนรายสัปดาห์'));
     $description = trim((string)($body['description'] ?? ''));
     $weekStart = trim((string)($body['week_start'] ?? date('Y-m-d')));
     $dueAt = trim((string)($body['due_at'] ?? ''));
     $items = is_array($body['items'] ?? null) ? $body['items'] : [];
-    if (!$studentId || !$items) DB::fail('เธ•เนเธญเธเธกเธต student_id เนเธฅเธฐเธฃเธฒเธขเธเธฒเธฃเน€เธเธก', 400);
+    if (!$studentId || !$items) DB::fail('ต้องมี student_id และรายการเกม', 400);
 
     $db->run(
         "INSERT INTO learning_plans (student_id, teacher_user_id, title, description, week_start, due_at, status)
@@ -1902,14 +1780,14 @@ function handleCreatePlan(): never {
         );
     }
 
-    createParentNotification($studentId, 'เธกเธตเนเธเธเธเธฒเธฃเน€เธฃเธตเธขเธเนเธซเธกเน', 'เธเธฃเธนเนเธ”เนเธกเธญเธเธซเธกเธฒเธขเนเธเธเธฃเธฒเธขเธชเธฑเธเธ”เธฒเธซเนเนเธซเธกเนเนเธซเนเนเธฅเนเธง', 'info', '๐“', 'plan_' . $planId);
+    createParentNotification($studentId, 'มีแผนการเรียนใหม่', 'ครูได้มอบหมายแผนรายสัปดาห์ใหม่ให้แล้ว', 'info', '📘', 'plan_' . $planId);
     logAudit('plan_created', 'learning_plan', (string)$planId, $title, ['student_id' => $studentId, 'item_count' => count($items)]);
     try { refreshStudentNotifications($studentId); } catch (Exception $e) {}
 
     DB::ok(['plan_id' => $planId]);
 }
 
-function createParentNotificationUnique(int $studentId, string $title, string $message, string $type = 'info', string $icon = '๐””', string $eventKey = ''): void {
+function createParentNotificationUnique(int $studentId, string $title, string $message, string $type = 'info', string $icon = '🔔', string $eventKey = ''): void {
     $db = DB::get();
     $parents = $db->all(
         "SELECT p.parent_id
@@ -1960,10 +1838,10 @@ function refreshStudentNotifications(int $studentId): void {
         if ($olderAvg !== null && ($olderAvg - $recentAvg) >= 15) {
             createParentNotificationUnique(
                 $studentId,
-                'เธเธฐเนเธเธเธกเธตเนเธเธงเนเธเนเธกเธฅเธ”เธฅเธ',
-                'เธเธฅเน€เธฅเนเธเธฅเนเธฒเธชเธธเธ”เธฅเธ”เธฅเธเธเธฒเธเธเนเธงเธเธเนเธญเธเธซเธเนเธฒเธญเธขเนเธฒเธเน€เธซเนเธเนเธ”เนเธเธฑเธ” เธเธงเธฃเธเนเธงเธขเธ—เธเธ—เธงเธเน€เธเนเธเธเธดเน€เธจเธฉ',
+                'คะแนนมีแนวโน้มลดลง',
+                'ผลเล่นล่าสุดลดลงจากช่วงก่อนหน้าอย่างเห็นได้ชัด ควรช่วยทบทวนเป็นพิเศษ',
                 'warn',
-                '๐“',
+                '📉',
                 'score_drop'
             );
         }
@@ -1990,10 +1868,10 @@ function refreshStudentNotifications(int $studentId): void {
     if ($activePlan && (int)$activePlan['total_items'] > 0 && (int)$activePlan['completed_items'] >= (int)$activePlan['total_items']) {
         createParentNotificationUnique(
             $studentId,
-            'เธ—เธณเน€เธเนเธฒเธซเธกเธฒเธขเธเธฃเธเนเธฅเนเธง',
-            'เธเธฑเธเน€เธฃเธตเธขเธเธ—เธณเนเธเธ "' . $activePlan['title'] . '" เธเธฃเธเนเธฅเนเธง',
+            'ทำเป้าหมายครบแล้ว',
+            'นักเรียนทำแผน "' . $activePlan['title'] . '" ครบแล้ว',
             'praise',
-            '๐ฏ',
+            '🎯',
             'plan_complete_' . $activePlan['plan_id']
         );
         $db->run("UPDATE learning_plans SET status='completed' WHERE plan_id=?", [$activePlan['plan_id']], 'i');
@@ -2028,16 +1906,16 @@ function handleCreatePlanV2(): never {
     $db = DB::get();
 
     if (isset($body['student_ids'])) {
-        DB::fail('เธฃเธฐเธเธเธเธตเนเธกเธญเธเธซเธกเธฒเธขเนเธเธเนเธ”เนเธ—เธตเธฅเธฐเธเธฑเธเน€เธฃเธตเธขเธ 1 เธเธเน€เธ—เนเธฒเธเธฑเนเธ', 400);
+        DB::fail('ระบบนี้มอบหมายแผนได้ทีละนักเรียน 1 คนเท่านั้น', 400);
     }
 
     $studentId = (int)($body['student_id'] ?? 0);
-    $title = trim((string)($body['title'] ?? 'เนเธเธเธฃเธฒเธขเธชเธฑเธเธ”เธฒเธซเน'));
+    $title = trim((string)($body['title'] ?? 'แผนรายสัปดาห์'));
     $description = trim((string)($body['description'] ?? ''));
     $weekStart = trim((string)($body['week_start'] ?? date('Y-m-d')));
     $dueAt = trim((string)($body['due_at'] ?? ''));
     $items = is_array($body['items'] ?? null) ? $body['items'] : [];
-    if (!$studentId || !$items) DB::fail('เธ•เนเธญเธเธกเธต student_id เนเธฅเธฐเธฃเธฒเธขเธเธฒเธฃเน€เธเธก', 400);
+    if (!$studentId || !$items) DB::fail('ต้องมี student_id และรายการเกม', 400);
 
     $student = $db->one(
         "SELECT st.student_id, u.full_name
@@ -2045,7 +1923,7 @@ function handleCreatePlanV2(): never {
          WHERE st.student_id=?",
         [$studentId], 'i'
     );
-    if (!$student) DB::fail('เนเธกเนเธเธเธเธฑเธเน€เธฃเธตเธขเธเธ—เธตเนเน€เธฅเธทเธญเธ', 404);
+    if (!$student) DB::fail('ไม่พบนักเรียนที่เลือก', 404);
 
     $db->run(
         "INSERT INTO learning_plans (student_id, teacher_user_id, title, description, week_start, due_at, status)
@@ -2068,10 +1946,10 @@ function handleCreatePlanV2(): never {
 
     createParentNotificationUnique(
         $studentId,
-        'เธกเธตเนเธเธเธเธฒเธฃเน€เธฃเธตเธขเธเนเธซเธกเน',
-        'เธเธฃเธนเนเธ”เนเธกเธญเธเธซเธกเธฒเธขเนเธเธ "' . $title . '" เนเธซเนเธเธฑเธ ' . $student['full_name'],
+        'มีแผนการเรียนใหม่',
+        'ครูได้มอบหมายแผน "' . $title . '" ให้กับ ' . $student['full_name'],
         'info',
-        '๐“',
+        '📘',
         'plan_' . $planId
     );
     logAudit('plan_created', 'learning_plan', (string)$planId, $title, ['student_id' => $studentId, 'item_count' => count($items)]);
@@ -2114,18 +1992,20 @@ function handleReportV2(): never {
 
     if ($type === 'at_risk') {
         $rows = $db->all(
-            "SELECT u.full_name, st.grade, st.student_id,
-                    ROUND(AVG(sc.score),1) AS avg_score,
-                    MAX(sc.played_at) AS last_active,
-                    COALESCE(MIN(sm.mastery_score), 0) AS weakest_mastery,
-                    COALESCE(DATE_PART('day', NOW() - MAX(sc.played_at)), 999999) AS inactive_days
-             FROM students st
-             JOIN users u ON u.user_id = st.user_id
-             LEFT JOIN scores sc ON sc.student_id = st.student_id
-             LEFT JOIN student_mastery sm ON sm.student_id = st.student_id
-             GROUP BY st.student_id
-             HAVING avg_score < 60 OR inactive_days >= 7 OR weakest_mastery < 60
-             ORDER BY inactive_days DESC, weakest_mastery ASC, avg_score ASC
+            "SELECT * FROM (
+                SELECT u.full_name, st.grade, st.student_id,
+                       ROUND(AVG(sc.score),1) AS avg_score,
+                       MAX(sc.played_at) AS last_active,
+                       COALESCE(MIN(sm.mastery_score), 0) AS weakest_mastery,
+                       COALESCE(DATE_PART('day', NOW() - MAX(sc.played_at)), 999999) AS inactive_days
+                FROM students st
+                JOIN users u ON u.user_id = st.user_id
+                LEFT JOIN scores sc ON sc.student_id = st.student_id
+                LEFT JOIN student_mastery sm ON sm.student_id = st.student_id
+                GROUP BY st.student_id, u.user_id
+             ) risk
+             WHERE avg_score < 60 OR inactive_days >= 7 OR weakest_mastery < 60
+             ORDER BY inactive_days DESC, weakest_mastery ASC, avg_score ASC NULLS FIRST
              LIMIT 100"
         );
         DB::ok(['students' => $rows]);
@@ -2159,7 +2039,7 @@ function handleReportV2(): never {
                 FROM scores
                 GROUP BY student_id, game_id
              ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
-             GROUP BY lp.plan_id
+             GROUP BY lp.plan_id, u.user_id
              ORDER BY lp.created_at DESC"
         );
         DB::ok(['plans' => $rows]);
@@ -2197,9 +2077,9 @@ function handleAdminUsers(): never {
 
     $users = $db->all("SELECT u.user_id, u.username, u.full_name, u.email, u.role,
             u.is_active, u.created_at, u.updated_at,
-            COALESCE(s.grade,'โ€”') AS grade,
-            COALESCE(p.phone,'โ€”') AS phone,
-            COALESCE(t.department,'โ€”') AS department
+            COALESCE(s.grade,'—') AS grade,
+            COALESCE(p.phone,'—') AS phone,
+            COALESCE(t.department,'—') AS department
         FROM users u
         LEFT JOIN students s ON s.user_id=u.user_id
         LEFT JOIN parents  p ON p.user_id=u.user_id
@@ -2214,9 +2094,9 @@ function handleAdminToggleUser(): never {
     global $body;
     authRole('admin');
     $uid = (int)($body['user_id'] ?? 0);
-    if (!$uid || $uid === myId()) DB::fail('เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธ”เน', 400);
+    if (!$uid || $uid === myId()) DB::fail('ไม่สามารถดำเนินการได้', 400);
     $u = DB::get()->one("SELECT is_active FROM users WHERE user_id=?", [$uid], 'i');
-    if (!$u) DB::fail('เนเธกเนเธเธเธเธนเนเนเธเน', 404);
+    if (!$u) DB::fail('ไม่พบผู้ใช้', 404);
     $newState = !$u['is_active'];
     DB::get()->run("UPDATE users SET is_active=? WHERE user_id=?", [$newState, $uid], 'ii');
     DB::ok(['is_active' => $newState]);
@@ -2226,7 +2106,7 @@ function handleAdminDeleteUser(): never {
     global $body;
     authRole('admin');
     $uid = (int)($body['user_id'] ?? 0);
-    if (!$uid || $uid === myId()) DB::fail('เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธฅเธเธ•เธฑเธงเน€เธญเธเนเธ”เน', 400);
+    if (!$uid || $uid === myId()) DB::fail('ไม่สามารถลบตัวเองได้', 400);
     DB::get()->run("DELETE FROM users WHERE user_id=?", [$uid], 'i');
     DB::ok();
 }
@@ -2236,15 +2116,15 @@ function handleAdminResetPassword(): never {
     authRole('admin');
     $uid  = (int)($body['user_id'] ?? 0);
     $pass = $body['new_password'] ?? '';
-    if (!$uid) DB::fail('เธ•เนเธญเธเธชเนเธ user_id', 400);
+    if (!$uid) DB::fail('ต้องส่ง user_id', 400);
     if (strlen($pass) < 8) DB::fail('New password must be at least 8 characters', 400);
     DB::get()->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($pass, PASSWORD_BCRYPT), $uid], 'si');
-    DB::ok(['message' => 'เธฃเธตเน€เธเนเธ•เธฃเธซเธฑเธชเธเนเธฒเธเธชเธณเน€เธฃเนเธ']);
+    DB::ok(['message' => 'รีเซ็ตรหัสผ่านสำเร็จ']);
 }
 
 // ============================================================
-// 3.0 เธเธฑเธ”เธเธฒเธฃเธงเธดเธเธฒ/เธซเธฅเธฑเธเธชเธนเธ•เธฃ (admin/teacher)
+// 3.0 จัดการวิชา/หลักสูตร (admin/teacher)
 // ============================================================
 function handleSaveSubject(): never {
     global $body;
@@ -2253,10 +2133,10 @@ function handleSaveSubject(): never {
     $sid  = (int)($body['subject_id'] ?? 0);
     $name = trim($body['name'] ?? '');
     $desc = trim($body['description'] ?? '');
-    $icon = trim($body['icon'] ?? '๐“');
+    $icon = trim($body['icon'] ?? '📚');
     $color = trim($body['color'] ?? '#4CAF50');
     $order = (int)($body['order_no'] ?? 1);
-    if (!$name) DB::fail('เธ•เนเธญเธเนเธชเนเธเธทเนเธญเธงเธดเธเธฒ', 400);
+    if (!$name) DB::fail('ต้องใส่ชื่อวิชา', 400);
     if ($sid) {
         $db->run("UPDATE subjects SET name=?,description=?,icon=?,color=?,order_no=? WHERE subject_id=?",
             [$name,$desc,$icon,$color,$order,$sid], 'ssssii');
@@ -2272,22 +2152,22 @@ function handleToggleSubject(): never {
     global $body;
     authRole('admin');
     $sid = (int)($body['subject_id'] ?? 0);
-    if (!$sid) DB::fail('เธ•เนเธญเธเธชเนเธ subject_id', 400);
+    if (!$sid) DB::fail('ต้องส่ง subject_id', 400);
     $s = DB::get()->one("SELECT is_active FROM subjects WHERE subject_id=?", [$sid], 'i');
-    if (!$s) DB::fail('เนเธกเนเธเธเธงเธดเธเธฒ', 404);
+    if (!$s) DB::fail('ไม่พบวิชา', 404);
     $newState = !$s['is_active'];
     DB::get()->run("UPDATE subjects SET is_active=? WHERE subject_id=?", [$newState, $sid], 'ii');
     DB::ok(['is_active' => $newState]);
 }
 
 // ============================================================
-// 4.0 เธเธฃเธนเนเธเนเนเธเธเธณเธ–เธฒเธก-เธเธณเธ•เธญเธเนเธเน€เธเธก
+// 4.0 ครูแก้ไขคำถาม-คำตอบในเกม
 // ============================================================
 function handleGetGameQuestions(): never {
     auth();
     ensureQuestionImageColumnCapacity();
     $gid  = (int)($_GET['game_id'] ?? 0);
-    if (!$gid) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gid) DB::fail('ต้องส่ง game_id', 400);
     $db   = DB::get();
     $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
     $qs   = $db->all("SELECT * FROM questions WHERE game_id=? ORDER BY order_no", [$gid], 'i');
@@ -2310,12 +2190,12 @@ function handleSaveQuestion(): never {
     $questionImg = trim($body['question_img'] ?? '');
     $order = (int)($body['order_no'] ?? 1);
     $answers = $body['answers'] ?? [];
-    if (!$gid || !$text) DB::fail('เธ•เนเธญเธเธชเนเธ game_id เนเธฅเธฐ question_text', 400);
+    if (!$gid || !$text) DB::fail('ต้องส่ง game_id และ question_text', 400);
 
     if ($qid) {
         $db->run("UPDATE questions SET question_text=?,question_img=?,hint=?,order_no=? WHERE question_id=?",
             [$text, $questionImg ?: null, $hint ?: null, $order, $qid], 'sssii');
-        // เธฅเธ answers เน€เธ”เธดเธกเนเธฅเนเธงเนเธชเนเนเธซเธกเน
+        // ลบ answers เดิมแล้วใส่ใหม่
         $db->run("DELETE FROM answers WHERE question_id=?", [$qid], 'i');
     } else {
         $db->run("INSERT INTO questions (game_id,question_text,question_img,hint,order_no) VALUES (?,?,?,?,?)",
@@ -2343,7 +2223,7 @@ function handleDeleteQuestion(): never {
     global $body;
     authRole('teacher', 'admin', 'officer');
     $qid = (int)($body['question_id'] ?? 0);
-    if (!$qid) DB::fail('เธ•เนเธญเธเธชเนเธ question_id', 400);
+    if (!$qid) DB::fail('ต้องส่ง question_id', 400);
     $db = DB::get();
     $question = $db->one("SELECT created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
     if (!$question) DB::fail('Question not found', 404);
@@ -2353,7 +2233,7 @@ function handleDeleteQuestion(): never {
 }
 
 // ============================================================
-// 8.0 เธญเธญเธเธฃเธฒเธขเธเธฒเธ (เธเธนเนเธเธฃเธดเธซเธฒเธฃ/เธเธฃเธน)
+// 8.0 ออกรายงาน (ผู้บริหาร/ครู)
 // ============================================================
 function handleReport(): never {
     authRole('admin', 'teacher');
@@ -2394,7 +2274,7 @@ function handleReport(): never {
             FROM students st JOIN users u ON u.user_id=st.user_id
             LEFT JOIN scores sc ON sc.student_id=st.student_id
             WHERE u.is_active=TRUE
-            GROUP BY st.student_id ORDER BY avg_score DESC LIMIT 100");
+            GROUP BY st.student_id, u.user_id ORDER BY avg_score DESC NULLS LAST LIMIT 100");
         DB::ok(['students' => $rows]);
     }
     if ($type === 'by_game') {
@@ -2405,7 +2285,7 @@ function handleReport(): never {
             MAX(sc.score) AS best_score
             FROM games g JOIN subjects sub ON sub.subject_id=g.subject_id
             LEFT JOIN scores sc ON sc.game_id=g.game_id
-            GROUP BY g.game_id ORDER BY total_plays DESC");
+            GROUP BY g.game_id, sub.subject_id ORDER BY total_plays DESC");
         DB::ok(['games' => $rows]);
     }
     if ($type === 'daily') {
@@ -2418,7 +2298,7 @@ function handleReport(): never {
             [$days], 'i');
         DB::ok(['daily' => $rows]);
     }
-    DB::fail('เธเธฃเธฐเน€เธ เธ—เธฃเธฒเธขเธเธฒเธเนเธกเนเธ–เธนเธเธ•เนเธญเธ', 400);
+    DB::fail('ประเภทรายงานไม่ถูกต้อง', 400);
 }
 
 
@@ -2430,25 +2310,25 @@ function handleForgotPassword(): never {
     global $body;
     $db    = DB::get();
     $email = trim($body['email'] ?? '');
-    if (!$email) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธญเธตเน€เธกเธฅ', 400);
+    if (!$email) DB::fail('กรุณากรอกอีเมล', 400);
 
     $user = $db->one("SELECT user_id, full_name FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
-    // เนเธกเนเธเธญเธเธงเนเธฒเธญเธตเน€เธกเธฅเธกเธตเธซเธฃเธทเธญเนเธกเน (security)
-    if (!$user) DB::ok(['message' => 'เธซเธฒเธเธญเธตเน€เธกเธฅเธเธตเนเธกเธตเนเธเธฃเธฐเธเธ เธเธฐเนเธ”เนเธฃเธฑเธเธฃเธซเธฑเธชเธฃเธตเน€เธเนเธ•']);
+    // ไม่บอกว่าอีเมลมีหรือไม่ (security)
+    if (!$user) DB::ok(['message' => 'หากอีเมลนี้มีในระบบ จะได้รับรหัสรีเซ็ต']);
 
-    // เธชเธฃเนเธฒเธ token 6 เธซเธฅเธฑเธ (OTP style โ€” เธเนเธฒเธขเธ•เนเธญเธเธฒเธฃเนเธเนเธเธฒเธเนเธเธฃเธฐเธเธเนเธฃเธเน€เธฃเธตเธขเธ)
+    // สร้าง token 6 หลัก (OTP style — ง่ายต่อการใช้งานในระบบโรงเรียน)
     $token = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    $expires = date('Y-m-d H:i:s', time() + 1800); // 30 เธเธฒเธ—เธต
+    $expires = date('Y-m-d H:i:s', time() + 1800); // 30 นาที
 
-    // เธฅเธ token เน€เธเนเธฒ
+    // ลบ token เก่า
     $db->run("DELETE FROM password_resets WHERE user_id=?", [$user['user_id']], 'i');
     $db->run("INSERT INTO password_resets (user_id,token,expires_at) VALUES (?,?,?)",
         [$user['user_id'], $token, $expires], 'iss');
 
-    // เนเธเธฃเธฐเธเธเธเธฃเธดเธเธเธงเธฃเธชเนเธเธญเธตเน€เธกเธฅ โ€” เธฃเธฐเธเธเธเธตเน return token เนเธ”เธขเธ•เธฃเธ (เธชเธณเธซเธฃเธฑเธ demo/เนเธฃเธเน€เธฃเธตเธขเธ)
+    // ในระบบจริงควรส่งอีเมล — ระบบนี้ return token โดยตรง (สำหรับ demo/โรงเรียน)
     DB::ok([
-        'message' => 'เธฃเธซเธฑเธช OTP เธชเธณเธซเธฃเธฑเธเธฃเธตเน€เธเนเธ•เธฃเธซเธฑเธชเธเนเธฒเธ (เนเธเนเนเธ”เน 30 เธเธฒเธ—เธต)',
-        'otp'     => $token,   // production: เธชเนเธเธญเธตเน€เธกเธฅเนเธ—เธ
+        'message' => 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน (ใช้ได้ 30 นาที)',
+        'otp'     => $token,   // production: ส่งอีเมลแทน
         'name'    => $user['full_name'],
     ]);
 }
@@ -2460,70 +2340,70 @@ function handleResetPassword(): never {
     $token = trim($body['token']    ?? '');
     $pass  = $body['new_password']  ?? '';
 
-    if (!$email || !$token || !$pass) DB::fail('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธญเธกเธนเธฅเนเธซเนเธเธฃเธ', 400);
-    if (strlen($pass) < 6)           DB::fail('เธฃเธซเธฑเธชเธเนเธฒเธเธ•เนเธญเธเธกเธตเธญเธขเนเธฒเธเธเนเธญเธข 6 เธ•เธฑเธงเธญเธฑเธเธฉเธฃ', 400);
+    if (!$email || !$token || !$pass) DB::fail('กรุณากรอกข้อมูลให้ครบ', 400);
+    if (strlen($pass) < 6)           DB::fail('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 400);
 
     $user = $db->one("SELECT user_id FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
-    if (!$user) DB::fail('เนเธกเนเธเธเธญเธตเน€เธกเธฅเธเธตเนเนเธเธฃเธฐเธเธ', 404);
+    if (!$user) DB::fail('ไม่พบอีเมลนี้ในระบบ', 404);
 
     $reset = $db->one(
         "SELECT reset_id FROM password_resets
          WHERE user_id=? AND token=? AND expires_at>NOW() AND used=FALSE",
         [$user['user_id'], $token], 'is'
     );
-    if (!$reset) DB::fail('เธฃเธซเธฑเธช OTP เนเธกเนเธ–เธนเธเธ•เนเธญเธเธซเธฃเธทเธญเธซเธกเธ”เธญเธฒเธขเธธเนเธฅเนเธง', 400);
+    if (!$reset) DB::fail('รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว', 400);
 
-    // เธญเธฑเธเน€เธ”เธ•เธฃเธซเธฑเธชเธเนเธฒเธ
+    // อัปเดตรหัสผ่าน
     $db->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($pass, PASSWORD_BCRYPT), $user['user_id']], 'si');
     $db->run("UPDATE password_resets SET used=TRUE WHERE reset_id=?", [$reset['reset_id']], 'i');
 
-    DB::ok(['message' => 'เน€เธเธฅเธตเนเธขเธเธฃเธซเธฑเธชเธเนเธฒเธเธชเธณเน€เธฃเนเธ']);
+    DB::ok(['message' => 'เปลี่ยนรหัสผ่านสำเร็จ']);
 }
 
-// เธ•เธฃเธงเธเธชเธญเธเธญเธตเน€เธกเธฅเน€เธเธทเนเธญเธเธ•เนเธ (format + เนเธกเนเธเนเธณเนเธเธฃเธฐเธเธ)
+// ตรวจสอบอีเมลเบื้องต้น (format + ไม่ซ้ำในระบบ)
 function handleValidateEmail(): never {
     $email = trim($_GET['email'] ?? '');
-    if (!$email) DB::fail('เธ•เนเธญเธเธชเนเธ email', 400);
+    if (!$email) DB::fail('ต้องส่ง email', 400);
 
-    // เธ•เธฃเธงเธ format
+    // ตรวจ format
     if (!filter_var($email, FILTER_VALIDATE_EMAIL))
-        DB::ok(['valid' => false, 'reason' => 'เธฃเธนเธเนเธเธเธญเธตเน€เธกเธฅเนเธกเนเธ–เธนเธเธ•เนเธญเธ']);
+        DB::ok(['valid' => false, 'reason' => 'รูปแบบอีเมลไม่ถูกต้อง']);
 
-    // เธ•เธฃเธงเธเธเนเธณเนเธเธฃเธฐเธเธ
+    // ตรวจซ้ำในระบบ
     $exists = DB::get()->one("SELECT 1 FROM users WHERE email=?", [$email], 's');
     if ($exists)
-        DB::ok(['valid' => false, 'reason' => 'เธญเธตเน€เธกเธฅเธเธตเนเธ–เธนเธเนเธเนเธเธฒเธเนเธฅเนเธง']);
+        DB::ok(['valid' => false, 'reason' => 'อีเมลนี้ถูกใช้งานแล้ว']);
 
-    // เธ•เธฃเธงเธ domain เธเธฒเธ MX record (basic)
+    // ตรวจ domain จาก MX record (basic)
     $domain = substr(strrchr($email, '@'), 1);
     $hasMX  = checkdnsrr($domain, 'MX');
     $hasA   = checkdnsrr($domain, 'A');
 
     if (!$hasMX && !$hasA)
-        DB::ok(['valid' => false, 'reason' => "เนเธ”เน€เธกเธ $domain เนเธกเนเธเธเนเธเธฃเธฐเธเธ DNS"]);
+        DB::ok(['valid' => false, 'reason' => "โดเมน $domain ไม่พบในระบบ DNS"]);
 
-    DB::ok(['valid' => true, 'reason' => 'เธญเธตเน€เธกเธฅเธ–เธนเธเธ•เนเธญเธ']);
+    DB::ok(['valid' => true, 'reason' => 'อีเมลถูกต้อง']);
 }
 
 
 // ============================================================
-// เนเธซเธฅเธ”เธเธณเธ–เธฒเธกเธชเธณเธซเธฃเธฑเธเน€เธฅเนเธเน€เธเธก (public โ€” เนเธกเนเธ•เนเธญเธ auth)
-// เธฃเธญเธเธฃเธฑเธเธ—เธธเธเธเธฃเธฐเน€เธ เธ—: mcq, truefalse, fill, matching, sequence, wordsearch
+// โหลดคำถามสำหรับเล่นเกม (public — ไม่ต้อง auth)
+// รองรับทุกประเภท: mcq, truefalse, fill, matching, sequence, wordsearch
 // ============================================================
 function handlePlayQuestions(): never {
     ensureQuestionImageColumnCapacity();
     $db    = DB::get();
     $gid   = (int)($_GET['game_id'] ?? 0);
-    if (!$gid) DB::fail('เธ•เนเธญเธเธชเนเธ game_id', 400);
+    if (!$gid) DB::fail('ต้องส่ง game_id', 400);
 
-    // เธเนเธญเธกเธนเธฅเน€เธเธก
+    // ข้อมูลเกม
     $game = $db->one("SELECT * FROM games WHERE game_id=?", [$gid], 'i');
-    if (!$game) DB::fail('เนเธกเนเธเธเน€เธเธก', 404);
+    if (!$game) DB::fail('ไม่พบเกม', 404);
 
     $type = $game['game_type'];
 
-    // เนเธซเธฅเธ”เธเธณเธ–เธฒเธกเธ—เธฑเนเธเธซเธกเธ”
+    // โหลดคำถามทั้งหมด
     $qs = $db->all(
         "SELECT question_id, question_text, question_img, hint, question_type, difficulty, explanation, order_no
          FROM questions WHERE game_id=? ORDER BY order_no",
@@ -2559,9 +2439,9 @@ function handlePlayQuestions(): never {
             foreach ($answers as $a) {
                 if ($a['is_correct']) {
                     $text = mb_strtolower(trim((string)$a['answer_text']), 'UTF-8');
-                    if (in_array($text, ['เธ–เธนเธ', 'เธเธฃเธดเธ', 'true', 'yes', 'เนเธเน'], true)) {
+                    if (in_array($text, ['ถูก', 'จริง', 'true', 'yes', 'ใช่'], true)) {
                         $correct_ans = true;
-                    } elseif (in_array($text, ['เธเธดเธ”', 'เน€เธ—เนเธ', 'false', 'no', 'เนเธกเนเนเธเน'], true)) {
+                    } elseif (in_array($text, ['ผิด', 'เท็จ', 'false', 'no', 'ไม่ใช่'], true)) {
                         $correct_ans = false;
                     }
                     break;
@@ -2643,7 +2523,7 @@ function handlePlayQuestions(): never {
         $result = array_values(array_unique($result));
     }
 
-    // เธเธฑเธ”เธฃเธนเธเนเธเธ response เธ•เธฒเธก type
+    // จัดรูปแบบ response ตาม type
     $formatted = [];
     if ($type === 'matching') {
         $formatted = ['pairs' => $result];
@@ -3000,7 +2880,7 @@ function handlePlayQuestionsV2(): never {
 }
 
 // ============================================================
-// OFFICER HANDLERS โ€” เน€เธเนเธฒเธซเธเนเธฒเธ—เธตเนเธเธฑเธ”เธเธฒเธฃเธเธนเนเนเธเน
+// OFFICER HANDLERS — เจ้าหน้าที่จัดการผู้ใช้
 // ============================================================
 
 function handleOfficerUsers(): never {
@@ -3008,7 +2888,7 @@ function handleOfficerUsers(): never {
     $db = DB::get();
     [$dateSql, $dateParams] = accountDateFilter('u.created_at');
     
-    // เธ”เธถเธเธฃเธฒเธขเธเธทเนเธญเธเธนเนเนเธเนเธ—เธฑเนเธเธซเธกเธ”
+    // ดึงรายชื่อผู้ใช้ทั้งหมด
     $users = $db->all(
         "SELECT u.user_id, u.username, u.email, u.full_name, u.role, u.is_active, 
                 u.created_at, u.updated_at, s.grade, p.phone, t.department
@@ -3036,27 +2916,27 @@ function handleOfficerUpdateUser(): never {
     $phone = trim($body['phone'] ?? '');
     $dept  = trim($body['department'] ?? '');
     
-    if (!$uid || !$name) DB::fail('เธ•เนเธญเธเธชเนเธ user_id เนเธฅเธฐ full_name', 400);
+    if (!$uid || !$name) DB::fail('ต้องส่ง user_id และ full_name', 400);
     
     $user = $db->one("SELECT role FROM users WHERE user_id=?", [$uid], 'i');
-    if (!$user) DB::fail('เนเธกเนเธเธเธเธนเนเนเธเน', 404);
+    if (!$user) DB::fail('ไม่พบผู้ใช้', 404);
     
-    // เธญเธฑเธเน€เธ”เธ• users table
+    // อัปเดต users table
     if ($email) {
         $existing = $db->one("SELECT 1 FROM users WHERE email=? AND user_id!=?", [$email, $uid], 'si');
-        if ($existing) DB::fail('เธญเธตเน€เธกเธฅเธเธตเนเธ–เธนเธเนเธเนเนเธฅเนเธง', 409);
+        if ($existing) DB::fail('อีเมลนี้ถูกใช้แล้ว', 409);
         $db->run("UPDATE users SET full_name=?, email=? WHERE user_id=?", [$name, $email, $uid], 'ssi');
     } else {
         $db->run("UPDATE users SET full_name=? WHERE user_id=?", [$name, $uid], 'si');
     }
     
-    // เธญเธฑเธเน€เธ”เธ• role-specific tables
+    // อัปเดต role-specific tables
     if ($user['role'] === 'student' && $grade) {
         $db->run("UPDATE students SET grade=? WHERE user_id=?", [$grade, $uid], 'si');
     }
     if ($user['role'] === 'parent' && $phone) {
         $phone = normalizePhone($phone);
-        if (strlen($phone) < 9) DB::fail('เน€เธเธญเธฃเนเนเธ—เธฃเนเธกเนเธ–เธนเธเธ•เนเธญเธ', 400);
+        if (strlen($phone) < 9) DB::fail('เบอร์โทรไม่ถูกต้อง', 400);
         $db->run("UPDATE parents SET phone=? WHERE user_id=?", [$phone, $uid], 'si');
     }
     if ($user['role'] === 'teacher' && $dept) {
@@ -3069,7 +2949,7 @@ function handleOfficerUpdateUser(): never {
         $db->run("UPDATE executives SET department=? WHERE user_id=?", [$dept, $uid], 'si');
     }
     
-    DB::ok(['message' => 'เธญเธฑเธเน€เธ”เธ•เธชเธณเน€เธฃเนเธ']);
+    DB::ok(['message' => 'อัปเดตสำเร็จ']);
 }
 
 function handleOfficerDeleteUser(): never {
@@ -3078,20 +2958,20 @@ function handleOfficerDeleteUser(): never {
     $db = DB::get();
     
     $uid = (int)($body['user_id'] ?? 0);
-    if (!$uid) DB::fail('เธ•เนเธญเธเธชเนเธ user_id', 400);
+    if (!$uid) DB::fail('ต้องส่ง user_id', 400);
     
     $user = $db->one("SELECT role FROM users WHERE user_id=?", [$uid], 'i');
-    if (!$user) DB::fail('เนเธกเนเธเธเธเธนเนเนเธเน', 404);
-    if ($user['role'] === 'admin') DB::fail('เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธฅเธเธเธนเนเธ”เธนเนเธฅเธฃเธฐเธเธเนเธ”เน', 403);
+    if (!$user) DB::fail('ไม่พบผู้ใช้', 404);
+    if ($user['role'] === 'admin') DB::fail('ไม่สามารถลบผู้ดูแลระบบได้', 403);
     
-    // เธฅเธเธเธนเนเนเธเน (CASCADE เธเธฐเธฅเธเธเนเธญเธกเธนเธฅเธ—เธตเนเน€เธเธตเนเธขเธงเธเนเธญเธ)
+    // ลบผู้ใช้ (CASCADE จะลบข้อมูลที่เกี่ยวข้อง)
     $db->run("DELETE FROM users WHERE user_id=?", [$uid], 'i');
     
-    DB::ok(['message' => 'เธฅเธเธเธนเนเนเธเนเธชเธณเน€เธฃเนเธ']);
+    DB::ok(['message' => 'ลบผู้ใช้สำเร็จ']);
 }
 
 // ============================================================
-// EXECUTIVE HANDLERS โ€” เธเธนเนเธเธฃเธดเธซเธฒเธฃ (View-only)
+// EXECUTIVE HANDLERS — ผู้บริหาร (View-only)
 // ============================================================
 
 function handleExecutiveDashboard(): never {
@@ -3116,7 +2996,7 @@ function handleExecutiveUsers(): never {
     authRole('executive', 'admin');
     $db = DB::get();
     [$dateSql, $dateParams] = accountDateFilter('u.created_at');
-    // เธ”เธถเธเธเนเธญเธกเธนเธฅเธเธนเนเนเธเนเธ—เธฑเนเธเธซเธกเธ” (View-only)
+    // ดึงข้อมูลผู้ใช้ทั้งหมด (View-only)
     $users = $db->all(
         "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at, u.updated_at,
                 s.grade, p.phone, t.department
@@ -3244,7 +3124,7 @@ function handleExecutiveContent(): never {
 
 
 // ============================================================
-// เธชเธฃเนเธฒเธเน€เธเนเธฒเธซเธเนเธฒเธ—เธตเน/เธเธนเนเธเธฃเธดเธซเธฒเธฃ โ€” Admin เน€เธฃเธตเธขเธเนเธ”เน
+// สร้างเจ้าหน้าที่/ผู้บริหาร — Admin เรียกได้
 // ============================================================
 function handleAdminCreateStaff(): never {
     global $body;
@@ -3253,7 +3133,7 @@ function handleAdminCreateStaff(): never {
 }
 
 // ============================================================
-// เธชเธฃเนเธฒเธเน€เธเนเธฒเธซเธเนเธฒเธ—เธตเน/เธเธนเนเธเธฃเธดเธซเธฒเธฃ โ€” Officer เน€เธฃเธตเธขเธเนเธ”เน
+// สร้างเจ้าหน้าที่/ผู้บริหาร — Officer เรียกได้
 // ============================================================
 function handleOfficerCreateStaff(): never {
     global $body;
@@ -3261,7 +3141,7 @@ function handleOfficerCreateStaff(): never {
     _doCreateStaff($body);
 }
 
-// โ”€โ”€ เธเธฑเธเธเนเธเธฑเธเธเธฅเธฒเธเธชเธฃเนเธฒเธ officer / executive โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€
+// ── ฟังก์ชันกลางสร้าง officer / executive ──────────────────
 function _doCreateStaff(array $body): never {
     $db         = DB::get();
     $role       = $body['role']       ?? '';
@@ -3270,20 +3150,20 @@ function _doCreateStaff(array $body): never {
     $password   = $body['password']   ?? '';
     $full_name  = trim($body['full_name']  ?? '');
     $department = trim($body['department'] ?? '');
-    $title      = trim($body['title']      ?? '');      // executive เน€เธ—เนเธฒเธเธฑเนเธ
+    $title      = trim($body['title']      ?? '');      // executive เท่านั้น
     $permissions= trim($body['permissions']?? '');
 
     // validation
     if (!in_array($role, ['officer', 'executive'], true))
-        DB::fail('role เธ•เนเธญเธเน€เธเนเธ officer เธซเธฃเธทเธญ executive', 400);
+        DB::fail('role ต้องเป็น officer หรือ executive', 400);
     if (!$username || !$email || !$full_name)
-        DB::fail('เธ•เนเธญเธเธเธฃเธญเธ username, email, เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ', 400);
+        DB::fail('ต้องกรอก username, email, ชื่อ-นามสกุล', 400);
 
-    // เธ•เธฃเธงเธ username / email เธเนเธณ
+    // ตรวจ username / email ซ้ำ
     if ($db->one("SELECT user_id FROM users WHERE username=?", [$username], 's'))
-        DB::fail("username '$username' เธกเธตเธญเธขเธนเนเนเธฅเนเธง", 409);
+        DB::fail("username '$username' มีอยู่แล้ว", 409);
     if ($db->one("SELECT user_id FROM users WHERE email=?", [$email], 's'))
-        DB::fail("email '$email' เธกเธตเธญเธขเธนเนเนเธฅเนเธง", 409);
+        DB::fail("email '$email' มีอยู่แล้ว", 409);
 
     if (strlen($password) < 8)
         DB::fail('Password must be at least 8 characters', 400);
@@ -3307,7 +3187,7 @@ function _doCreateStaff(array $body): never {
         );
     }
 
-    DB::ok(['user_id' => $uid, 'message' => "เธชเธฃเนเธฒเธ $role เธชเธณเน€เธฃเนเธ"]);
+    DB::ok(['user_id' => $uid, 'message' => "สร้าง $role สำเร็จ"]);
 }
 
 function handleStudentPlansV2(): never {

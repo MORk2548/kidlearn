@@ -2,6 +2,13 @@
 Options -Indexes
 RewriteEngine On
 
+# Docker serves the whole repo; only the pages, js/, images/ and api/backend.php are meant to be public.
+RewriteRule (^|/)\. - [F]
+RewriteRule ^(scripts|backups|docker|content)(/|$) - [F]
+<FilesMatch "\.(sql|md|py|ps1|bat|sh|ya?ml|log)$">
+    Require all denied
+</FilesMatch>
+
 # ให้ PHP จัดการทุก request ไปที่ api/
 <FilesMatch "\.php$">
     SetHandler application/x-httpd-php

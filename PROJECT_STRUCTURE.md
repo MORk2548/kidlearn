@@ -31,19 +31,13 @@
 ## Backend And Database
 
 - `api/backend.php` - API หลักของระบบ รับ request จาก frontend และเชื่อมต่อฐานข้อมูล.
-- `api/init_db.php` - script เตรียมฐานข้อมูลเริ่มต้น.
-- `api/init_admin.php` - script สร้าง admin เริ่มต้น ควรใช้เฉพาะช่วง setup.
-- `api/kidlearn_patch_v3.sql` - patch SQL สำหรับปรับ schema/data เพิ่มเติมจากชุดหลัก.
 - `api/kidlearn_patch_v4.sql` - migration สำหรับวันแก้ไขบัญชีและเจ้าของเนื้อหา; ใช้กับฐานข้อมูลเดิมหลัง patch ก่อนหน้า.
 - `api/kidlearn_patch_math_grade5.sql` - ปิดเกมคณิตเดิมใน catalog โดยเก็บ ID/คะแนนไว้ และเพิ่มเกม ป.5 ชุดใหม่.
-- `kidlearn_full.sql` - schema และ seed หลักที่ Docker ใช้ตอนสร้างฐานข้อมูล.
-- `content/questions_seed.sql` - seed คำถามเพิ่มเติมที่ Docker import ต่อจาก `kidlearn_full.sql`.
+- `kidlearn_full.sql` - schema และ seed หลักสำหรับติดตั้งฐานข้อมูลใหม่.
 - `content/lessons.sql` - seed บทเรียนแยกสำหรับ import เองเมื่อจำเป็น.
 
 ## Scripts
 
-- `scripts/db/backup-db.ps1` - สำรองฐานข้อมูลจาก Docker/MySQL.
-- `scripts/db/restore-db.ps1` - กู้คืนฐานข้อมูลจากไฟล์ backup.
 - `scripts/db/smoke-test.ps1` - ตรวจแบบเร็วว่า web/API ตอบสนองได้.
 - `scripts/db/supabase_pg_client.py` - PostgreSQL client แบบไม่พึ่ง library ภายนอก ใช้กับ Supabase/Postgres.
 - `scripts/db/update_english_grade5.sql` - SQL เพิ่ม/แก้ข้อมูลภาษาอังกฤษ ป.5.
@@ -52,27 +46,23 @@
 - `scripts/seed/seed_sequence_grade5.py` - seed เกมเรียงลำดับสำหรับ ป.5.
 - `scripts/seed/seed_math_grade5.py` - เติมคลังโจทย์ 3 ระดับและบทเรียนให้เกมคณิต ป.5 ชุดใหม่ หลังรัน migration.
 - `scripts/seed/seed_thai_letterorder.py` - seed เกมเรียงตัวอักษรภาษาไทย.
-- `scripts/debug/debug_login.php` - script ตรวจข้อมูล login admin แบบเฉพาะกิจ.
-- `scripts/debug/test_supabase.php` - script ทดสอบการเชื่อมต่อ Supabase/Postgres แบบเฉพาะกิจ.
 
 ## Deployment And Config
 
-- `docker-compose.yml` - กำหนดบริการ MySQL, PHP/Apache และ phpMyAdmin.
-- `docker/Dockerfile` - image PHP/Apache พร้อม extension MySQL/Postgres.
+- `docker-compose.yml` - กำหนดบริการ PHP/Apache ที่เชื่อมต่อ Supabase PostgreSQL ผ่าน `.env`.
+- `docker/Dockerfile` - image PHP/Apache พร้อม extension PostgreSQL.
 - `docker/apache.conf` - Apache virtual host/rewrite config.
 - `docker/php.ini` - PHP runtime settings.
-- `.htaccess` - rewrite/security settings สำหรับ Apache เมื่อรันแบบ non-Docker.
+- `.htaccess` - ตั้งค่า Apache: cache ของ JS/CSS และบล็อกไฟล์ที่ไม่ใช่หน้าเว็บ (`.env`, `.git`, `*.sql`, `scripts/` ฯลฯ) ไม่ให้เปิดผ่านเว็บ.
 - `.env` - config database/runtime เฉพาะเครื่อง ไม่ควร commit.
 - `.gitignore` - รายการไฟล์ local/cache/secret ที่ไม่ควรเข้า Git.
 
 ## Documentation And Assets
 
 - `README.md` - คู่มือภาพรวมและวิธีรันโปรเจกต์.
-- `CONTENT_GUIDE.md` - คู่มือจัดการเนื้อหา/คำถาม.
-- `DOCKER.md` - คู่มือ Docker เดิม.
-- `UPDATE_DOCKER.md` - บันทึกการอัปเดต Docker.
+- `DOCKER.md` - คู่มือรันด้วย Docker.
+- `SUPABASE_SETUP.md` - วิธีตั้งค่าการเชื่อมต่อ Supabase.
 - `images/` - รูปประกอบเกม/ตัวอย่าง.
-- `backups/` - พื้นที่เก็บ backup local โดยเก็บใน Git แค่ `.gitkeep`.
 
 ## Removed Or Ignored Local Files
 
@@ -81,7 +71,5 @@
 
 ## Files That Could Be Combined Later
 
-- `DOCKER.md` และ `UPDATE_DOCKER.md` รวมเข้า README หรือเอกสาร deployment เดียวได้.
-- `scripts/db/backup-db.ps1` และ `scripts/db/restore-db.ps1` รวมเป็น script เดียวที่รับ argument `backup`/`restore` ได้.
 - `js/admin.js`, `js/officer.js`, `js/executive.js` สามารถดึง helper dashboard/report ที่ซ้ำกันออกมาใช้ร่วมกันได้ แต่ไม่ควรรวมทันทีถ้ายังไม่มี test.
 - `api/backend.php` ใหญ่เกินไปในระยะยาว ควรแยกตาม domain เช่น auth, users, games, scores, reports เมื่อพร้อม refactor backend.

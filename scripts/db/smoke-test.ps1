@@ -6,7 +6,9 @@ function Invoke-CheckedCommand {
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
   )
 
-  & $Command @Arguments
+  # Windows PowerShell 5.1 turns native stderr (docker progress lines) into terminating errors under Stop.
+  $ErrorActionPreference = "Continue"
+  & $Command @Arguments 2>&1 | Out-Host
   if ($LASTEXITCODE -ne 0) {
     throw "$Command $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
   }
@@ -49,7 +51,6 @@ Get-ChildItem js -Filter "*.js" | Sort-Object Name | ForEach-Object {
 
 Write-Host "Checking PHP syntax in container"
 Invoke-CheckedCommand docker compose run --rm web php -l /var/www/html/api/backend.php
-Invoke-CheckedCommand docker compose run --rm web php -l /var/www/html/api/init_admin.php
 
 Write-Host "Health check"
 $healthReachable = $false
@@ -65,13 +66,15 @@ try {
 }
 
 if ($healthReachable) {
-  Write-Host "Checking init_admin is disabled by default"
-  try {
-    Invoke-RestMethod -Uri "${baseUrl}/api/init_admin.php" -Method Get | Out-Null
-    throw "init_admin.php unexpectedly succeeded"
-  } catch {
-    $statusCode = $_.Exception.Response.StatusCode.value__
-    if ($statusCode -ne 403) { throw }
+  Write-Host "Checking private files are not served"
+  foreach ($path in @(".env", ".git/config", "kidlearn_full.sql", "scripts/db/smoke-test.ps1", "README.md")) {
+    try {
+      Invoke-WebRequest -Uri "${baseUrl}/$path" -Method Get -UseBasicParsing | Out-Null
+      throw "$path is publicly readable"
+    } catch {
+      $statusCode = $_.Exception.Response.StatusCode.value__
+      if ($statusCode -ne 403) { throw }
+    }
   }
 
   Write-Host "Checking unauthenticated endpoint returns 401"

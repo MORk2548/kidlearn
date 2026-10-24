@@ -69,96 +69,7 @@ function ensureScoreInsightsHost() {
   if (tableWrap) scoreSection.insertBefore(wrap, tableWrap);
 }
 
-function renderScoreInsights(data) {
-  const host = document.getElementById('score-insights');
-  if (!host) return;
-  if (!data) {
-    host.innerHTML = '';
-    return;
-  }
 
-  const overview = data.overview || {};
-  const mastery = (data.mastery || []).slice(0, 4);
-  const review = (data.review_items || []).slice(0, 3);
-  const plans = (data.plans || []).slice(0, 2);
-  const alerts = data.alerts || [];
-
-  host.innerHTML = `
-    <div class="stats" style="margin-bottom:1rem">
-      <div class="stat"><div class="sv">${overview.total_plays || 0}</div><div class="sl2">ครั้งที่เล่น</div></div>
-      <div class="stat"><div class="sv">${Math.round(overview.avg_score || 0)}%</div><div class="sl2">คะแนนเฉลี่ย</div></div>
-      <div class="stat"><div class="sv">${Math.round((overview.total_time || 0) / 60)}</div><div class="sl2">นาทีสะสม</div></div>
-      <div class="stat"><div class="sv">${overview.badge_count || 0}</div><div class="sl2">เหรียญที่ได้รับ</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem">
-      <div class="ts" style="margin:0">
-        <h3>Mastery Tracking</h3>
-        ${(mastery.length ? mastery : [{ skill_name: 'ยังไม่มีข้อมูล', mastery_score: 0, subject_name: '' }]).map(item => `
-          <div style="padding:.45rem 0;border-bottom:1px solid #F1F5F9">
-            <div style="display:flex;justify-content:space-between;gap:.75rem;font-size:.82rem">
-              <strong>${item.skill_name}</strong><span>${Math.round(item.mastery_score || 0)}%</span>
-            </div>
-            <div style="font-size:.73rem;color:var(--mu);margin:.15rem 0">${item.subject_name || ''}</div>
-            <div style="height:7px;background:#E2E8F0;border-radius:999px">
-              <div style="width:${Math.max(0, Math.min(100, Math.round(item.mastery_score || 0)))}%;height:100%;background:${(item.mastery_score || 0) >= 80 ? '#10B981' : (item.mastery_score || 0) >= 60 ? '#F59E0B' : '#EF4444'};border-radius:999px"></div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      <div class="ts" style="margin:0">
-        <h3>ข้อที่ควรทบทวน</h3>
-        ${review.length ? review.map(item => `
-          <div style="padding:.5rem 0;border-bottom:1px solid #F1F5F9">
-            <div style="font-size:.8rem;font-weight:700">${item.skill_name || 'หัวข้อฝึก'}</div>
-            <div style="font-size:.76rem;color:#7C2D12">${item.prompt_text || 'โจทย์ที่พลาด'}</div>
-            <div style="font-size:.72rem;color:var(--mu)">พลาด ${item.miss_count} ครั้ง</div>
-          </div>
-        `).join('') : '<div style="color:var(--mu)">ยังไม่มีข้อพลาดสะสม</div>'}
-      </div>
-      <div class="ts" style="margin:0">
-        <h3>แผนรายสัปดาห์</h3>
-        ${plans.length ? plans.map(plan => `
-          <div style="padding:.5rem 0;border-bottom:1px solid #F1F5F9">
-            <div style="display:flex;justify-content:space-between;gap:.75rem">
-              <strong style="font-size:.82rem">${plan.title}</strong>
-              <span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.completed_items || 0}/${plan.total_items || 0}</span>
-            </div>
-            <div style="font-size:.72rem;color:var(--mu)">เริ่ม ${plan.week_start || '-'}</div>
-          </div>
-        `).join('') : '<div style="color:var(--mu)">ยังไม่มีแผนที่มอบหมาย</div>'}
-        ${alerts.length ? `<div style="margin-top:.75rem;font-size:.76rem;color:#B45309">${alerts.join(' • ')}</div>` : ''}
-      </div>
-    </div>
-  `;
-}
-
-function renderScoreTable(sc) {
-  const tb = document.getElementById('score-tb');
-  if (!sc || !sc.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีคะแนน</td></tr>';
-    return;
-  }
-  const TYPE_LBL = { mcq: 'MCQ', truefalse: 'จริง/เท็จ', fill: 'เติมคำ', matching: 'จับคู่', sequence: 'เรียงลำดับ', letterorder: 'เรียงตัวอักษร', wordsearch: 'ค้นหาคำ' };
-  tb.innerHTML = sc.map(s => {
-    const score = s.score ?? s.score;
-    const max = s.max_score ?? 100;
-    const pct = Math.round(score / max * 100);
-    const c = pct >= 80 ? '#065F46' : pct >= 50 ? '#92400E' : '#991B1B';
-    const stars = pct >= 80 ? '★★★' : pct >= 50 ? '★★' : pct > 0 ? '★' : '';
-    const date = s.played_at ? new Date(s.played_at).toLocaleDateString('th-TH') : (s.date || '-');
-    const time = s.time_spent ? `${s.time_spent}วิ` : (s.time || '-');
-    return `<tr>
-      <td>${s.subject_name || s.sub || '-'}</td>
-      <td>${s.game_name || s.game || '-'}</td>
-      <td>${TYPE_LBL[s.game_type || s.type] || s.type || '-'}</td>
-      <td><strong style="color:${c}">${score}</strong><span style="color:#9CA3AF">/${max}</span> ${stars}</td>
-      <td>${time}</td>
-      <td>${date}</td>
-    </tr>`;
-  }).join('');
-}
-
-if(typeof A.scoreSubjectFilter==='undefined') A.scoreSubjectFilter='all';
 
 const SCORE_UI_TEXT = {
   all: '\u0e17\u0e38\u0e01\u0e27\u0e34\u0e0a\u0e32',
@@ -182,12 +93,6 @@ const SCORE_UI_TEXT = {
   plays: '\u0e40\u0e25\u0e48\u0e19',
   openAdvice: '\u0e14\u0e39\u0e04\u0e33\u0e41\u0e19\u0e30\u0e19\u0e33'
 };
-
-function setScoreSubjectFilter(subject){
-  A.scoreSubjectFilter=subject||'all';
-  if(Array.isArray(window.__scoreRows)) renderScoreTable(window.__scoreRows);
-  if(window.__scoreAnalytics) renderScoreInsights(window.__scoreAnalytics);
-}
 
 function buildScoreSubjectSummary(rows){
   const grouped={};
@@ -222,7 +127,6 @@ function buildScoreSubjectSummary(rows){
 function renderScoreInsights(data){
   const host=document.getElementById('score-insights');
   if(!host) return;
-  window.__scoreAnalytics=data;
   if(!data){ host.innerHTML=''; return; }
 
   const overview=data.overview||{};
@@ -295,15 +199,13 @@ function renderScoreInsights(data){
 
 function renderScoreTable(sc){
   const tb=document.getElementById('score-tb');
-  window.__scoreRows=sc||[];
   if(!sc || !sc.length){
     tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
     return;
   }
 
   const typeLabel={mcq:'MCQ',truefalse:'True/False',fill:'Fill',matching:'Match',sequence:'Sequence',wordsearch:'Search'};
-  const filtered=A.scoreSubjectFilter==='all' ? sc : sc.filter(s=>(s.subject_name||s.sub||SCORE_UI_TEXT.all)===A.scoreSubjectFilter);
-  const groups=buildScoreSubjectSummary(filtered);
+  const groups=buildScoreSubjectSummary(sc);
   if(!groups.length){
     tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
     return;

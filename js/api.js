@@ -89,7 +89,6 @@ const apiUpdateProfile = (d) => _api('update_profile', { body: d });
 const apiChangePassword = (d) => _api('change_password', { body: d });
 
 // Subjects and games
-const apiSubjects = () => _apiCached('subjects', {}, 60000);
 const apiGames = (sid) => _apiCached('games', { subject_id: sid }, 60000);
 
 // Scores
@@ -97,13 +96,11 @@ const apiSaveScore = (d) => _api('save_score', { body: d });
 const apiScores = (sid) => _api('scores', sid ? { params: { student_id: sid } } : {});
 
 // Lesson content
-const apiGetContent = (gid) => _apiCached('get_content', { game_id: gid }, 60000);
 const apiLessonContent = (gid, lno) => _apiCached('lesson_content', { game_id: gid, lesson_no: lno }, 60000);
 const apiLessonHistory = (gid, lno) => _api('lesson_history', { params: { game_id: gid, lesson_no: lno } });
 
 // Parent
 const apiMyChildren = () => _api('my_children');
-const apiLinkChild = (d) => _api('link_child', { body: d });
 const apiUnlinkChild = (d) => _api('unlink_child', { body: d });
 const apiRecommendations = (sid) => _api('recommendations', sid ? { params: { student_id: sid } } : {});
 const apiNotifications = () => _api('notifications');
@@ -134,8 +131,6 @@ const apiAdminDeleteUser = (d) => _api('admin_delete_user', { body: d });
 const apiAdminResetPass = (d) => _api('admin_reset_pass', { body: d });
 
 // Subjects
-const apiSaveSubject = (d) => _api('save_subject', { body: d });
-const apiToggleSubject = (d) => _api('toggle_subject', { body: d });
 
 // Game questions
 const apiGameQuestions = (gid) => _apiCached('game_questions', { game_id: gid }, 15000);
@@ -164,8 +159,6 @@ const apiValidateEmail = (email) => _api('validate_email', { params: { email } }
 const apiPlayQuestions = (gid) => _apiCached('play_questions', { game_id: gid }, 15000);
 
 // Staff and executive APIs
-const apiAdminCreateStaff = (d) => _api('admin_create_staff', { body: d });
-const apiOfficerCreateStaff = (d) => _api('officer_create_staff', { body: d });
 const apiExecutiveDashboard = (dateRange = 'all') => _api('executive_dashboard', { params: { date_range: dateRange } });
 const apiExecutiveUsers = (dateRange = 'all') => _api('executive_users', { params: { date_range: dateRange } });
 const apiExecutiveContent = (type, dateRange = 'all') => _api('executive_content', { params: { type, date_range: dateRange } });

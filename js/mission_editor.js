@@ -129,7 +129,6 @@ function meMultiRows(path,options){
       ${options.length>2?`<button type="button" class="me-x" aria-label="ลบตัวเลือก" onclick="meAct('remove','${path}',${i})">×</button>`:''}
     </div>`).join('')}<button type="button" class="me-add" onclick="meAct('addOption','${path}')">+ เพิ่มตัวเลือก</button></div>`;
 }
-const meNumbered=list=>list.map((x,i)=>`${i+1}. ${x}`).join(' · ');
 function meMealHtml(s,p){
   const groups=HealthKit.FOOD_GROUPS;
   const scopes=[['all','ทั้งวัน'],...s.meals.map((m,k)=>[k,m.label||`มื้อที่ ${k+1}`])];
