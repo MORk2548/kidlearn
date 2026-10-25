@@ -703,7 +703,8 @@ function handleRegister(): never {
 
     if (!$name || !$uname || !$email || !$pass) DB::fail('กรุณากรอกข้อมูลให้ครบ', 400);
     if (strlen($pass) < 6)                      DB::fail('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 400);
-    if (!in_array($role, ['student','parent','teacher','officer','executive'])) DB::fail('role ไม่ถูกต้อง', 400);
+    // officer/executive สร้างได้เฉพาะผ่าน admin_create_staff / officer_create_staff
+    if (!in_array($role, ['student','parent','teacher'], true)) DB::fail('role ไม่ถูกต้อง', 400);
 
     if ($db->one("SELECT 1 FROM users WHERE username=?", [$uname], 's'))
         DB::fail('ชื่อผู้ใช้นี้ถูกใช้แล้ว', 409);
@@ -755,17 +756,6 @@ function handleRegister(): never {
     if ($role === 'teacher') {
         $dept = trim($body['department'] ?? '');
         $db->run("INSERT INTO teachers (user_id,department) VALUES (?,?)", [$uid, $dept], 'is');
-    }
-
-    if ($role === 'officer') {
-        $dept = trim($body['department'] ?? 'ฝ่ายบุคคล');
-        $db->run("INSERT INTO officers (user_id,department) VALUES (?,?)", [$uid, $dept], 'is');
-    }
-
-    if ($role === 'executive') {
-        $title = trim($body['title'] ?? 'ผู้บริหาร');
-        $dept  = trim($body['department'] ?? 'บริหาร');
-        $db->run("INSERT INTO executives (user_id,title,department) VALUES (?,?,?)", [$uid, $title, $dept], 'iss');
     }
 
     DB::ok(['user_id' => $uid]);
@@ -969,6 +959,7 @@ function handleSaveScoreV2(): never {
     $lessonNo  = (int)($body['lesson_no'] ?? 1);
     $attempts  = is_array($body['attempts'] ?? null) ? $body['attempts'] : [];
     if ($lessonNo < 1 || $lessonNo > 6) $lessonNo = 1;
+    if ($score < 0 || $score > 100) DB::fail('คะแนนต้องอยู่ระหว่าง 0-100', 400);
 
     $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
     if (!$st) DB::fail('ต้องเป็นนักเรียนเท่านั้น', 403);
@@ -2095,11 +2086,10 @@ function handleAdminToggleUser(): never {
     authRole('admin');
     $uid = (int)($body['user_id'] ?? 0);
     if (!$uid || $uid === myId()) DB::fail('ไม่สามารถดำเนินการได้', 400);
-    $u = DB::get()->one("SELECT is_active FROM users WHERE user_id=?", [$uid], 'i');
+    // สลับค่าใน SQL: PDO ส่ง false เป็น '' ซึ่ง PostgreSQL ไม่รับเป็น BOOLEAN
+    $u = DB::get()->one("UPDATE users SET is_active = NOT is_active WHERE user_id=? RETURNING is_active", [$uid], 'i');
     if (!$u) DB::fail('ไม่พบผู้ใช้', 404);
-    $newState = !$u['is_active'];
-    DB::get()->run("UPDATE users SET is_active=? WHERE user_id=?", [$newState, $uid], 'ii');
-    DB::ok(['is_active' => $newState]);
+    DB::ok(['is_active' => (bool)$u['is_active']]);
 }
 
 function handleAdminDeleteUser(): never {
@@ -2153,11 +2143,9 @@ function handleToggleSubject(): never {
     authRole('admin');
     $sid = (int)($body['subject_id'] ?? 0);
     if (!$sid) DB::fail('ต้องส่ง subject_id', 400);
-    $s = DB::get()->one("SELECT is_active FROM subjects WHERE subject_id=?", [$sid], 'i');
+    $s = DB::get()->one("UPDATE subjects SET is_active = NOT is_active WHERE subject_id=? RETURNING is_active", [$sid], 'i');
     if (!$s) DB::fail('ไม่พบวิชา', 404);
-    $newState = !$s['is_active'];
-    DB::get()->run("UPDATE subjects SET is_active=? WHERE subject_id=?", [$newState, $sid], 'ii');
-    DB::ok(['is_active' => $newState]);
+    DB::ok(['is_active' => (bool)$s['is_active']]);
 }
 
 // ============================================================
