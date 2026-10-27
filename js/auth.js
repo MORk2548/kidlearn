@@ -38,7 +38,7 @@ async function doLogin() {
   A.role = A.user.role;
   A.selChild = null;
   sessionSave();
-  window.location.href = 'app.html';
+  window.location.replace('app.html');
 }
 
 async function doLogout() {
@@ -46,7 +46,7 @@ async function doLogout() {
   sessionClear();
   A.user = null;
   A.role = '';
-  window.location.href = 'index.html';
+  window.location.replace('index.html');
 }
 
 function selRole(r) {
