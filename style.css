@@ -47,7 +47,7 @@ body{font-family:'Kanit',sans-serif;background:var(--bg);color:var(--tx);min-hei
 .subcard{background:#fff;border-radius:var(--r);padding:1.3rem;box-shadow:var(--sh);
   cursor:pointer;transition:var(--tr);border-top:5px solid #ccc;animation:fu .4s ease both}
 .subcard:hover{transform:translateY(-5px);box-shadow:0 18px 44px rgba(0,0,0,.13)}
-.sub-ico{font-size:2.2rem;margin-bottom:.55rem}.sub-nm{font-size:1rem;font-weight:700}
+.sub-ico{font-size:2.2rem;margin-bottom:.55rem}.sub-cover{height:72px;width:51px;object-fit:cover;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,.18);display:block}.sub-nm{font-size:1rem;font-weight:700}
 .sub-ds{font-size:.76rem;color:var(--mu);margin-top:.2rem}
 .pb-w{margin-top:.85rem}.pb-l{font-size:.73rem;color:var(--mu);display:flex;justify-content:space-between;margin-bottom:.28rem}
 .pb{height:7px;background:#E5E7EB;border-radius:99px;overflow:hidden}

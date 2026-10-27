@@ -132,7 +132,7 @@ function subCard(sub, prog, played, i){
   if (played === undefined) { played = 0; } // backward compat
   const color = prog>0?sub.color:'#D1D5DB';
   return `<div class="subcard" style="border-color:${sub.color};animation-delay:${i*.07}s" onclick="openSub(${sub.id})">
-    <div class="sub-ico">${sub.icon}</div>
+    <div class="sub-ico">${sub.cover ? `<img class="sub-cover" src="${sub.cover}" alt="ปกหนังสือ${sub.name} ป.5">` : sub.icon}</div>
     <div class="sub-nm">${sub.name}</div>
     <div class="sub-ds">${sub.desc}</div>
     <div class="pb-w">

@@ -13,12 +13,12 @@ function formatDateTimeTH(value) {
 // DATA — SUBJECTS
 // ══════════════════════════════════════════════════════
 const SUBS = [
-  { id:1, name:'คณิตศาสตร์', icon:'🔢', color:'#FF9800', desc:'ตัวเลข การคำนวณ โจทย์ปัญหา' },
-  { id:2, name:'วิทยาศาสตร์', icon:'🔬', color:'#9C27B0', desc:'ธรรมชาติ สิ่งแวดล้อม การทดลอง' },
-  { id:3, name:'ภาษาไทย',    icon:'🇹🇭', color:'#4CAF50', desc:'อ่าน เขียน ความรู้ภาษาไทย' },
-  { id:4, name:'ภาษาอังกฤษ', icon:'🇬🇧', color:'#2196F3', desc:'คำศัพท์ ไวยากรณ์ สื่อสาร' },
-  { id:5, name:'สังคมศึกษา',icon:'📜', color:'#795548', desc:'เหตุการณ์ บุคคลสำคัญ ยุคสมัย' },
-  { id:6, name:'สุขศึกษาและพลศึกษา', icon:'💪', color:'#E91E63', desc:'สุขภาพ อาหาร กีฬา ความปลอดภัย ทีมเวิร์ก' },
+  { id:1, name:'คณิตศาสตร์', icon:'🔢', cover:'images/covers/math-p5.jpg', color:'#FF9800', desc:'ตัวเลข การคำนวณ โจทย์ปัญหา' },
+  { id:2, name:'วิทยาศาสตร์', icon:'🔬', cover:'images/covers/sci-p5.jpg', color:'#9C27B0', desc:'ธรรมชาติ สิ่งแวดล้อม การทดลอง' },
+  { id:3, name:'ภาษาไทย',    icon:'🇹🇭', cover:'images/covers/thai-p5.webp', color:'#4CAF50', desc:'อ่าน เขียน ความรู้ภาษาไทย' },
+  { id:4, name:'ภาษาอังกฤษ', icon:'🇬🇧', cover:'images/covers/eng-p5.webp', color:'#2196F3', desc:'คำศัพท์ ไวยากรณ์ สื่อสาร' },
+  { id:5, name:'สังคมศึกษา',icon:'📜', cover:'images/covers/social-p5.png', color:'#795548', desc:'เหตุการณ์ บุคคลสำคัญ ยุคสมัย' },
+  { id:6, name:'สุขศึกษาและพลศึกษา', icon:'💪', cover:'images/covers/health-p5.png', color:'#E91E63', desc:'สุขภาพ อาหาร กีฬา ความปลอดภัย ทีมเวิร์ก' },
 ];
 
 // ══════════════════════════════════════════════════════
