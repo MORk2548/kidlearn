@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+.claude
+.audit
+.playwright-cli
+.tmp_pydeps*
+backups
+**/__pycache__
+*.log
+*.bak
+*.docx
+api/init_admin.local.php
+scripts/*.local.ps1
