@@ -11,6 +11,7 @@ body{font-family:'Kanit',sans-serif;background:var(--bg);color:var(--tx);min-hei
   justify-content:space-between;position:sticky;top:0;z-index:999;box-shadow:0 2px 20px rgba(0,78,137,.3)}
 .brand{font-size:1.55rem;font-weight:900;color:var(--a);text-decoration:none;display:flex;align-items:center;gap:.4rem}
 .brand span{color:#fff}
+.brand-logo{width:40px;height:40px;background:#fff;border-radius:10px;padding:2px;object-fit:contain}
 .nav-links{display:flex;align-items:center;gap:.4rem;list-style:none;flex-wrap:wrap}
 .nav-links a{color:rgba(255,255,255,.85);text-decoration:none;font-size:.85rem;font-weight:600;
   padding:.4rem .8rem;border-radius:8px;transition:var(--tr);cursor:pointer}
@@ -124,6 +125,7 @@ tbody tr:last-child td{border-bottom:none}
   box-shadow:0 32px 80px rgba(0,0,0,.2);animation:fu .45s ease}
 .auth-logo{font-size:1.9rem;font-weight:900;color:var(--s);text-align:center;margin-bottom:.2rem}
 .auth-logo span{color:var(--p)}
+.auth-logo img{width:160px;height:160px;object-fit:contain;display:block;margin:0 auto}
 .auth-sub{text-align:center;color:var(--mu);font-size:.83rem;margin-bottom:1.75rem}
 .fg{margin-bottom:1rem}.fl{display:block;font-size:.8rem;font-weight:700;margin-bottom:.32rem}
 .fc{width:100%;padding:.7rem 1rem;border:2px solid #E5E7EB;border-radius:10px;
