@@ -321,11 +321,12 @@ async function openSub(id){
           <span class="badge ${gm.lvl==='easy'?'be':gm.lvl==='medium'?'bm':'bh'}">${lvlLbl[gm.lvl]}</span>
           <span>⏱ ${timeLimit>=600?`${Math.round(timeLimit/60)} นาที`:`${timeLimit} วิ`}</span>
         </div>
-        ${A.role==='student'
+        ${A.role==='student'||A.role==='teacher'
           ?`<div class="gc-lesson-btns">
               <button class="lp-btn-read" onclick="openGameContent('${gm.id}')">📖 อ่านบทเรียน</button>
-              <button class="lp-btn-play" onclick="startLesson('${gm.id}',1)">🎮 เล่นเกม</button>
-            </div>`
+              <button class="lp-btn-play" onclick="startLesson('${gm.id}',1)">🎮 ${A.role==='teacher'?'ทดสอบเกม':'เล่นเกม'}</button>
+            </div>
+            ${A.role==='teacher'?'<div style="font-size:.72rem;color:var(--mu);text-align:center;padding-top:.35rem">โหมดทดสอบ ไม่บันทึกคะแนน</div>':''}`
           :'<div style="font-size:.78rem;color:var(--mu);text-align:center;padding:.4rem 0">เฉพาะนักเรียนเล่นได้</div>'}
       </div>
     </div>`;
