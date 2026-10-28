@@ -705,6 +705,13 @@ function handleRegister(): never {
     if (strlen($pass) < 6)                      DB::fail('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 400);
     // officer/executive สร้างได้เฉพาะผ่าน admin_create_staff / officer_create_staff
     if (!in_array($role, ['student','parent','teacher'], true)) DB::fail('role ไม่ถูกต้อง', 400);
+    if ($role === 'teacher') {
+        $teacherCode = (string)envValue('TEACHER_REGISTER_CODE', '');
+        // ไม่ได้ตั้งรหัสไว้ = ปิดการสมัครครูเอง กันคนทั่วไปสมัครเป็นครู
+        if ($teacherCode === '') DB::fail('ยังไม่เปิดให้สมัครบัญชีครู กรุณาติดต่อผู้ดูแลระบบ', 403);
+        if (!hash_equals($teacherCode, trim((string)($body['teacher_code'] ?? ''))))
+            DB::fail('รหัสประจำตัวครูไม่ถูกต้อง', 403);
+    }
 
     if ($db->one("SELECT 1 FROM users WHERE username=?", [$uname], 's'))
         DB::fail('ชื่อผู้ใช้นี้ถูกใช้แล้ว', 409);

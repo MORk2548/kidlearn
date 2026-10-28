@@ -104,7 +104,14 @@ async function doRegister() {
     }
     d.phone = ph;
   }
-  if (A.selRole === 'teacher') d.department = document.getElementById('rd').value || '';
+  if (A.selRole === 'teacher') {
+    d.teacher_code = document.getElementById('r-tcode').value.trim();
+    if (!d.teacher_code) {
+      showAl('reg-err', 'กรุณากรอกรหัสประจำตัวครู');
+      return;
+    }
+    d.department = document.getElementById('rd').value || '';
+  }
 
   const btn = document.querySelector('#rs2 .btn-p');
   if (btn) {

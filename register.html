@@ -102,9 +102,18 @@
       </div>
 
       <!-- ครู -->
-      <div id="tc-extra" class="fg" style="display:none">
-        <label class="fl">แผนก/กลุ่มสาระ</label>
-        <input id="rd" type="text" class="fc" placeholder="เช่น วิทยาศาสตร์">
+      <div id="tc-extra" style="display:none">
+        <div class="fg">
+          <label class="fl">🔑 รหัสประจำตัวครู</label>
+          <input id="r-tcode" type="password" class="fc" placeholder="รหัสที่ได้รับจากโรงเรียน" autocomplete="off">
+          <div style="font-size:.72rem;color:var(--mu);margin-top:.3rem">
+            ใช้ยืนยันว่าเป็นคุณครู สอบถามรหัสได้จากผู้ดูแลระบบของโรงเรียน
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">แผนก/กลุ่มสาระ</label>
+          <input id="rd" type="text" class="fc" placeholder="เช่น วิทยาศาสตร์">
+        </div>
       </div>
 
       <!-- ผู้ปกครอง -->
