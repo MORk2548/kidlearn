@@ -1091,7 +1091,8 @@ function handleLessonContentV2(): never {
             [$gameId, $lessonNo], 'ii'
         );
         if (!$content) DB::ok(['content' => null, 'placeholder' => true, 'can_edit' => true]);
-        $content['can_edit'] = canEditContent($content);
+        $content['can_edit'] = canEditContent($content, true);
+        $content['can_delete'] = canEditContent($content);
         DB::ok(['content' => $content]);
     }
 
@@ -1101,7 +1102,7 @@ function handleLessonContentV2(): never {
          WHERE game_id=? ORDER BY lesson_no",
         [$gameId], 'i'
     );
-    foreach ($list as &$content) $content['can_edit'] = canEditContent($content);
+    foreach ($list as &$content) $content['can_edit'] = canEditContent($content, true);
     unset($content);
     DB::ok(['lessons' => $list]);
 }
@@ -1516,7 +1517,7 @@ function handleSaveLessonV2(): never {
         "SELECT * FROM lesson_content WHERE game_id=? AND lesson_no=?",
         [$gameId, $lessonNo], 'ii'
     );
-    if ($exists) requireContentOwner($exists);
+    if ($exists) requireContentOwner($exists, true);
 
     $approvedBy = $status === 'published' ? myId() : null;
     $publishedAt = $status === 'published' ? date('Y-m-d H:i:s') : null;

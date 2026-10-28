@@ -291,7 +291,7 @@ async function selectEdGame(jsKey){
   if(!form)return;
   form.innerHTML='<div style="color:var(--mu);padding:2rem;text-align:center">⏳ กำลังโหลด...</div>';
 
-  let title='',body='',summary='',readTime=5,canEdit=true,updatedAt=null;
+  let title='',body='',summary='',readTime=5,canEdit=true,canDelete=true,updatedAt=null;
   try{
     const res=await apiLessonContent(_edDbGid,1);
     if(res.ok&&res.content){
@@ -300,6 +300,7 @@ async function selectEdGame(jsKey){
       summary=res.content.summary||'';
       readTime=res.content.read_time||5;
       canEdit=res.content.can_edit!==false;
+      canDelete=res.content.can_delete!==false;
       updatedAt=res.content.updated_at||null;
     }
   }catch(e){}
@@ -407,7 +408,7 @@ async function selectEdGame(jsKey){
           style="background:#F9FAFB;color:var(--mu);border:1px solid #E5E7EB">
           🗑 ล้างเนื้อหา
         </button>
-        ${hasCon?`<button class="btn btn-sm" onclick="deleteLesson()"
+        ${hasCon&&canDelete?`<button class="btn btn-sm" onclick="deleteLesson()"
           style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5">
           ❌ ลบบทเรียนนี้
         </button>`:''}
