@@ -70,7 +70,7 @@ const GAMES_DB = {
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 2 — วิทยาศาสตร์                  ║
 // ╚═══════════════════════════════════════╝
-'2_1':{ id:'2_1', sid:2, name:'แรงในชีวิตประจำวัน',        type:'mcq',       icon:'💪', lvl:'easy',  time:60,
+'2_1':{ id:'2_1', sid:2, name:'แรงในชีวิตประจำวัน',        type:'mcq',       icon:'💪', cover:'images/covers/sci-forces.webp', lvl:'easy',  time:60,
   qs:[
     {q:'ดาวเคราะห์ที่อยู่ใกล้ดวงอาทิตย์ที่สุดคือ?', opts:['ดาวศุกร์','ดาวพุธ','โลก','ดาวอังคาร'], ans:1},
     {q:'ดวงจันทร์โคจรรอบ?',                         opts:['ดวงอาทิตย์','โลก','ดาวอังคาร','ดาวพฤหัส'],ans:1},
@@ -79,7 +79,7 @@ const GAMES_DB = {
     {q:'เซลล์พืชแต่ต่างจากเซลล์สัตว์คือมี?',        opts:['นิวเคลียส','เยื่อหุ้มเซลล์','ผนังเซลล์','ไซโตพลาซึม'],ans:2},
     {q:'การสังเคราะห์แสงเกิดขึ้นใน?',               opts:['ราก','ลำต้น','ใบ','ดอก'],            ans:2},
   ]},
-'2_2':{ id:'2_2', sid:2, name:'เสียงกับการได้ยิน', type:'truefalse', icon:'🔊', lvl:'easy',  time:60,
+'2_2':{ id:'2_2', sid:2, name:'เสียงกับการได้ยิน', type:'truefalse', icon:'🔊', cover:'images/covers/sci-sound.webp', lvl:'easy',  time:60,
   qs:[
     {q:'☀️ ดวงอาทิตย์เป็นดาวเคราะห์',                ans:false},
     {q:'💧 สูตรเคมีของน้ำคือ H₂O',                   ans:true},
@@ -88,7 +88,7 @@ const GAMES_DB = {
     {q:'🌕 ดวงจันทร์ออกแสงสว่างเองได้',               ans:false},
     {q:'⚡ ฟ้าผ่าคือการปล่อยประจุไฟฟ้า',              ans:true},
   ]},
-'2_3':{ id:'2_3', sid:2, name:'การเปลี่ยนแปลงสารในชีวิตประจำวัน',  type:'fill',      icon:'🔬', lvl:'medium', time:90,
+'2_3':{ id:'2_3', sid:2, name:'การเปลี่ยนแปลงสารในชีวิตประจำวัน',  type:'fill',      icon:'🔬', cover:'images/covers/sci-substances.webp', lvl:'medium', time:90,
   qs:[
     {q:'ก๊าซที่พืชปล่อยออกมาในระหว่างสังเคราะห์แสงคือ', hint:'สิ่งที่เราหายใจ', ans:'ออกซิเจน'},
     {q:'สัตว์ที่มีกระดูกสันหลังเรียกว่า?',              hint:'Vertebrate',       ans:'สัตว์มีกระดูกสันหลัง'},
@@ -97,7 +97,7 @@ const GAMES_DB = {
     {q:'อุณหภูมิที่น้ำเดือดในหน่วย °C คือ',             hint:'100',              ans:'100'},
     {q:'ธาตุที่เบาที่สุดในตารางธาตุคือ',                 hint:'H',               ans:'ไฮโดรเจน'},
   ]},
-'2_4':{ id:'2_4', sid:2, name:'น้ำในท้องถิ่มของเรา', type:'matching', icon:'💧', lvl:'medium', time:90,
+'2_4':{ id:'2_4', sid:2, name:'น้ำในท้องถิ่มของเรา', type:'matching', icon:'💧', cover:'images/covers/sci-local-water.webp', lvl:'medium', time:90,
   pairs:[
     {left:'🌳 ต้นไม้',    right:'Plantae'},
     {left:'🐶 สุนัข',     right:'Animalia'},
@@ -106,7 +106,7 @@ const GAMES_DB = {
     {left:'🟢 สาหร่าย',   right:'Protista'},
     {left:'🧫 ยีสต์',     right:'Fungi'},
   ]},
-'2_5':{ id:'2_5', sid:2, name:'ปรากฏการณ์ธรรมชาติที่เกี่ยวข้องกับวัฏจักรน้ำ',    type:'sequence',  icon:'🌊', lvl:'medium', time:90,
+'2_5':{ id:'2_5', sid:2, name:'ปรากฏการณ์ธรรมชาติที่เกี่ยวข้องกับวัฏจักรน้ำ',    type:'sequence',  icon:'🌊', cover:'images/covers/sci-water-cycle.webp', lvl:'medium', time:90,
   items:[
     {id:'a',text:'☀️ การระเหย (Evaporation)',    order:1},
     {id:'b',text:'☁️ การก่อตัวของเมฆ',            order:2},
@@ -115,14 +115,14 @@ const GAMES_DB = {
     {id:'e',text:'🌊 น้ำสะสมในทะเล/แหล่งน้ำ',    order:5},
     {id:'f',text:'🔄 วัฏจักรเริ่มใหม่',            order:6},
   ]},
-'2_6':{ id:'2_6', sid:2, name:'ค้นหาคำวิทย์',      type:'wordsearch', icon:'🔍', lvl:'easy',  time:120,
+'2_6':{ id:'2_6', sid:2, name:'ค้นหาคำวิทย์',      type:'wordsearch', icon:'🔍', cover:'images/covers/sci-wordsearch.webp', lvl:'easy',  time:120,
   words:['เซลล์','แสง','น้ำ','ดิน','อากาศ','พลังงาน'],
   gridData:wsGrid(['เซลล์','แสง','น้ำ','ดิน','อากาศ','พลังงาน'])},
 
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 3 — ภาษาไทย                     ║
 // ╚═══════════════════════════════════════╝
-'3_1':{ id:'3_1', sid:3, name:'คำถามภาษาไทย',       type:'mcq',       icon:'📖', lvl:'easy',  time:60,
+'3_1':{ id:'3_1', sid:3, name:'คำถามภาษาไทย',       type:'mcq',       icon:'📖', cover:'images/covers/thai-reading.webp', lvl:'easy',  time:60,
   qs:[
     {q:'ประเทศไทยมีกี่จังหวัด?',               opts:['75','76','77','78'],     ans:2},
     {q:'ดอกไม้ประจำชาติไทยคืออะไร?',           opts:['กล้วยไม้','ดอกบัว','ราชพฤกษ์','มะลิ'],ans:2},
@@ -131,7 +131,7 @@ const GAMES_DB = {
     {q:'"สุนัข" ภาษาราชการเรียกว่าอะไร?',      opts:['แมว','โค','หมา','กวาง'],ans:2},
     {q:'คำว่า "ประชาธิปไตย" มีกี่พยางค์?',     opts:['5','6','7','4'],         ans:1},
   ]},
-'3_2':{ id:'3_2', sid:3, name:'จริงหรือเท็จ ภาษาไทย',type:'truefalse',icon:'✔️', lvl:'easy', time:60,
+'3_2':{ id:'3_2', sid:3, name:'จริงหรือเท็จ ภาษาไทย',type:'truefalse',icon:'✔️', cover:'images/covers/thai-truefalse.webp', lvl:'easy', time:60,
   qs:[
     {q:'ภาษาไทยมีวรรณยุกต์ 5 รูป 4 เสียง',    ans:false},
     {q:'พระบิดาแห่งภาษาไทยคือรัชกาลที่ 9',    ans:true},
@@ -140,7 +140,7 @@ const GAMES_DB = {
     {q:'อักษรสูงมี 12 ตัว',                    ans:false},
     {q:'"กา" และ "ก้า" ออกเสียงต่างกันด้วยวรรณยุกต์', ans:true},
   ]},
-'3_3':{ id:'3_3', sid:3, name:'เติมคำภาษาไทย',      type:'fill',      icon:'✏️', lvl:'medium', time:90,
+'3_3':{ id:'3_3', sid:3, name:'เติมคำภาษาไทย',      type:'fill',      icon:'✏️', cover:'images/covers/thai-fill.webp', lvl:'medium', time:90,
   qs:[
     {q:'ดิฉัน_____ไปโรงเรียนทุกวัน (กริยา)',   hint:'การเดินทาง',  ans:'ไป'},
     {q:'นกมีปีก สุนัขมี___',                    hint:'ขา 4 ข้าง',  ans:'ขา'},
@@ -149,7 +149,7 @@ const GAMES_DB = {
     {q:'วลีที่มีความหมายว่า "ขยัน" คือ',        hint:'มดหรือผึ้ง',  ans:'ขยันเหมือนมด'},
     {q:'ประโยค "แมวกินปลา" มีประธานคือ',        hint:'ใครทำอะไร',  ans:'แมว'},
   ]},
-'3_4':{ id:'3_4', sid:3, name:'จับคู่ประเภทคำ',     type:'matching',  icon:'📝', lvl:'medium', time:90,
+'3_4':{ id:'3_4', sid:3, name:'จับคู่ประเภทคำ',     type:'matching',  icon:'📝', cover:'images/covers/thai-matching.webp', lvl:'medium', time:90,
   pairs:[
     {left:'วิ่ง',     right:'คำกริยา'},
     {left:'สวย',     right:'คำวิเศษณ์'},
@@ -158,7 +158,7 @@ const GAMES_DB = {
     {left:'ใน',      right:'คำบุพบท'},
     {left:'โอ้โห',   right:'คำอุทาน'},
   ]},
-'3_5':{ id:'3_5', sid:3, name:'เรียงประโยค',         type:'sequence',  icon:'📋', lvl:'medium', time:90,
+'3_5':{ id:'3_5', sid:3, name:'เรียงประโยค',         type:'sequence',  icon:'📋', cover:'images/covers/thai-sentence.webp', lvl:'medium', time:90,
   items:[
     {id:'a',text:'📌 ประธาน (Subject)',          order:1},
     {id:'b',text:'🏃 กริยา (Verb)',               order:2},
@@ -167,7 +167,7 @@ const GAMES_DB = {
     {id:'e',text:'❓ คำถาม (Question word)',      order:5},
     {id:'f',text:'🔚 เครื่องหมายวรรคตอน',         order:6},
   ]},
-'3_6':{ id:'3_6', sid:3, name:'เรียงตัวอักษรภาษาไทย', type:'letterorder', icon:'🔤', lvl:'easy', time:120,
+'3_6':{ id:'3_6', sid:3, name:'เรียงตัวอักษรภาษาไทย', type:'letterorder', icon:'🔤', cover:'images/covers/thai-letters.webp', lvl:'easy', time:120,
   items:[
     {id:'a',text:'ห',order:1},{id:'b',text:'นั',order:2},{id:'c',text:'ง',order:3},{id:'d',text:'สื',order:4},{id:'e',text:'อ',order:5}
   ]},
@@ -175,7 +175,7 @@ const GAMES_DB = {
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 4 — ภาษาอังกฤษ                  ║
 // ╚═══════════════════════════════════════╝
-'4_1':{ id:'4_1', sid:4, name:'คำศัพท์สัตว์',       type:'mcq',       icon:'🐾', lvl:'easy',  time:60,
+'4_1':{ id:'4_1', sid:4, name:'คำศัพท์สัตว์',       type:'mcq',       icon:'🐾', cover:'images/covers/eng-quiz.webp', lvl:'easy',  time:60,
   qs:[
     {q:'🐶 Dog คืออะไร?',   opts:['แมว','สุนัข','กระต่าย','หมู'],  ans:1},
     {q:'🐘 Elephant คืออะไร?',opts:['เสือ','สิงโต','ช้าง','ยีราฟ'],ans:2},
@@ -184,7 +184,7 @@ const GAMES_DB = {
     {q:'🐦 Bird คืออะไร?',  opts:['ผึ้ง','แมลง','นก','ผีเสื้อ'],   ans:2},
     {q:'🐇 Rabbit คืออะไร?',opts:['กระแต','กระต่าย','กระรอก','หนู'],ans:1},
   ]},
-'4_2':{ id:'4_2', sid:4, name:'จริงหรือเท็จ English',type:'truefalse',icon:'🅰️', lvl:'easy',  time:60,
+'4_2':{ id:'4_2', sid:4, name:'จริงหรือเท็จ English',type:'truefalse',icon:'🅰️', cover:'images/covers/eng-truefalse.webp', lvl:'easy',  time:60,
   qs:[
     {q:'"Apple" หมายถึง ส้ม',               ans:false},
     {q:'"Monday" เป็นวันแรกของสัปดาห์',     ans:true},
@@ -193,7 +193,7 @@ const GAMES_DB = {
     {q:'"Happy" หมายถึง เศร้า',             ans:false},
     {q:'"12 months = 1 year" is correct',  ans:true},
   ]},
-'4_3':{ id:'4_3', sid:4, name:'เติมคำศัพท์',         type:'fill',      icon:'✏️', lvl:'medium', time:90,
+'4_3':{ id:'4_3', sid:4, name:'เติมคำศัพท์',         type:'fill',      icon:'✏️', cover:'images/covers/eng-fill.webp', lvl:'medium', time:90,
   qs:[
     {q:'I ___ a student. (to be)',           hint:'am / is / are',  ans:'am'},
     {q:'She ___ to school everyday.',        hint:'go / goes / gone',ans:'goes'},
@@ -202,7 +202,7 @@ const GAMES_DB = {
     {q:'"สุนัข" in English is ___.',         hint:'man\'s best friend',ans:'dog'},
     {q:'Opposite of "big" is ___.',          hint:'ตรงข้ามกับใหญ่',   ans:'small'},
   ]},
-'4_4':{ id:'4_4', sid:4, name:'จับคู่คำแปล',         type:'matching',  icon:'🔗', lvl:'easy',  time:90,
+'4_4':{ id:'4_4', sid:4, name:'จับคู่คำแปล',         type:'matching',  icon:'🔗', cover:'images/covers/eng-matching.webp', lvl:'easy',  time:90,
   pairs:[
     {left:'🍎 Apple',  right:'แอปเปิ้ล'},
     {left:'📚 Book',   right:'หนังสือ'},
@@ -211,7 +211,7 @@ const GAMES_DB = {
     {left:'🌈 Rainbow',right:'รุ้งกินน้ำ'},
     {left:'🎵 Music',  right:'ดนตรี'},
   ]},
-'4_5':{ id:'4_5', sid:4, name:'เรียง A-Z',            type:'sequence',  icon:'🔤', lvl:'easy',  time:60,
+'4_5':{ id:'4_5', sid:4, name:'เรียง A-Z',            type:'sequence',  icon:'🔤', cover:'images/covers/eng-sentence.webp', lvl:'easy',  time:60,
   items:[
     {id:'a',text:'🔵 Blue',    order:1},
     {id:'b',text:'🟢 Green',   order:2},
@@ -220,14 +220,14 @@ const GAMES_DB = {
     {id:'e',text:'🌸 Rose',    order:5},
     {id:'f',text:'🟡 Yellow',  order:6},
   ]},
-'4_6':{ id:'4_6', sid:4, name:'Word Search',           type:'wordsearch', icon:'🔍', lvl:'easy', time:120,
+'4_6':{ id:'4_6', sid:4, name:'Word Search',           type:'wordsearch', icon:'🔍', cover:'images/covers/eng-wordsearch.webp', lvl:'easy', time:120,
   words:['cat','dog','fish','bird','book','pen'],
   gridData:wsGridEn(['cat','dog','fish','bird','book','pen'])},
 
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 5 — สังคมศึกษา                ║
 // ╚═══════════════════════════════════════╝
-'5_1':{ id:'5_1', sid:5, name:'สังคมศึกษา',     type:'mcq',       icon:'📜', lvl:'medium',time:60,
+'5_1':{ id:'5_1', sid:5, name:'สังคมศึกษา',     type:'mcq',       icon:'📜', cover:'images/covers/social-quiz.webp', lvl:'medium',time:60,
   qs:[
     {q:'กรุงสุโขทัยถูกสถาปนาในปี พ.ศ. ใด?',       opts:['พ.ศ.1800','พ.ศ.1893','พ.ศ.1762','พ.ศ.2310'], ans:0},
     {q:'พ่อขุนรามคำแหงทรงประดิษฐ์สิ่งใด?',         opts:['เงินตรา','ตัวอักษรไทย','ระบบชลประทาน','กฎหมาย'],ans:1},
@@ -236,7 +236,7 @@ const GAMES_DB = {
     {q:'รัชกาลที่ 1 ทรงสถาปนากรุงใด?',             opts:['กรุงธนบุรี','กรุงเทพฯ','กรุงศรีอยุธยา','กรุงสุโขทัย'],ans:1},
     {q:'วันชาติไทยตรงกับวันที่?',                   opts:['5 ธ.ค.','28 ก.ค.','23 ต.ค.','5 พ.ค.'],       ans:1},
   ]},
-'5_2':{ id:'5_2', sid:5, name:'จริงหรือเท็จ ประวัติ', type:'truefalse', icon:'⚔️', lvl:'medium',time:60,
+'5_2':{ id:'5_2', sid:5, name:'จริงหรือเท็จ ประวัติ', type:'truefalse', icon:'⚔️', cover:'images/covers/social-truefalse.webp', lvl:'medium',time:60,
   qs:[
     {q:'กรุงสุโขทัยเป็นราชธานีแรกของไทย',          ans:true},
     {q:'สมเด็จพระนเรศวรทรงกอบกู้เอกราชจากพม่า',    ans:true},
@@ -245,7 +245,7 @@ const GAMES_DB = {
     {q:'ไทยเคยตกเป็นเมืองขึ้นของอังกฤษ',           ans:false},
     {q:'วันปิยมหาราชตรงกับวันที่ 23 ตุลาคม',       ans:true},
   ]},
-'5_3':{ id:'5_3', sid:5, name:'เติมคำประวัติศาสตร์', type:'fill',      icon:'✏️', lvl:'hard',   time:90,
+'5_3':{ id:'5_3', sid:5, name:'เติมคำประวัติศาสตร์', type:'fill',      icon:'✏️', cover:'images/covers/social-fill.webp', lvl:'hard',   time:90,
   qs:[
     {q:'พ่อขุนรามคำแหงเป็นกษัตริย์ราชวงศ์?',        hint:'ผู้ก่อตั้งสุโขทัย',          ans:'ศรีนาวนำถุม'},
     {q:'กรุงศรีอยุธยาเสียครั้งที่ 2 ปี พ.ศ.___',   hint:'ปีที่ถูกพม่าตี ครั้งสุดท้าย',ans:'2310'},
@@ -254,7 +254,7 @@ const GAMES_DB = {
     {q:'ประเทศไทยมีพระมหากษัตริย์รัชกาลที่ ___ ปัจจุบัน',hint:'10',                  ans:'10'},
     {q:'สนธิสัญญาเบาว์ริ่งทำกับประเทศ?',            hint:'ชาติตะวันตก',                 ans:'อังกฤษ'},
   ]},
-'5_4':{ id:'5_4', sid:5, name:'จับคู่ยุคสมัย',       type:'matching',  icon:'🏛️', lvl:'medium', time:90,
+'5_4':{ id:'5_4', sid:5, name:'จับคู่ยุคสมัย',       type:'matching',  icon:'🏛️', cover:'images/covers/social-matching.webp', lvl:'medium', time:90,
   pairs:[
     {left:'สุโขทัย',        right:'พ่อขุนรามคำแหง'},
     {left:'อยุธยา',         right:'สมเด็จพระนเรศวร'},
@@ -263,7 +263,7 @@ const GAMES_DB = {
     {left:'รัชกาลที่ 5',    right:'ปฏิรูปประเทศ'},
     {left:'พ.ศ.2475',       right:'เปลี่ยนการปกครอง'},
   ]},
-'5_5':{ id:'5_5', sid:5, name:'เรียงยุคสมัยไทย',     type:'sequence',  icon:'⏳', lvl:'medium', time:90,
+'5_5':{ id:'5_5', sid:5, name:'เรียงยุคสมัยไทย',     type:'sequence',  icon:'⏳', cover:'images/covers/social-sequence.webp', lvl:'medium', time:90,
   items:[
     {id:'a',text:'🏯 สมัยสุโขทัย (ราวพ.ศ.1800)',     order:1},
     {id:'b',text:'⚔️ สมัยอยุธยา (พ.ศ.1893-2310)',    order:2},
@@ -272,19 +272,19 @@ const GAMES_DB = {
     {id:'e',text:'🗳️ ประชาธิปไตย (พ.ศ.2475)',        order:5},
     {id:'f',text:'🇹🇭 ยุคปัจจุบัน',                  order:6},
   ]},
-'5_6':{ id:'5_6', sid:5, name:'ค้นหาคำประวัติ',      type:'wordsearch', icon:'🔍', lvl:'medium',time:120,
+'5_6':{ id:'5_6', sid:5, name:'ค้นหาคำประวัติ',      type:'wordsearch', icon:'🔍', cover:'images/covers/social-wordsearch.webp', lvl:'medium',time:120,
   words:['ไทย','กษัตริย์','ราชวงศ์','อยุธยา','ประวัติ','ชาติ'],
   gridData:wsGrid(['ไทย','กษัตริย์','ราชวงศ์','อยุธยา','ประวัติ','ชาติ'])},
 
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 6 — สุขศึกษา                   ║
 // ╚═══════════════════════════════════════╝
-'6_1':{ id:'6_1', code:'health_detective', sid:6, name:'นักสืบสุขภาพ พิชิตภารกิจร่างกาย', type:'mcq', icon:'🕵️', lvl:'medium', time:1800 },
-'6_2':{ id:'6_2', code:'health_meal_chef', sid:6, name:'เชฟน้อยจัดจานสุขภาพ', type:'mcq', icon:'🍱', lvl:'medium', time:1800 },
-'6_3':{ id:'6_3', code:'health_routine', sid:6, name:'นักวางแผนชีวิตสุขภาพดี', type:'mcq', icon:'⏰', lvl:'medium', time:1800 },
-'6_4':{ id:'6_4', code:'health_sports', sid:6, name:'สนามกีฬาอัจฉริยะ', type:'mcq', icon:'⚽', lvl:'medium', time:1800 },
-'6_5':{ id:'6_5', code:'health_safety', sid:6, name:'ฮีโร่พิทักษ์ความปลอดภัย', type:'mcq', icon:'🦸', lvl:'medium', time:1800 },
-'6_6':{ id:'6_6', code:'health_teamwork', sid:6, name:'ภารกิจทีมเวิร์ก พิชิตปัญหา', type:'mcq', icon:'🤝', lvl:'medium', time:1800 },
+'6_1':{ id:'6_1', code:'health_detective', sid:6, name:'นักสืบสุขภาพ พิชิตภารกิจร่างกาย', type:'mcq', icon:'🕵️', cover:'images/covers/health-detective.webp', lvl:'medium', time:1800 },
+'6_2':{ id:'6_2', code:'health_meal_chef', sid:6, name:'เชฟน้อยจัดจานสุขภาพ', type:'mcq', icon:'🍱', cover:'images/covers/health-meal-chef.webp', lvl:'medium', time:1800 },
+'6_3':{ id:'6_3', code:'health_routine', sid:6, name:'นักวางแผนชีวิตสุขภาพดี', type:'mcq', icon:'⏰', cover:'images/covers/health-routine.webp', lvl:'medium', time:1800 },
+'6_4':{ id:'6_4', code:'health_sports', sid:6, name:'สนามกีฬาอัจฉริยะ', type:'mcq', icon:'⚽', cover:'images/covers/health-sports.webp', lvl:'medium', time:1800 },
+'6_5':{ id:'6_5', code:'health_safety', sid:6, name:'ฮีโร่พิทักษ์ความปลอดภัย', type:'mcq', icon:'🦸', cover:'images/covers/health-safety.webp', lvl:'medium', time:1800 },
+'6_6':{ id:'6_6', code:'health_teamwork', sid:6, name:'ภารกิจทีมเวิร์ก พิชิตปัญหา', type:'mcq', icon:'🤝', cover:'images/covers/health-teamwork.webp', lvl:'medium', time:1800 },
 };
 
 // ══════════════════════════════════════════════════════
