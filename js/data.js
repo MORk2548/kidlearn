@@ -60,7 +60,7 @@ const GAMES_DB = {
 // ╔═══════════════════════════════════════╗
 // ║  วิชา 1 — คณิตศาสตร์                     ║
 // ╚═══════════════════════════════════════╝
-'1_1':{ id:'1_1', code:'math_fraction_quest', sid:1, name:'ภารกิจพิชิตอาณาจักรเศษส่วน', type:'mcq', mode:'fraction-quest', icon:'🏰', lvl:'medium', time:1200 },
+'1_1':{ id:'1_1', code:'math_fraction_quest', sid:1, name:'ภารกิจพิชิตอาณาจักรเศษส่วน', type:'mcq', mode:'fraction-quest', icon:'🏰', cover:'images/covers/math-fraction-quest.webp', lvl:'medium', time:1200 },
 '1_2':{ id:'1_2', code:'math_pizza_chef', sid:1, name:'เชฟน้อยพิชิตพิซซ่า: ภารกิจร้านอาหารมหัศจรรย์', type:'mcq', mode:'pizza', icon:'🍕', lvl:'medium', time:1500 },
 '1_3':{ id:'1_3', code:'math_decimal_shop', sid:1, name:'ร้านค้าคณิตคิดเงินไว', type:'mcq', mode:'decimal-shop', icon:'🛍️', lvl:'medium', time:1200 },
 '1_4':{ id:'1_4', code:'math_decimal_treasure', sid:1, name:'นักล่าสมบัติทศนิยม', type:'mcq', mode:'treasure', icon:'🗝️', lvl:'medium', time:1200 },

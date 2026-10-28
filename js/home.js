@@ -312,7 +312,7 @@ async function openSub(id){
     const tc=TYPE_COL[gameType]||'#374151';
     grid.innerHTML+=`<div class="gc" style="animation-delay:${i*.07}s">
       <div class="gc-thumb" style="background:linear-gradient(135deg,${A.curSub.color}25,${A.curSub.color}50)">
-        <span style="font-size:2.6rem">${gm.icon}</span>
+        ${gm.cover ? `<img class="gc-cover" src="${gm.cover}" alt="ปกเกม${gameName}">` : `<span style="font-size:2.6rem">${gm.icon}</span>`}
         <span class="gc-tag" style="background:${tbg};color:${tc}">${missionKit(gm.code)?'🧩 ภารกิจ':TYPE_LBL[gameType]||gameType}</span>
       </div>
       <div class="gc-body">
