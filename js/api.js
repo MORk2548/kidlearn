@@ -89,6 +89,17 @@ const apiStudentAnalytics = (sid) => _api('student_analytics', sid ? { params: {
 const apiStudentPlans = (sid) => _api('student_plans', sid ? { params: { student_id: sid } } : {});
 const apiCreatePlan = (d) => _api('create_plan', { body: d });
 
+// Teacher games
+const apiTeacherGames = () => _api('teacher_games');
+const apiTeacherGame = (gameId) => _api('teacher_game', { params: { game_id: gameId } });
+const apiSaveTeacherGame = (d) => _api('save_teacher_game', { body: d });
+const apiDeleteTeacherGame = (gameId) => _api('delete_teacher_game', { body: { game_id: gameId } });
+
+// Student games
+const apiStudentGames = () => _api('student_games');
+const apiGamePlay = (gameId) => _api('game_play', { params: { game_id: gameId } });
+const apiSaveScore = (d) => _api('save_score', { body: d });
+
 
 const apiAutoLink = () => _api('auto_link', { method: 'POST', body: {} });
 

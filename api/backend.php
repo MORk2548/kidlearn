@@ -100,6 +100,14 @@ class DB {
         return $row ?: null;
     }
 
+    // DB::fail ภายใน $fn จะ exit ก่อน commit การเชื่อมต่อที่ปิดไปจึง rollback ให้เอง
+    public function transaction(callable $fn): mixed {
+        $this->c->beginTransaction();
+        $result = $fn($this);
+        $this->c->commit();
+        return $result;
+    }
+
     public function insertId(): int { return (int)$this->c->lastInsertId(); }
     public function affected(): int { return $this->lastStmt?->rowCount() ?? 0; }
 
@@ -196,6 +204,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
         'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
         'save_teacher_assignments',
+        'save_teacher_game', 'delete_teacher_game', 'save_score',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
         DB::fail('Method not allowed', 405);
@@ -615,8 +624,10 @@ function handleTeacherGradebook(): never {
 
     // วิชาเดียว: คอลัมน์ = เกม (คะแนนดีที่สุด); ทุกวิชา: คอลัมน์ = วิชา (คะแนนเฉลี่ย)
     if ($subjectId) {
-        $columns = $db->all("SELECT game_id AS id, name, icon FROM games
-                             WHERE subject_id=? AND is_active=TRUE ORDER BY game_id", [$subjectId], 'i');
+        $columns = $db->all("SELECT g.game_id AS id, g.name, g.icon FROM games g
+                             JOIN game_classrooms gc ON gc.game_id = g.game_id AND gc.classroom_id = ?
+                             WHERE g.subject_id=? AND g.is_active=TRUE AND g.status='published'
+                             ORDER BY g.game_id", [$classroomId, $subjectId], 'ii');
         $cells = $db->all(
             "SELECT sc.student_id, sc.game_id AS col, MAX(sc.score) AS val
              FROM scores sc JOIN students st ON st.student_id = sc.student_id
@@ -634,6 +645,318 @@ function handleTeacherGradebook(): never {
     }
     DB::ok(['columns' => $columns, 'cells' => $cells, 'students' => $students,
             'attention_rule' => ['min_score' => ATTENTION_MIN_SCORE, 'inactive_days' => ATTENTION_INACTIVE_DAYS]]);
+}
+
+// ============================================================
+// TEACHER GAMES — ครูสร้างเกมจากแบบเกมที่กำหนดไว้
+// ============================================================
+
+const GAME_TYPES = ['mcq', 'truefalse', 'matching', 'linematch', 'sequence'];
+const GAME_MAX_QUESTIONS = 50;
+
+function gameText(mixed $value, int $max, string $label): string {
+    $text = trim((string)($value ?? ''));
+    if ($text === '') DB::fail("{$label}: ยังไม่ได้กรอก", 400);
+    if (mb_strlen($text) > $max) DB::fail("{$label}: ยาวเกิน {$max} ตัวอักษร", 400);
+    return $text;
+}
+
+function gameTextList(mixed $values, int $min, int $max, int $maxLen, string $label): array {
+    if (!is_array($values) || count($values) < $min || count($values) > $max)
+        DB::fail("{$label}: ต้องมี " . ($min === $max ? $min : "{$min}-{$max}") . " รายการ", 400);
+    $texts = [];
+    foreach (array_values($values) as $i => $v) $texts[] = gameText($v, $maxLen, "{$label} รายการที่ " . ($i + 1));
+    if (count(array_unique($texts)) !== count($texts)) DB::fail("{$label}: มีรายการซ้ำกัน", 400);
+    return $texts;
+}
+
+// คำถามจากหน้าสร้างเกม → แถวของ questions/answers ตามแบบเกม
+function parseGameQuestion(string $type, mixed $q, int $no): array {
+    $label = "ข้อ {$no}";
+    if (!is_array($q)) DB::fail("{$label}: รูปแบบข้อมูลไม่ถูกต้อง", 400);
+    $defaultText = ['matching' => 'จับคู่ให้ถูกต้อง', 'linematch' => 'โยงเส้นจับคู่ให้ถูกต้อง',
+                    'sequence' => 'เรียงลำดับให้ถูกต้อง'][$type] ?? '';
+    $text = gameText(trim((string)($q['text'] ?? '')) ?: $defaultText, 1000, "{$label} โจทย์");
+    $answers = [];
+    switch ($type) {
+        case 'mcq':
+            $choices = gameTextList($q['choices'] ?? null, 4, 4, 500, "{$label} ตัวเลือก");
+            $correct = $q['correct'] ?? null;
+            if (!is_int($correct) || $correct < 0 || $correct > 3) DB::fail("{$label}: ยังไม่ได้เลือกคำตอบที่ถูก", 400);
+            foreach ($choices as $i => $c) $answers[] = ['answer_text' => $c, 'is_correct' => $i === $correct];
+            break;
+        case 'truefalse':
+            if (!is_bool($q['answer'] ?? null)) DB::fail("{$label}: ยังไม่ได้เลือกว่าถูกหรือผิด", 400);
+            $answers = [['answer_text' => 'ถูก', 'is_correct' => $q['answer']],
+                        ['answer_text' => 'ผิด', 'is_correct' => !$q['answer']]];
+            break;
+        case 'matching':
+        case 'linematch':
+            $pairs = $q['pairs'] ?? null;
+            if (!is_array($pairs)) DB::fail("{$label}: ต้องมี 3-6 คู่", 400);
+            $side = fn($key) => array_map(fn($p) => is_array($p) ? ($p[$key] ?? '') : '', $pairs);
+            $lefts = gameTextList($side('left'), 3, 6, 300, "{$label} ฝั่งซ้าย");
+            $rights = gameTextList($side('right'), 3, 6, 300, "{$label} ฝั่งขวา");
+            foreach ($lefts as $i => $left)
+                $answers[] = ['answer_text' => $rights[$i], 'is_correct' => true, 'pair_left' => $left, 'pair_right' => $rights[$i]];
+            break;
+        case 'sequence':
+            foreach (gameTextList($q['items'] ?? null, 3, 6, 500, "{$label} ลำดับ") as $i => $item)
+                $answers[] = ['answer_text' => $item, 'is_correct' => true, 'seq_order' => $i + 1];
+            break;
+    }
+    return ['text' => $text, 'explanation' => mb_substr(trim((string)($q['explanation'] ?? '')), 0, 1000) ?: null,
+            'answers' => $answers];
+}
+
+// แถวของ questions/answers → คำถามรูปแบบเดียวกับที่หน้าสร้างเกมส่งมา
+function gameQuestionOut(string $type, array $q, array $answers): array {
+    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? ''];
+    switch ($type) {
+        case 'mcq':
+            $out['choices'] = array_column($answers, 'answer_text');
+            $out['correct'] = (int)array_search(true, array_column($answers, 'is_correct'), true);
+            break;
+        case 'truefalse':
+            $correct = array_values(array_filter($answers, fn($a) => $a['is_correct']))[0] ?? null;
+            $out['answer'] = ($correct['answer_text'] ?? '') === 'ถูก';
+            break;
+        case 'matching':
+        case 'linematch':
+            $out['pairs'] = array_map(fn($a) => ['left' => $a['pair_left'], 'right' => $a['pair_right']], $answers);
+            break;
+        case 'sequence':
+            $out['items'] = array_column($answers, 'answer_text');
+            break;
+    }
+    return $out;
+}
+
+function loadGameQuestions(int $gameId, string $type): array {
+    $db = DB::get();
+    $questions = $db->all("SELECT question_id, question_text, explanation FROM questions
+                           WHERE game_id=? ORDER BY order_no, question_id", [$gameId], 'i');
+    $byQuestion = [];
+    foreach ($db->all(
+        "SELECT a.question_id, a.answer_text, a.is_correct, a.pair_left, a.pair_right
+         FROM answers a JOIN questions q ON q.question_id = a.question_id
+         WHERE q.game_id=? ORDER BY a.question_id, a.seq_order NULLS LAST, a.answer_id", [$gameId], 'i') as $a)
+        $byQuestion[$a['question_id']][] = $a;
+    return array_map(fn($q) => gameQuestionOut($type, $q, $byQuestion[$q['question_id']] ?? []), $questions);
+}
+
+function gameClassroomIds(int $gameId): array {
+    return array_map('intval', array_column(DB::get()->all(
+        "SELECT classroom_id FROM game_classrooms WHERE game_id=? ORDER BY classroom_id", [$gameId], 'i'), 'classroom_id'));
+}
+
+// เกมที่ครูสร้าง (มี created_by) และยังไม่ถูกลบ ครูจัดการได้เฉพาะเกมตัวเอง แอดมินจัดการได้ทุกเกม
+function findManagedGame(int $gameId): array {
+    $game = DB::get()->one("SELECT * FROM games WHERE game_id=? AND created_by IS NOT NULL AND is_active=TRUE",
+        [$gameId], 'i');
+    if (!$game || (myRole() === 'teacher' && (int)$game['created_by'] !== myId())) DB::fail('ไม่พบเกม', 404);
+    return $game;
+}
+
+// ห้องต้องอยู่ชั้นเดียวกับเกม และครูต้องสอนวิชานั้นในชั้น/ห้องนั้นจริง
+function checkGameScope(string $grade, int $subjectId, string $rooms): void {
+    $db = DB::get();
+    $roomCount = count(array_filter(explode(',', trim($rooms, '{}'))));
+    $sameGrade = (int)$db->one("SELECT COUNT(*) AS c FROM classrooms WHERE classroom_id = ANY(?::int[]) AND grade=?",
+        [$rooms, $grade], 'ss')['c'];
+    if ($sameGrade !== $roomCount) DB::fail("ห้องที่เลือกต้องเป็นห้องของชั้น {$grade}", 400);
+    if (myRole() !== 'teacher') return;
+
+    $taught = "SELECT c.classroom_id FROM teacher_assignments ta JOIN classrooms c ON c.classroom_id = ta.classroom_id
+               WHERE ta.teacher_user_id=? AND c.grade=? AND (ta.subject_id IS NULL OR ta.subject_id=?)";
+    if (!$db->one("{$taught} LIMIT 1", [myId(), $grade, $subjectId], 'isi'))
+        DB::fail("คุณไม่ได้สอนวิชานี้ในชั้น {$grade}", 400);
+    $allowed = (int)$db->one("SELECT COUNT(DISTINCT classroom_id) AS c FROM ({$taught}) t WHERE classroom_id = ANY(?::int[])",
+        [myId(), $grade, $subjectId, $rooms], 'isis')['c'];
+    if ($allowed !== $roomCount) DB::fail('มีห้องที่คุณไม่ได้สอนวิชานี้', 400);
+}
+
+function handleTeacherGames(): never {
+    authRole('teacher', 'admin');
+    ensureTeacherAssignmentSchema();
+    $own = myRole() === 'teacher' ? ' AND g.created_by = ' . myId() : '';
+    $games = DB::get()->all(
+        "SELECT g.game_id, g.name, g.icon, g.game_type, g.grade, g.status, g.time_limit,
+                g.subject_id, sub.name AS subject_name, u.full_name AS creator_name,
+                (SELECT COUNT(*) FROM questions q WHERE q.game_id = g.game_id) AS question_count,
+                COALESCE((SELECT json_agg(gc.classroom_id ORDER BY gc.classroom_id)
+                          FROM game_classrooms gc WHERE gc.game_id = g.game_id), '[]') AS classroom_ids
+         FROM games g
+         JOIN subjects sub ON sub.subject_id = g.subject_id
+         LEFT JOIN users u ON u.user_id = g.created_by
+         WHERE g.created_by IS NOT NULL AND g.is_active = TRUE{$own}
+         ORDER BY g.game_id DESC");
+    foreach ($games as &$g) $g['classroom_ids'] = json_decode($g['classroom_ids'], true);
+    DB::ok(['games' => $games]);
+}
+
+function handleTeacherGame(): never {
+    authRole('teacher', 'admin');
+    $game = findManagedGame((int)($_GET['game_id'] ?? 0));
+    $gameId = (int)$game['game_id'];
+    $game['classroom_ids'] = gameClassroomIds($gameId);
+    $game['questions'] = loadGameQuestions($gameId, $game['game_type']);
+    DB::ok(['game' => $game]);
+}
+
+function handleSaveTeacherGame(): never {
+    global $body;
+    authRole('teacher', 'admin');
+    ensureTeacherAssignmentSchema();
+    $db = DB::get();
+    $gameId = (int)($body['game_id'] ?? 0);
+    $isUpdate = $gameId > 0;
+    if ($isUpdate) findManagedGame($gameId);
+
+    $name = gameText($body['name'] ?? '', 100, 'ชื่อเกม');
+    $type = (string)($body['game_type'] ?? '');
+    if (!in_array($type, GAME_TYPES, true)) DB::fail('กรุณาเลือกแบบเกม', 400);
+    $grade = (string)($body['grade'] ?? '');
+    if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('กรุณาเลือกระดับชั้น', 400);
+    $subjectId = (int)($body['subject_id'] ?? 0);
+    if (!$db->one("SELECT 1 FROM subjects WHERE subject_id=?", [$subjectId], 'i')) DB::fail('กรุณาเลือกวิชา', 400);
+    $status = (string)($body['status'] ?? 'draft');
+    if (!in_array($status, ['draft', 'published'], true)) DB::fail('สถานะเกมไม่ถูกต้อง', 400);
+    $timeLimit = (int)($body['time_limit'] ?? 60);
+    if ($timeLimit < 30 || $timeLimit > 1800) DB::fail('เวลาต้องอยู่ระหว่าง 30-1800 วินาที', 400);
+    $icon = mb_substr(trim((string)($body['icon'] ?? '')), 0, 10) ?: '🎮';
+
+    $rawQuestions = $body['questions'] ?? null;
+    if (!is_array($rawQuestions) || !$rawQuestions || count($rawQuestions) > GAME_MAX_QUESTIONS)
+        DB::fail('ต้องมีคำถาม 1-' . GAME_MAX_QUESTIONS . ' ข้อ', 400);
+    $questions = [];
+    foreach (array_values($rawQuestions) as $i => $q) $questions[] = parseGameQuestion($type, $q, $i + 1);
+
+    $rooms = intArrayLiteral($body['classroom_ids'] ?? []);
+    if ($status === 'published' && $rooms === '{}') DB::fail('เลือกห้องที่จะให้เล่นเกมนี้อย่างน้อย 1 ห้อง', 400);
+    checkGameScope($grade, $subjectId, $rooms);
+
+    $gameId = $db->transaction(function (DB $db) use ($gameId, $name, $type, $grade, $subjectId, $status, $timeLimit, $icon, $questions, $rooms) {
+        if ($gameId) {
+            $db->run("UPDATE games SET name=?, game_type=?, grade=?, subject_id=?, status=?, time_limit=?, icon=?
+                      WHERE game_id=?", [$name, $type, $grade, $subjectId, $status, $timeLimit, $icon, $gameId]);
+            $db->run("DELETE FROM questions WHERE game_id=?", [$gameId]);
+            $db->run("DELETE FROM game_classrooms WHERE game_id=?", [$gameId]);
+        } else {
+            $gameId = (int)$db->one(
+                "INSERT INTO games (name, game_type, grade, subject_id, status, time_limit, icon, created_by)
+                 VALUES (?,?,?,?,?,?,?,?) RETURNING game_id",
+                [$name, $type, $grade, $subjectId, $status, $timeLimit, $icon, myId()])['game_id'];
+        }
+
+        $questionRows = array_map(fn($q, $i) => ['text' => $q['text'], 'explanation' => $q['explanation'], 'ord' => $i + 1],
+            $questions, array_keys($questions));
+        $idByOrder = array_column($db->all(
+            "INSERT INTO questions (game_id, question_text, explanation, order_no, created_by, updated_by)
+             SELECT ?, q.text, q.explanation, q.ord, ?, ? FROM jsonb_to_recordset(?::jsonb)
+                    AS q(text TEXT, explanation TEXT, ord INT)
+             RETURNING question_id, order_no",
+            [$gameId, myId(), myId(), jsonEncodeSafe($questionRows)]), 'question_id', 'order_no');
+
+        $answerRows = [];
+        foreach ($questions as $i => $q)
+            foreach ($q['answers'] as $a) $answerRows[] = $a + ['question_id' => $idByOrder[$i + 1]];
+        $db->run(
+            "INSERT INTO answers (question_id, answer_text, is_correct, pair_left, pair_right, seq_order)
+             SELECT a.question_id, a.answer_text, a.is_correct, a.pair_left, a.pair_right, a.seq_order
+             FROM jsonb_to_recordset(?::jsonb)
+                  AS a(question_id INT, answer_text TEXT, is_correct BOOLEAN, pair_left TEXT, pair_right TEXT, seq_order INT)",
+            [jsonEncodeSafe($answerRows)]);
+
+        $db->run("INSERT INTO game_classrooms (game_id, classroom_id) SELECT ?, unnest(?::int[])", [$gameId, $rooms]);
+        return $gameId;
+    });
+
+    logAudit($isUpdate ? 'update' : 'create', 'game', (string)$gameId, "บันทึกเกม {$name}",
+        ['game_type' => $type, 'grade' => $grade, 'status' => $status, 'question_count' => count($questions)]);
+    DB::ok(['game_id' => $gameId]);
+}
+
+// เกมที่มีคะแนนแล้วซ่อนแทนการลบ เพื่อไม่ให้ประวัติคะแนนของนักเรียนหายไปด้วย
+function handleDeleteTeacherGame(): never {
+    global $body;
+    authRole('teacher', 'admin');
+    $game = findManagedGame((int)($body['game_id'] ?? 0));
+    $gameId = (int)$game['game_id'];
+    $db = DB::get();
+    if ($db->one("SELECT 1 FROM scores WHERE game_id=? LIMIT 1", [$gameId], 'i')) {
+        $db->transaction(function (DB $db) use ($gameId) {
+            $db->run("UPDATE games SET is_active=FALSE, status='draft' WHERE game_id=?", [$gameId]);
+            $db->run("DELETE FROM game_classrooms WHERE game_id=?", [$gameId]);
+        });
+    } else {
+        $db->run("DELETE FROM games WHERE game_id=?", [$gameId]);
+    }
+    logAudit('delete', 'game', (string)$gameId, "ลบเกม {$game['name']}");
+    DB::ok(['deleted' => true]);
+}
+
+// ใช้กับ alias g และต้องส่ง user_id ของนักเรียนเป็นพารามิเตอร์
+const STUDENT_PLAYABLE_GAME_SQL = "g.status = 'published' AND g.is_active = TRUE AND EXISTS (
+    SELECT 1 FROM game_classrooms gc JOIN students st ON st.classroom_id = gc.classroom_id
+    WHERE gc.game_id = g.game_id AND st.user_id = ?)";
+
+function handleStudentGames(): never {
+    authRole('student');
+    DB::ok(['games' => DB::get()->all(
+        "SELECT g.game_id, g.name, g.icon, g.game_type, g.time_limit, g.subject_id,
+                sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
+                (SELECT COUNT(*) FROM questions q WHERE q.game_id = g.game_id) AS question_count,
+                (SELECT MAX(sc.score) FROM scores sc JOIN students st ON st.student_id = sc.student_id
+                 WHERE sc.game_id = g.game_id AND st.user_id = ?) AS best_score
+         FROM games g JOIN subjects sub ON sub.subject_id = g.subject_id
+         WHERE " . STUDENT_PLAYABLE_GAME_SQL . "
+         ORDER BY sub.order_no, g.game_id DESC",
+        [myId(), myId()])]);
+}
+
+// นักเรียนเล่นได้เฉพาะเกมที่มอบหมายให้ห้องตัวเอง ครู/แอดมินเปิดเกมของตัวเองเพื่อดูตัวอย่างได้
+function handleGamePlay(): never {
+    authRole('student', 'teacher', 'admin');
+    $gameId = (int)($_GET['game_id'] ?? 0);
+    if (myRole() === 'student') {
+        $game = DB::get()->one("SELECT * FROM games g WHERE g.game_id = ? AND " . STUDENT_PLAYABLE_GAME_SQL,
+            [$gameId, myId()]);
+        if (!$game) DB::fail('ไม่พบเกม', 404);
+    } else {
+        $game = findManagedGame($gameId);
+    }
+    DB::ok(['game' => [
+        'game_id' => (int)$game['game_id'], 'name' => $game['name'], 'icon' => $game['icon'],
+        'game_type' => $game['game_type'], 'time_limit' => (int)$game['time_limit'], 'subject_id' => (int)$game['subject_id'],
+        'questions' => loadGameQuestions((int)$game['game_id'], $game['game_type']),
+    ]]);
+}
+
+// shortcut: คะแนนคิดในเบราว์เซอร์แล้วส่งมา นักเรียนปลอมคะแนนได้ ถ้าคะแนนมีผลจริงจังให้ย้ายไปตรวจคำตอบฝั่งเซิร์ฟเวอร์
+function handleSaveScore(): never {
+    global $body;
+    authRole('student');
+    $db = DB::get();
+    $gameId = (int)($body['game_id'] ?? 0);
+    $score = $body['score'] ?? null;
+    if (!is_int($score) || $score < 0 || $score > 100) DB::fail('คะแนนต้องอยู่ระหว่าง 0-100', 400);
+    $timeSpent = max(0, min(86400, (int)($body['time_spent'] ?? 0)));
+
+    $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
+    if (!$st) DB::fail('ไม่พบข้อมูลนักเรียน', 403);
+    if (!$db->one("SELECT 1 FROM games g WHERE g.game_id = ? AND " . STUDENT_PLAYABLE_GAME_SQL, [$gameId, myId()]))
+        DB::fail('ไม่พบเกม', 404);
+
+    $studentId = (int)$st['student_id'];
+    $scoreId = (int)$db->one(
+        "INSERT INTO scores (student_id, game_id, score, time_spent) VALUES (?,?,?,?) RETURNING score_id",
+        [$studentId, $gameId, $score, $timeSpent])['score_id'];
+    logAudit('score_saved', 'score', (string)$scoreId, 'บันทึกผลการเล่นเกม',
+        ['student_id' => $studentId, 'game_id' => $gameId, 'score' => $score]);
+    generateRecommendationsV2($studentId, myId());
+    refreshStudentNotifications($studentId);
+    DB::ok(['score_id' => $scoreId, 'score' => $score]);
 }
 
 function jsonEncodeSafe(array $data): string {
@@ -706,6 +1029,13 @@ match ($action) {
     'save_teacher_assignments' => handleSaveTeacherAssignments(),
     'teacher_class_summary'    => handleTeacherClassSummary(),
     'teacher_gradebook'        => handleTeacherGradebook(),
+    'teacher_games'            => handleTeacherGames(),
+    'teacher_game'             => handleTeacherGame(),
+    'save_teacher_game'        => handleSaveTeacherGame(),
+    'delete_teacher_game'      => handleDeleteTeacherGame(),
+    'student_games'            => handleStudentGames(),
+    'game_play'                => handleGamePlay(),
+    'save_score'               => handleSaveScore(),
     'student_analytics' => handleStudentAnalytics(),
     'student_plans'     => handleStudentPlansV2(),
     'create_plan'       => handleCreatePlanV3(),
