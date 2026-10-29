@@ -244,3 +244,28 @@ tbody tr:last-child td{border-bottom:none}
   box-shadow:0 4px 14px rgba(245,158,11,.35);transition:all .18s;display:flex;
   align-items:center;justify-content:center;gap:.45rem}
 .lp-btn-play:hover{background:#D97706;transform:translateY(-2px);box-shadow:0 7px 20px rgba(245,158,11,.45)}
+
+/* GAME QUESTIONS (game_types.js) */
+.gq-text{font-size:1.15rem;font-weight:700;line-height:1.5;margin-bottom:1.1rem;overflow-wrap:anywhere}
+.gq-choices{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.gq-choice{display:flex;align-items:center;gap:.7rem;min-height:56px;padding:.8rem 1rem;border:3px solid #E5E7EB;border-radius:16px;
+  background:#fff;font-family:'Kanit',sans-serif;font-size:1rem;font-weight:600;color:var(--tx);text-align:left;cursor:pointer;transition:var(--tr)}
+.gq-choice:hover:not(:disabled){border-color:var(--s);background:#EEF2FF;transform:translateY(-2px)}
+.gq-letter{flex:none;width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:#EEF2FF;color:var(--s);font-weight:800}
+.gq-tf{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.gq-tf-btn{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:1.4rem 1rem;border:3px solid #E5E7EB;border-radius:18px;
+  background:#fff;font-family:'Kanit',sans-serif;font-size:1.15rem;font-weight:800;color:var(--tx);cursor:pointer;transition:var(--tr)}
+.gq-tf-btn span{font-size:2rem}
+.gq-tf-btn.t:hover:not(:disabled){border-color:#10B981;background:#ECFDF5;transform:translateY(-2px)}
+.gq-tf-btn.f:hover:not(:disabled){border-color:#EF4444;background:#FEF2F2;transform:translateY(-2px)}
+.gq-choice:disabled,.gq-tf-btn:disabled{cursor:default}
+.gq-choice.ok,.gq-tf-btn.ok{border-color:#10B981;background:#D1FAE5;color:#065F46}
+.gq-choice.no,.gq-tf-btn.no{border-color:#EF4444;background:#FEE2E2;color:#991B1B}
+/* GAME EDITOR FIELDS */
+.ge-choices{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1rem}
+.ge-choice{display:flex;align-items:center;gap:.5rem;font-size:.88rem;font-weight:600}
+.ge-choice input[type=radio]{flex:none;width:20px;height:20px;accent-color:#10B981}
+.ge-tf{display:flex;gap:1.5rem;margin-bottom:1rem}
+@media(max-width:480px){
+  .gq-choices,.ge-choices{grid-template-columns:1fr}
+}
