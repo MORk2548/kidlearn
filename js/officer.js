@@ -135,7 +135,7 @@ function ofEditUser(uid) {
   };
   
   overlay.innerHTML = `
-    <div class="modal" style="max-width: 520px; width: 100%; padding: 1.5rem;">
+    <div class="modal" style="max-width: 520px; width: 100%; padding: 1.5rem; max-height: 90vh; overflow-y: auto;">
       <div class="modal-t" style="font-size: 1.05rem; margin-bottom: 1.1rem;">
         ✏️ แก้ไขข้อมูลผู้ใช้
       </div>
@@ -169,6 +169,8 @@ function ofEditUser(uid) {
         </div>
       `}
       
+      ${user.role === 'teacher' ? '<div id="of-assign" style="margin-bottom: .85rem;">⏳ กำลังโหลดห้องและวิชาที่สอน...</div>' : ''}
+
       <div style="display: flex; gap: .65rem; justify-content: flex-end; padding-top: .75rem; border-top: 1px solid #F1F5F9; margin-top: .75rem;">
         <button class="btn btn-sm" onclick="document.getElementById('of-modal').remove()">ยกเลิก</button>
         <button class="lp-btn-play" style="padding: .6rem 1.4rem; font-size: .88rem;" 
@@ -179,6 +181,18 @@ function ofEditUser(uid) {
 
   document.body.appendChild(overlay);
   fillClassroomSelect(document.getElementById('of-grade'), user.classroom_id);
+  if (user.role === 'teacher') ofLoadAssignments(uid);
+}
+
+async function ofLoadAssignments(uid) {
+  const [roomRes, subRes, asgRes] = await Promise.all([apiClassrooms(), apiSubjects(), apiTeacherAssignments(uid)]);
+  const el = document.getElementById('of-assign');
+  if (!el) return;
+  if (!roomRes.ok || !subRes.ok || !asgRes.ok) {
+    el.textContent = 'โหลดห้องและวิชาที่สอนไม่สำเร็จ';
+    return;
+  }
+  renderAssignmentForm(el, roomRes.classrooms, subRes.subjects, asgRes.assignments);
 }
 
 async function ofSaveUser(uid) {
@@ -208,6 +222,11 @@ async function ofSaveUser(uid) {
     res = { ok: false, error: 'เชื่อมต่อไม่ได้' };
   }
   
+  const assignEl = document.getElementById('of-assign');
+  if(res.ok && assignEl?.querySelector('select')) {
+    res = await apiSaveTeacherAssignments({ user_id: uid, ...readAssignmentForm(assignEl) }).catch(() => ({ ok: false }));
+  }
+
   if(res.ok) {
     document.getElementById('of-modal')?.remove();
     await ofLoadUsers();

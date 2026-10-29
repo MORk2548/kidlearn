@@ -113,6 +113,9 @@ const apiClassrooms = () => _api('classrooms');
 const apiAddClassroom = () => _api('add_classroom', { body: {} });
 const apiDeleteClassroom = () => _api('delete_classroom', { body: {} });
 const apiChooseClassroom = (id) => _api('choose_classroom', { body: { classroom_id: id } });
+const apiSubjects = () => _api('subjects');
+const apiTeacherAssignments = (userId) => _api('teacher_assignments', userId ? { params: { user_id: userId } } : {});
+const apiSaveTeacherAssignments = (d) => _api('save_teacher_assignments', { body: d });
 const apiStudentScores = (sid, subjectId) => {
   const params = { student_id: sid };
   if (subjectId) params.subject_id = subjectId;

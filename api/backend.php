@@ -207,6 +207,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
         'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
+        'save_teacher_assignments',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
         DB::fail('Method not allowed', 405);
@@ -489,6 +490,90 @@ function handleDeleteClassroom(): never {
     DB::ok(['classrooms' => listClassrooms()]);
 }
 
+function ensureTeacherAssignmentSchema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    ensureClassroomSchema();
+    if (tableColumnExists('teacher_assignments', 'classroom_id')) return;
+    DB::get()->rawQuery(
+        "CREATE TABLE IF NOT EXISTS teacher_assignments (
+            assignment_id   SERIAL PRIMARY KEY,
+            teacher_user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            classroom_id    INT NOT NULL REFERENCES classrooms(classroom_id) ON DELETE CASCADE,
+            subject_id      INT REFERENCES subjects(subject_id) ON DELETE CASCADE,
+            UNIQUE NULLS NOT DISTINCT (teacher_user_id, classroom_id, subject_id)
+        )"
+    );
+}
+
+// subject_id ว่าง = ครูประจำชั้น เห็นทุกวิชาของห้องนั้น; admin/officer ไม่ถูกจำกัด
+function teacherScopeSql(string $classroomCol, ?string $subjectCol = null): string {
+    if (myRole() !== 'teacher') return 'TRUE';
+    ensureTeacherAssignmentSchema();
+    $subject = $subjectCol ? " AND (ta.subject_id IS NULL OR ta.subject_id = {$subjectCol})" : '';
+    return "EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.teacher_user_id = " . myId()
+        . " AND ta.classroom_id = {$classroomCol}{$subject})";
+}
+
+function teacherCanSeeStudent(int $studentId): bool {
+    if (myRole() !== 'teacher') return true;
+    return (bool)DB::get()->one(
+        "SELECT 1 FROM students st WHERE st.student_id=? AND " . teacherScopeSql('st.classroom_id'),
+        [$studentId], 'i');
+}
+
+function intArrayLiteral(mixed $values): string {
+    $ints = is_array($values) ? array_filter(array_map('intval', $values), fn($v) => $v > 0) : [];
+    return '{' . implode(',', array_unique($ints)) . '}';
+}
+
+function handleTeacherAssignments(): never {
+    authRole('teacher', 'admin', 'officer');
+    ensureTeacherAssignmentSchema();
+    $userId = myRole() === 'teacher' ? myId() : (int)($_GET['user_id'] ?? 0);
+    DB::ok(['assignments' => DB::get()->all(
+        "SELECT ta.classroom_id, ta.subject_id, c.grade, c.room_no, sub.name AS subject_name, sub.icon
+         FROM teacher_assignments ta
+         JOIN classrooms c ON c.classroom_id = ta.classroom_id
+         LEFT JOIN subjects sub ON sub.subject_id = ta.subject_id
+         WHERE ta.teacher_user_id=?
+         ORDER BY c.grade, c.room_no, ta.subject_id NULLS FIRST",
+        [$userId], 'i')]);
+}
+
+// ครูเลือกเองได้ครั้งแรกครั้งเดียว หลังจากนั้นเจ้าหน้าที่/แอดมินเป็นคนแก้
+function handleSaveTeacherAssignments(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    ensureTeacherAssignmentSchema();
+    $db = DB::get();
+    $isTeacher = myRole() === 'teacher';
+    $userId = $isTeacher ? myId() : (int)($body['user_id'] ?? 0);
+    if (!$db->one("SELECT 1 FROM users WHERE user_id=? AND role='teacher'", [$userId], 'i'))
+        DB::fail('ไม่พบบัญชีครู', 404);
+    if ($isTeacher && $db->one("SELECT 1 FROM teacher_assignments WHERE teacher_user_id=?", [$userId], 'i'))
+        DB::fail('เลือกห้องและวิชาไปแล้ว ติดต่อเจ้าหน้าที่เพื่อแก้ไข', 409);
+
+    $homeroom = (int)($body['homeroom_classroom_id'] ?? 0);
+    $rooms = intArrayLiteral($body['classroom_ids'] ?? []);
+    $subjects = intArrayLiteral($body['subject_ids'] ?? []);
+    if ($isTeacher && !$homeroom && ($rooms === '{}' || $subjects === '{}'))
+        DB::fail('กรุณาเลือกห้องประจำชั้น หรือเลือกทั้งวิชาและห้องที่สอน', 400);
+
+    $db->run("DELETE FROM teacher_assignments WHERE teacher_user_id=?", [$userId], 'i');
+    $db->run(
+        "INSERT INTO teacher_assignments (teacher_user_id, classroom_id, subject_id)
+         SELECT ?::int, c.classroom_id, s.subject_id
+         FROM classrooms c CROSS JOIN subjects s
+         WHERE c.classroom_id = ANY(?::int[]) AND s.subject_id = ANY(?::int[])
+         UNION
+         SELECT ?::int, classroom_id, NULL::int FROM classrooms WHERE classroom_id=?",
+        [$userId, $rooms, $subjects, $userId, $homeroom], 'issii');
+    logAudit('update', 'teacher_assignments', (string)$userId, 'กำหนดห้องและวิชาที่สอน');
+    DB::ok(['saved' => true]);
+}
+
 function jsonEncodeSafe(array $data): string {
     return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
@@ -681,6 +766,8 @@ match ($action) {
     'add_classroom'   => handleAddClassroom(),
     'delete_classroom' => handleDeleteClassroom(),
     'choose_classroom' => handleChooseClassroom(),
+    'teacher_assignments'      => handleTeacherAssignments(),
+    'save_teacher_assignments' => handleSaveTeacherAssignments(),
     'save_lesson'     => handleSaveLessonV2(),
     'lesson_history'  => handleLessonHistory(),
     'delete_lesson'   => handleDeleteLesson(),
@@ -1231,6 +1318,7 @@ function handleScores(): never {
     $types  = '';
     if ($studentId) { $where .= ' AND sc.student_id=?'; $params[] = $studentId; $types .= 'i'; }
     if ($subjectId) { $where .= ' AND sub.subject_id=?'; $params[] = $subjectId; $types .= 'i'; }
+    $where .= ' AND ' . teacherScopeSql('st.classroom_id', 'sub.subject_id');
 
     $scores = $db->all(
         "SELECT sc.score_id, sc.student_id, sc.score,
@@ -1521,9 +1609,14 @@ function handleTeacherStats(): never {
               FROM subjects sub
               LEFT JOIN games g ON g.subject_id = sub.subject_id
               LEFT JOIN scores sc ON sc.game_id = g.game_id
+                   AND " . teacherScopeSql('(SELECT st.classroom_id FROM students st WHERE st.student_id = sc.student_id)', 'sub.subject_id') . "
+              WHERE " . (myRole() === 'teacher'
+                  ? "EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.teacher_user_id = " . myId() . " AND (ta.subject_id IS NULL OR ta.subject_id = sub.subject_id))"
+                  : 'TRUE') . "
               GROUP BY sub.subject_id, sub.name, sub.color, sub.icon
               ORDER BY sub.subject_id");
-    $total = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='student' AND is_active=TRUE");
+    $total = $db->one("SELECT COUNT(*) AS c FROM students st JOIN users u ON u.user_id = st.user_id
+                       WHERE u.is_active=TRUE AND " . teacherScopeSql('st.classroom_id'));
     DB::ok(['subjects' => $stats, 'total_students' => (int)$total['c']]);
 }
 
@@ -1540,7 +1633,8 @@ function handleAllStudents(): never {
          JOIN users u ON u.user_id=st.user_id
          LEFT JOIN classrooms c ON c.classroom_id=st.classroom_id
          LEFT JOIN scores sc ON sc.student_id=st.student_id
-         WHERE u.is_active=TRUE
+              AND " . teacherScopeSql('st.classroom_id', '(SELECT g.subject_id FROM games g WHERE g.game_id = sc.game_id)') . "
+         WHERE u.is_active=TRUE AND " . teacherScopeSql('st.classroom_id') . "
          GROUP BY u.user_id, st.student_id, u.full_name, st.grade, st.classroom_id, c.room_no
          ORDER BY st.grade, c.room_no, u.full_name"
     );
@@ -1715,7 +1809,7 @@ function resolveStudentScope(int $requestedStudentId = 0): int {
         $link = $db->one("SELECT 1 FROM parent_student WHERE parent_id=? AND student_id=?", [$p['parent_id'], $requestedStudentId], 'ii');
         return $link ? $requestedStudentId : 0;
     }
-    return $requestedStudentId;
+    return teacherCanSeeStudent($requestedStudentId) ? $requestedStudentId : 0;
 }
 
 function handleStudentAnalytics(): never {
@@ -2054,7 +2148,7 @@ function handleHealthCheck(): never {
 }
 
 function handleReportV2(): never {
-    authRole('admin', 'teacher');
+    authRole('admin');
     $db   = DB::get();
     $type = $_GET['type'] ?? 'summary';
 
@@ -2318,7 +2412,7 @@ function handleDeleteQuestion(): never {
 // 8.0 ออกรายงาน (ผู้บริหาร/ครู)
 // ============================================================
 function handleReport(): never {
-    authRole('admin', 'teacher');
+    authRole('admin');
     $db   = DB::get();
     $type = $_GET['type'] ?? 'summary';
 
@@ -3280,6 +3374,7 @@ function handleStudentPlansV2(): never {
     $role = myRole();
 
     if (in_array($role, ['teacher', 'admin'], true)) {
+        if ($requestedStudentId > 0 && !teacherCanSeeStudent($requestedStudentId)) DB::fail('ไม่มีสิทธิ์ดูนักเรียนคนนี้', 403);
         if ($requestedStudentId > 0) {
             $plans = $db->all(
                 "SELECT lp.plan_id, lp.student_id, u.full_name AS student_name, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
@@ -3319,6 +3414,7 @@ function handleStudentPlansV2(): never {
                     FROM scores
                     GROUP BY student_id, game_id
                  ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+                 WHERE " . teacherScopeSql('st.classroom_id') . "
                  ORDER BY lp.week_start DESC, lp.plan_id DESC, lpi.sort_order ASC"
             );
         }
@@ -3386,7 +3482,7 @@ function handleCreatePlanV3(): never {
              WHERE st.student_id=?",
             [$studentId], 'i'
         );
-        if (!$student) continue;
+        if (!$student || !teacherCanSeeStudent($studentId)) continue;
 
         $db->run(
             "INSERT INTO learning_plans (student_id, teacher_user_id, title, description, week_start, due_at, status)

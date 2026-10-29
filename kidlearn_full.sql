@@ -193,6 +193,15 @@ CREATE TRIGGER trg_questions_updated_at
   BEFORE UPDATE ON questions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- subject_id ว่าง = ครูประจำชั้น เห็นทุกวิชาของห้องนั้น
+CREATE TABLE IF NOT EXISTS teacher_assignments (
+  assignment_id   SERIAL PRIMARY KEY,
+  teacher_user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  classroom_id    INT NOT NULL REFERENCES classrooms(classroom_id) ON DELETE CASCADE,
+  subject_id      INT REFERENCES subjects(subject_id) ON DELETE CASCADE,
+  UNIQUE NULLS NOT DISTINCT (teacher_user_id, classroom_id, subject_id)
+);
+
 -- ============================================================
 -- GROUP 3: Scores & Progress
 -- ============================================================

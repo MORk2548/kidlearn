@@ -12,7 +12,90 @@ if(typeof A.tcClassrooms==='undefined') A.tcClassrooms = [];
 let _edGid=null, _edDbGid=null;
 
 // ════════════════════════════════════════════════════════
+function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
+  const homeroom=assignments.find(a=>a.subject_id==null)?.classroom_id;
+  const taught=assignments.filter(a=>a.subject_id!=null);
+  const subjIds=new Set(taught.map(a=>+a.subject_id));
+  const roomIds=new Set(taught.map(a=>+a.classroom_id));
+  const grades=[...new Set(classrooms.map(r=>r.grade))];
+  const box=(name,val,label,checked)=>`<label class="child-btn" style="cursor:pointer"><input type="checkbox" name="${name}" value="${val}"${checked?' checked':''}> ${label}</label>`;
+  el.innerHTML=`
+    <div class="fg">
+      <label class="fl">🏠 ครูประจำชั้น (เห็นทุกวิชาของห้องนี้)</label>
+      <select class="fc" name="homeroom">
+        <option value="">ไม่ได้เป็นครูประจำชั้น</option>
+        ${classrooms.map(r=>`<option value="${r.classroom_id}"${r.classroom_id==homeroom?' selected':''}>${classLabel(r)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg">
+      <label class="fl">📚 วิชาที่สอน</label>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">${subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${s.name}`,subjIds.has(+s.subject_id))).join('')}</div>
+    </div>
+    <div class="fg">
+      <label class="fl">🏫 ห้องที่สอนวิชาเหล่านี้</label>
+      ${grades.map(g=>`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem">
+        ${classrooms.filter(r=>r.grade===g).map(r=>box('room',r.classroom_id,classLabel(r),roomIds.has(+r.classroom_id))).join('')}
+      </div>`).join('')}
+    </div>`;
+}
+function readAssignmentForm(el){
+  const checked=name=>[...el.querySelectorAll(`input[name="${name}"]:checked`)].map(i=>+i.value);
+  return {
+    homeroom_classroom_id: +el.querySelector('select[name="homeroom"]').value || null,
+    subject_ids: checked('subject'),
+    classroom_ids: checked('room'),
+  };
+}
+function assignmentSummary(assignments){
+  const homeroom=assignments.filter(a=>a.subject_id==null).map(classLabel);
+  const bySubject={};
+  assignments.filter(a=>a.subject_id!=null).forEach(a=>(bySubject[`${a.icon||'📚'} ${a.subject_name}`] ||= []).push(classLabel(a)));
+  return [
+    ...homeroom.map(r=>`🏠 ครูประจำชั้น ${r}`),
+    ...Object.entries(bySubject).map(([s,rooms])=>`${s}: ${rooms.join(', ')}`),
+  ].join(' · ');
+}
+async function _renderTcSetup(){
+  const setup=document.getElementById('tc-setup');
+  const [roomRes,subRes]=await Promise.all([apiClassrooms(),apiSubjects()]);
+  setup.innerHTML=`<div class="ts">
+    <h3>👋 ยินดีต้อนรับ! เลือกห้องและวิชาที่คุณสอน</h3>
+    <div style="font-size:.82rem;color:var(--mu);margin-bottom:.75rem">เลือกได้ครั้งเดียว ถ้าต้องการแก้ไขภายหลังให้ติดต่อเจ้าหน้าที่</div>
+    <div id="tc-setup-form"></div>
+    <div id="tc-setup-err" class="al ae" style="display:none"></div>
+    <button class="btn btn-p btn-fw" onclick="saveTcSetup()">💾 บันทึกห้องและวิชาที่สอน</button>
+  </div>`;
+  renderAssignmentForm(document.getElementById('tc-setup-form'),roomRes.classrooms||[],subRes.subjects||[]);
+}
+async function saveTcSetup(){
+  const d=readAssignmentForm(document.getElementById('tc-setup-form'));
+  if(!d.homeroom_classroom_id&&(!d.subject_ids.length||!d.classroom_ids.length)){
+    showAl('tc-setup-err','กรุณาเลือกห้องประจำชั้น หรือเลือกทั้งวิชาและห้องที่สอน');
+    return;
+  }
+  const res=await apiSaveTeacherAssignments(d).catch(()=>({ok:false}));
+  if(!res.ok){showAl('tc-setup-err',res.error||'บันทึกไม่สำเร็จ');return;}
+  loadTeach();
+}
+
 async function loadTeach() {
+  const setup=document.getElementById('tc-setup');
+  const main=document.getElementById('tc-main');
+  let myRooms=null;
+  if(A.role==='teacher'){
+    const asg=await apiTeacherAssignments().catch(()=>({ok:false}));
+    const assignments=asg.ok?(asg.assignments||[]):[];
+    if(asg.ok&&!assignments.length){
+      if(main) main.style.display='none';
+      await _renderTcSetup();
+      return;
+    }
+    myRooms=new Set(assignments.map(a=>+a.classroom_id));
+    if(setup) setup.innerHTML=`<div class="ts" style="font-size:.85rem">📌 ${assignmentSummary(assignments)}
+      <div style="font-size:.72rem;color:var(--mu);margin-top:.25rem">ต้องการเปลี่ยนห้องหรือวิชา ให้ติดต่อเจ้าหน้าที่</div></div>`;
+  } else if(setup) setup.innerHTML='';
+  if(main) main.style.display='';
+
   const el=document.getElementById('tc-stats');
   if(el) el.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลด...</div>';
 
@@ -21,7 +104,7 @@ async function loadTeach() {
     apiAllStudents().catch(()=>({ok:false})),
     apiClassrooms().catch(()=>({ok:false}))
   ]);
-  A.tcClassrooms=roomRes.ok?(roomRes.classrooms||[]):[];
+  A.tcClassrooms=(roomRes.ok?(roomRes.classrooms||[]):[]).filter(r=>!myRooms||myRooms.has(+r.classroom_id));
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
 
@@ -31,7 +114,7 @@ async function loadTeach() {
 
   if(el) el.innerHTML=`
     <div class="stat"><div class="si">👦</div><div><div class="sv">${total}</div><div class="sl2">นักเรียน</div></div></div>
-    <div class="stat"><div class="si">📚</div><div><div class="sv">6</div><div class="sl2">วิชา</div></div></div>
+    <div class="stat"><div class="si">📚</div><div><div class="sv">${A.tcSubjects.length}</div><div class="sl2">วิชา</div></div></div>
     <div class="stat"><div class="si">🎮</div><div><div class="sv">${allPlay}</div><div class="sl2">เล่นรวม</div></div></div>
     <div class="stat"><div class="si">📊</div><div><div class="sv">${avgAll}%</div><div class="sl2">คะแนนเฉลี่ย</div></div></div>`;
 
@@ -96,10 +179,8 @@ function selectTcRoom(id){
 async function _applyTcRoomChange(req,failMsg){
   const res=await req().catch(()=>({ok:false}));
   if(!res.ok){alert(res.error||failMsg);return;}
-  A.tcClassrooms=res.classrooms;
   A.tcRoom=null;
-  _renderTcClassFilter();
-  _renderTcStudentList();
+  loadTeach();
 }
 function addTcRoom(){
   if(!confirm('เพิ่มห้องใหม่ให้ทุกระดับชั้น (ป.1–ป.6)?'))return;
@@ -603,7 +684,7 @@ function ensureTcPlanPanel(){
   panel.id='tc-plan-panel';
   panel.style.display='none';
   const lessonPanel=document.getElementById('tc-lesson-panel');
-  if(lessonPanel) teach.insertBefore(panel, lessonPanel);
+  if(lessonPanel) lessonPanel.parentNode.insertBefore(panel, lessonPanel);
   else teach.appendChild(panel);
 }
 
