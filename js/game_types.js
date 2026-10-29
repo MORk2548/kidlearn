@@ -14,6 +14,18 @@ function _gtEsc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ข้อความที่แสดงให้นักเรียน: ครูพิมพ์ 7/8 หรือ 3 7/8 แล้วแสดงเป็นเศษส่วนซ้อนบน-ล่าง
+// ต้องมีช่องว่างระหว่างจำนวนเต็มกับเศษส่วน และไม่แปลงตัวเลขที่ติดกับ / หรือตัวเลขอื่น เช่น 1/2/3
+const GT_FRACTION = /(?<![\d/])(?:(\d+) +)?(\d+)\/(\d+)(?![\d/])/g;
+
+function _gtRich(s) {
+  return _gtEsc(s).replace(GT_FRACTION, (_, whole, num, den) => {
+    const spoken = `${whole ? `${whole} และ ` : ''}${num} ส่วน ${den}`;
+    return `<span class="frac-mixed" role="img" aria-label="${spoken}">${whole ? `<span class="frac-whole">${whole}</span>` : ''}`
+      + `<span class="frac"><span class="frac-num">${num}</span><span class="frac-den">${den}</span></span></span>`;
+  });
+}
+
 function _gtTextField(label, key, value, placeholder = '') {
   return `<label class="fg" style="display:block"><span class="fl">${label}</span>
     <input class="fc" data-k="${key}" value="${_gtEsc(value)}" placeholder="${_gtEsc(placeholder)}"></label>`;
@@ -23,11 +35,12 @@ function _gtTextField(label, key, value, placeholder = '') {
 let _gtRadioSeq = 0;
 const _gtRadioName = () => `gt-radio-${++_gtRadioSeq}`;
 
-const _gtExplanationField = (q) => _gtTextField('คำอธิบายเฉลย (ไม่บังคับ)', 'explanation', q.explanation);
+const _gtExplanationField = (q) => _gtTextField('คำอธิบายเฉลย (ไม่บังคับ)', 'explanation', q.explanation)
+  + '<div class="ge-hint">💡 เขียนเศษส่วนแบบ 7/8 หรือจำนวนคละแบบ 3 7/8 (เว้นวรรคหนึ่งครั้ง) นักเรียนจะเห็นเป็นเศษส่วนซ้อนบน-ล่าง</div>';
 const _gtRead = (root, key) => root.querySelector(`[data-k="${key}"]`)?.value.trim() ?? '';
 
 function _gtQuestionText(q) {
-  return `<div class="gq-text">${_gtEsc(q.text)}</div>`;
+  return `<div class="gq-text">${_gtRich(q.text)}</div>`;
 }
 
 // ปิดปุ่มทั้งหมด ระบายสีถูก/ผิด แล้วแจ้งผล
@@ -127,8 +140,8 @@ function _gtRenderPairs(q, root, done, withLines) {
   root.innerHTML = `${_gtQuestionText(q)}
     <div class="gq-pairs${withLines ? ' lines' : ''}">
       ${withLines ? '<svg class="gq-lines" aria-hidden="true"></svg>' : ''}
-      <div class="gq-col">${lefts.map((t, i) => `<button type="button" class="gq-item" data-side="L" data-i="${i}">${_gtEsc(t)}</button>`).join('')}</div>
-      <div class="gq-col">${rights.map((t, i) => `<button type="button" class="gq-item" data-side="R" data-i="${i}">${_gtEsc(t)}</button>`).join('')}</div>
+      <div class="gq-col">${lefts.map((t, i) => `<button type="button" class="gq-item" data-side="L" data-i="${i}">${_gtRich(t)}</button>`).join('')}</div>
+      <div class="gq-col">${rights.map((t, i) => `<button type="button" class="gq-item" data-side="R" data-i="${i}">${_gtRich(t)}</button>`).join('')}</div>
     </div>
     <button type="button" class="btn btn-p gq-check" disabled>ตรวจคำตอบ</button>`;
   const wrap = root.querySelector('.gq-pairs');
@@ -281,7 +294,7 @@ const GAME_TYPES = {
         <div class="gq-choices">
           ${q.choices.map((c, i) => `
             <button type="button" class="gq-choice" data-i="${i}">
-              <span class="gq-letter">${letters[i]}</span><span>${_gtEsc(c)}</span>
+              <span class="gq-letter">${letters[i]}</span><span>${_gtRich(c)}</span>
             </button>`).join('')}
         </div>`;
       const buttons = [...root.querySelectorAll('.gq-choice')];
@@ -372,7 +385,7 @@ const GAME_TYPES = {
         list.innerHTML = order.map((item, i) => `
           <li class="gq-seq-row">
             <span class="gq-seq-n">${i + 1}</span>
-            <span class="gq-seq-text">${_gtEsc(item)}</span>
+            <span class="gq-seq-text">${_gtRich(item)}</span>
             <button type="button" class="gq-seq-move" data-i="${i}" data-d="-1" aria-label="เลื่อน ${_gtEsc(item)} ขึ้น"${i === 0 ? ' disabled' : ''}>▲</button>
             <button type="button" class="gq-seq-move" data-i="${i}" data-d="1" aria-label="เลื่อน ${_gtEsc(item)} ลง"${i === order.length - 1 ? ' disabled' : ''}>▼</button>
           </li>`).join('');

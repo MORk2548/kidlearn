@@ -2002,3 +2002,10 @@ tbody tr:last-child td {
 .ge-add[hidden] {
   display: none
 }
+/* FRACTIONS (_gtRich in game_types.js) */
+.frac-mixed{display:inline-flex;align-items:center;gap:.08em;vertical-align:middle;margin:.15em .15em}
+.frac{display:inline-flex;flex-direction:column;align-items:center;font-size:.95em;line-height:1.1}
+.frac-whole{font-size:1.3em;line-height:1}
+.frac-num{padding:0 .25em;border-bottom:.1em solid currentColor}
+.frac-den{padding:0 .25em}
+.ge-hint{font-size:.75rem;color:var(--mu);margin:-.5rem 0 1rem}

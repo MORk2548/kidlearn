@@ -46,8 +46,8 @@ function startGamePlayer(root, game, { onFinish = () => {}, onClose = () => {} }
       const fb = body.querySelector('.gp-feedback');
       const allRight = correct === points;
       fb.className = `gp-feedback ${allRight ? 'ok' : 'no'}`;
-      fb.textContent = (allRight ? '⭐ ถูกต้อง!' : correct ? `ถูก ${correct} จาก ${points}` : 'ยังไม่ถูก')
-        + (!allRight && q.explanation ? ` · ${q.explanation}` : '');
+      fb.innerHTML = (allRight ? '⭐ ถูกต้อง!' : correct ? `ถูก ${correct} จาก ${points}` : 'ยังไม่ถูก')
+        + (!allRight && q.explanation ? ` · ${_gtRich(q.explanation)}` : '');
       fb.hidden = false;
       const next = body.querySelector('.gp-next');
       next.hidden = false;
