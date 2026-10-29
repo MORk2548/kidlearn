@@ -1,7 +1,37 @@
 // ══════════════════════════════════════════════════════
 // ROUTER
 // ══════════════════════════════════════════════════════
-function sec(name) {
+// ══════════════════════════════════════════════════════
+// HISTORY — ปุ่มย้อนกลับของเบราว์เซอร์กลับไปหน้าก่อนหน้าในแอป
+// state: { sec, sub?, lesson? }
+// ══════════════════════════════════════════════════════
+let _navRestoring = false;
+
+function navPush(state) {
+  if (_navRestoring) return;
+  const cur = history.state;
+  if (cur && JSON.stringify(cur) === JSON.stringify(state)) return;
+  if (cur) history.pushState(state, '');
+  else history.replaceState(state, '');
+}
+
+window.addEventListener('popstate', e => {
+  const s = e.state;
+  if (!s) return;
+  clearInterval(A.tmr);
+  _navRestoring = true;
+  try {
+    // เกมที่เล่นค้างไว้กู้คืนไม่ได้ จึงกลับไปหน้ารายการเกมของวิชานั้นแทน
+    if (s.sub) openSub(s.sub);
+    if (s.lesson) openGameContent(s.lesson);
+    if (!s.sub) sec(s.sec === 'game' ? 'home' : s.sec);
+  } finally {
+    _navRestoring = false;
+  }
+});
+
+function sec(name, state = { sec: name }) {
+  navPush(state);
   // ซ่อนทุก section รวมถึง s-lessons และ s-content
   ['home','subs','games','game','scores','rec','children','teach','officer','executive','admin','profile'].forEach(s => {
     const e = document.getElementById('s-' + s);

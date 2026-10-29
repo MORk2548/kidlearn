@@ -68,7 +68,7 @@ async function startGame(gid){
   A.curDbGameId  = typeof jsKeyToDbId==='function' ? jsKeyToDbId(gid) : parseInt(gid);
 
   // แสดง loading
-  sec('game');
+  sec('game', { sec: 'game', sub: A.curSub?.id });
   document.getElementById('g-title').textContent = gmStatic?.name || 'กำลังโหลด...';
   document.getElementById('g-result').style.display  = 'none';
   document.getElementById('g-content').style.display = 'block';

@@ -206,6 +206,7 @@ let _lcache = {};
 async function openGameContent(gameId) {
   _lgid   = gameId;
   _lcache = {};
+  navPush({ sec: 'games', sub: A.curSub?.id, lesson: gameId });
   const gm  = GAMES_DB[gameId];
   const col = A.curSub?.color || '#2D4059';
 
@@ -333,7 +334,7 @@ async function openSub(id){
     });
   };
 
-  sec('games');
+  sec('games', { sec: 'games', sub: id });
   renderGameCards();
 
   try{
@@ -359,6 +360,7 @@ function closeLessons() {
   const badge = document.getElementById('games-badge');
   if(A.curSub && hd) hd.innerHTML = `${A.curSub.icon} ${A.curSub.name}`;
   if(badge) badge.style.display = 'none';
+  if(A.curSub) navPush({ sec: 'games', sub: A.curSub.id });
 }
 
 function startLesson(gameId, lessonNo) {
