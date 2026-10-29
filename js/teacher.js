@@ -88,8 +88,6 @@ async function loadTeach() {
       await _renderTcSetup();
       return;
     }
-    if(setup) setup.innerHTML=`<div class="ts" style="font-size:.85rem">📌 ${assignmentSummary(assignments)}
-      <div style="font-size:.72rem;color:var(--mu);margin-top:.25rem">ต้องการเปลี่ยนห้องหรือวิชา ให้ติดต่อเจ้าหน้าที่</div></div>`;
   } else if(setup) setup.innerHTML='';
   if(main) main.style.display='';
 
