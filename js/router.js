@@ -19,9 +19,9 @@ function sec(name) {
   const el = document.getElementById('s-' + name);
   if (el) el.style.display = 'block';
 
-  // active: navbar + sidebar + bottom nav
-  document.querySelectorAll('.nav-links a, .sl, .bn-item').forEach(a => a.classList.remove('active'));
-  ['nl-' + name, 'sl-' + name, 'bn-' + name].forEach(id => {
+  // active: sidebar + bottom nav
+  document.querySelectorAll('.sl, .bn-item').forEach(a => a.classList.remove('active'));
+  ['sl-' + name, 'bn-' + name].forEach(id => {
     const e = document.getElementById(id);
     if (e) e.classList.add('active');
   });
@@ -56,14 +56,6 @@ function applyRoleUI() {
   const isAd = u.role === 'admin';
   const isSt = u.role === 'student';
 
-  // Navbar
-  document.getElementById('nl-subs').style.display       = isSt ? 'block' : 'none';
-  document.getElementById('nli-rec').style.display      = isPa ? 'block' : 'none';
-  document.getElementById('nli-children').style.display = isPa ? 'block' : 'none';
-  document.getElementById('nli-teach').style.display    = isTc ? 'block' : 'none';
-  document.getElementById('nli-officer').style.display  = isOf || isAd ? 'block' : 'none';
-  document.getElementById('nli-executive').style.display = isEx || isAd ? 'block' : 'none';
-  document.getElementById('nli-scores').style.display   = (isTc || isOf) ? 'none'  : 'block';
   // Sidebar
   document.getElementById('sl-subs').style.display      = isSt ? 'flex' : 'none';
   document.getElementById('sl-rec').style.display       = isPa ? 'flex'  : 'none';
@@ -73,7 +65,6 @@ function applyRoleUI() {
   document.getElementById('sl-executive').style.display = isEx || isAd ? 'flex' : 'none';
   document.getElementById('sl-scores').style.display    = (isTc || isOf) ? 'none'  : 'flex';
   // Admin nav
-  ['nli-admin','sl-admin'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=isAd?'block':'none';});
   ['sl-admin'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=isAd?'flex':'none';});
   const bnAdmin=document.getElementById('bn-admin');
   if(bnAdmin) bnAdmin.style.display=isAd?'flex':'none';

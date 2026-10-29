@@ -6,33 +6,14 @@
   <title>KidLearn — เรียนสนุก เล่นสนุก</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=4.7">
+  <link rel="stylesheet" href="style.css?v=5.0">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════════
-     NAVBAR
-════════════════════════════════════════════════════ -->
-<nav class="navbar">
+<header class="m-header">
   <a class="brand" href="app.html"><img class="brand-logo" src="images/logo.webp" alt=""> <span>Kid</span>Learn</a>
-  <ul class="nav-links" id="nav-links">
-    <li><a id="nl-home"     onclick="sec('home');closeNav()"     class="active">🏠 หน้าหลัก</a></li>
-    <li><a id="nl-subs"     onclick="sec('subs');closeNav()">📚 วิชา</a></li>
-    <li id="nli-scores"><a  id="nl-scores"  onclick="sec('scores');closeNav()">🏆 คะแนน</a></li>
-    <li id="nli-rec"      style="display:none"><a id="nl-rec"      onclick="sec('rec');closeNav()">💡 คำแนะนำ</a></li>
-    <li id="nli-children" style="display:none"><a id="nl-children" onclick="sec('children');closeNav()">👨‍👩‍👧 จัดการบุตรหลาน</a></li>
-    <li id="nli-teach"    style="display:none"><a id="nl-teach"    onclick="sec('teach');closeNav()">📊 แผงครู</a></li>
-    <li id="nli-officer"  style="display:none"><a id="nl-officer"  onclick="sec('officer');closeNav()">👔 จัดการผู้ใช้</a></li>
-    <li id="nli-executive" style="display:none"><a id="nl-executive" onclick="sec('executive');closeNav()">💼 แผงบริหาร</a></li>
-    <li id="nli-admin"    style="display:none"><a id="nl-admin"    onclick="sec('admin');closeNav()">🛠️ ผู้ดูแลระบบ</a></li>
-    <li><a id="nl-profile"  onclick="sec('profile');closeNav()">⚙️ โปรไฟล์</a></li>
-    <li><a class="btn-out"  onclick="doLogout()">ออกจากระบบ</a></li>
-  </ul>
-  <button class="ham-btn" id="ham-btn" onclick="toggleNav()" aria-label="เมนู">
-    <i class="fa-solid fa-bars" id="ham-icon"></i>
-  </button>
-</nav>
+</header>
 
 <div class="layout">
 
@@ -40,12 +21,13 @@
        SIDEBAR
   ════════════════════════════════════════════════════ -->
   <aside class="sidebar">
+    <a class="brand" href="app.html"><img class="brand-logo" src="images/logo.webp" alt=""> <span>Kid</span>Learn</a>
     <div class="user-card">
       <div class="avatar" id="sb-av">ก</div>
       <div style="font-weight:700;font-size:.95rem" id="sb-nm">ชื่อผู้ใช้</div>
       <div class="rb" id="sb-rb">นักเรียน</div>
     </div>
-    <button class="sl active" id="sl-home"     onclick="sec('home')">    <span class="ico">🏠</span>ภาพรวม</button>
+    <button class="sl active" id="sl-home"     onclick="sec('home')">    <span class="ico">🏠</span>หน้าหลัก</button>
     <button class="sl"        id="sl-subs"     onclick="sec('subs')">    <span class="ico">📚</span>วิชาทั้งหมด</button>
     <button class="sl"        id="sl-scores"   onclick="sec('scores')">  <span class="ico">🏆</span>คะแนน</button>
     <button class="sl"        id="sl-rec"      onclick="sec('rec')"      style="display:none"><span class="ico">💡</span>คำแนะนำ</button>
@@ -55,6 +37,7 @@
     <button class="sl"        id="sl-executive" onclick="sec('executive')" style="display:none"><span class="ico">💼</span>แผงบริหาร</button>
     <button class="sl"        id="sl-admin"    onclick="sec('admin')"    style="display:none"><span class="ico">🛠️</span>ผู้ดูแลระบบ</button>
     <button class="sl"        id="sl-profile"  onclick="sec('profile')"> <span class="ico">⚙️</span>แก้ไขโปรไฟล์</button>
+    <button class="sl sl-out"                  onclick="doLogout()">   <span class="ico">🚪</span>ออกจากระบบ</button>
   </aside>
 
   <!-- ════════════════════════════════════════════════════
@@ -347,9 +330,6 @@
   </div>
 </div>
 
-<!-- ════ MOBILE NAV BACKDROP ════ -->
-<div class="nav-backdrop" id="nav-backdrop" onclick="closeNav()"></div>
-
 <!-- ════ BOTTOM TAB BAR (mobile) ════ -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bn-item active" id="bn-home"     onclick="sec('home')">
@@ -377,6 +357,9 @@
   <button class="bn-item" id="bn-profile"  onclick="sec('profile')">
     <i class="fa-solid fa-gear"></i><span>โปรไฟล์</span>
   </button>
+  <button class="bn-item" onclick="doLogout()">
+    <i class="fa-solid fa-right-from-bracket"></i><span>ออก</span>
+  </button>
 </nav>
 
 <!-- ════════════════════════════════════════════════════
@@ -393,7 +376,7 @@
 <script src="js/health/safety.js?v=1.0"></script>
 <script src="js/health/teamwork.js?v=1.0"></script>
 <script src="js/state.js?v=3.7"></script>
-<script src="js/router.js?v=3.5"></script>
+<script src="js/router.js?v=3.6"></script>
 <script src="js/auth.js?v=3.11"></script>
 <script src="js/home.js?v=3.13"></script>
 <script src="js/game.js?v=4.7"></script>
@@ -414,20 +397,6 @@
     applyRoleUI();
     sec('home');
   });
-
-  function toggleNav() {
-    const links = document.getElementById('nav-links');
-    const backdrop = document.getElementById('nav-backdrop');
-    const icon = document.getElementById('ham-icon');
-    const open = links.classList.toggle('open');
-    backdrop.classList.toggle('show', open);
-    icon.className = open ? 'fa-solid fa-xmark' : 'fa-solid fa-bars';
-  }
-  function closeNav() {
-    document.getElementById('nav-links').classList.remove('open');
-    document.getElementById('nav-backdrop').classList.remove('show');
-    document.getElementById('ham-icon').className = 'fa-solid fa-bars';
-  }
 </script>
 
 </body>
