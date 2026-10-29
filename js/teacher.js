@@ -74,11 +74,12 @@ function _renderTcClassFilter(){
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
       <button class="child-btn${A.tcGrade===''?' active':''}" onclick="selectTcGrade('')">ทุกชั้น</button>
       ${grades.map(g=>`<button class="child-btn${A.tcGrade===g?' active':''}" onclick="selectTcGrade('${g}')">${g}</button>`).join('')}
+      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
+      <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
     </div>
     ${A.tcGrade?`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem">
       <button class="child-btn${A.tcRoom===null?' active':''}" onclick="selectTcRoom(null)">ทุกห้อง</button>
       ${rooms.map(r=>`<button class="child-btn${A.tcRoom==r.classroom_id?' active':''}" onclick="selectTcRoom(${r.classroom_id})">${classLabel(r)} (${count(r.classroom_id)})</button>`).join('')}
-      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้อง</button>
     </div>`:''}`;
 }
 function selectTcGrade(grade){
@@ -92,14 +93,22 @@ function selectTcRoom(id){
   _renderTcClassFilter();
   _renderTcStudentList();
 }
-async function addTcRoom(){
-  if(!A.tcGrade||!confirm(`เพิ่มห้องเรียนใหม่ใน ${A.tcGrade}?`))return;
-  const res=await apiAddClassroom(A.tcGrade).catch(()=>({ok:false}));
-  if(!res.ok){alert(res.error||'เพิ่มห้องไม่สำเร็จ');return;}
-  A.tcClassrooms.push(res.classroom);
-  A.tcRoom=res.classroom.classroom_id;
+async function _applyTcRoomChange(req,failMsg){
+  const res=await req().catch(()=>({ok:false}));
+  if(!res.ok){alert(res.error||failMsg);return;}
+  A.tcClassrooms=res.classrooms;
+  A.tcRoom=null;
   _renderTcClassFilter();
   _renderTcStudentList();
+}
+function addTcRoom(){
+  if(!confirm('เพิ่มห้องใหม่ให้ทุกระดับชั้น (ป.1–ป.6)?'))return;
+  _applyTcRoomChange(apiAddClassroom,'เพิ่มห้องไม่สำเร็จ');
+}
+function deleteTcRoom(){
+  const last=Math.max(0,...A.tcClassrooms.map(r=>r.room_no));
+  if(!confirm(`ลบห้องที่ ${last} ของทุกระดับชั้น? (ลบได้เฉพาะห้องที่ไม่มีนักเรียน)`))return;
+  _applyTcRoomChange(apiDeleteClassroom,'ลบห้องไม่สำเร็จ');
 }
 function _renderTcStudentSel(){
   const el=document.getElementById('tc-student-sel');

@@ -206,7 +206,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'save_subject', 'toggle_subject', 'save_question', 'delete_question',
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
-        'admin_create_staff', 'upload_image', 'add_classroom', 'choose_classroom',
+        'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
         DB::fail('Method not allowed', 405);
@@ -451,26 +451,42 @@ function handleChooseClassroom(): never {
 
 function handleClassrooms(): never {
     ensureClassroomSchema();
-    DB::ok(['classrooms' => DB::get()->all(
-        "SELECT classroom_id, grade, room_no FROM classrooms ORDER BY grade, room_no"
-    )]);
+    DB::ok(['classrooms' => listClassrooms()]);
 }
 
+function listClassrooms(): array {
+    return DB::get()->all("SELECT classroom_id, grade, room_no FROM classrooms ORDER BY grade, room_no");
+}
+
+// ทุกชั้นมีจำนวนห้องเท่ากัน: เติมทุกชั้นให้ถึงห้องถัดไปของชั้นที่มีห้องน้อยที่สุด
 function handleAddClassroom(): never {
-    global $body;
     authRole('teacher', 'admin', 'officer');
     ensureClassroomSchema();
-    $grade = trim((string)($body['grade'] ?? ''));
-    if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('ชั้นเรียนไม่ถูกต้อง', 400);
     $db = DB::get();
-    $room = $db->one(
-        "INSERT INTO classrooms (grade, room_no)
-         SELECT ?, COALESCE(MAX(room_no), 0) + 1 FROM classrooms WHERE grade=?
-         RETURNING classroom_id, grade, room_no",
-        [$grade, $grade], 'ss'
-    );
-    logAudit('create', 'classroom', (string)$room['classroom_id'], "เพิ่มห้อง {$grade}/{$room['room_no']}");
-    DB::ok(['classroom' => $room]);
+    $maxByGrade = array_column(
+        $db->all("SELECT grade, MAX(room_no) AS m FROM classrooms GROUP BY grade"), 'm', 'grade');
+    $roomNo = min(array_map(fn($g) => (int)($maxByGrade[$g] ?? 0), CLASSROOM_GRADES)) + 1;
+    foreach (CLASSROOM_GRADES as $grade) {
+        $db->run("INSERT INTO classrooms (grade, room_no) SELECT ?, n FROM generate_series(1, ?) AS n
+                  ON CONFLICT DO NOTHING", [$grade, $roomNo], 'si');
+    }
+    logAudit('create', 'classroom', (string)$roomNo, "เพิ่มห้องที่ {$roomNo} ให้ทุกชั้น");
+    DB::ok(['classrooms' => listClassrooms()]);
+}
+
+function handleDeleteClassroom(): never {
+    authRole('teacher', 'admin', 'officer');
+    ensureClassroomSchema();
+    $db = DB::get();
+    $roomNo = (int)($db->one("SELECT MAX(room_no) AS m FROM classrooms")['m'] ?? 0);
+    if ($roomNo <= 1) DB::fail('ต้องมีอย่างน้อย 1 ห้องในแต่ละชั้น', 400);
+    $used = (int)$db->one(
+        "SELECT COUNT(*) AS c FROM students s JOIN classrooms c ON c.classroom_id = s.classroom_id WHERE c.room_no=?",
+        [$roomNo], 'i')['c'];
+    if ($used) DB::fail("ลบไม่ได้ ยังมีนักเรียน {$used} คนอยู่ในห้องที่ {$roomNo} ให้ย้ายนักเรียนออกก่อน", 409);
+    $db->run("DELETE FROM classrooms WHERE room_no=?", [$roomNo], 'i');
+    logAudit('delete', 'classroom', (string)$roomNo, "ลบห้องที่ {$roomNo} ของทุกชั้น");
+    DB::ok(['classrooms' => listClassrooms()]);
 }
 
 function jsonEncodeSafe(array $data): string {
@@ -663,6 +679,7 @@ match ($action) {
     'all_students'    => handleAllStudents(),
     'classrooms'      => handleClassrooms(),
     'add_classroom'   => handleAddClassroom(),
+    'delete_classroom' => handleDeleteClassroom(),
     'choose_classroom' => handleChooseClassroom(),
     'save_lesson'     => handleSaveLessonV2(),
     'lesson_history'  => handleLessonHistory(),

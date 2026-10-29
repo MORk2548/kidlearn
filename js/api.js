@@ -110,7 +110,8 @@ const apiMarkNotifRead = (id) => _api('mark_notif_read', { body: id ? { notif_id
 const apiTeacherStats = () => _api('teacher_stats');
 const apiAllStudents = () => _api('all_students');
 const apiClassrooms = () => _api('classrooms');
-const apiAddClassroom = (grade) => _api('add_classroom', { body: { grade } });
+const apiAddClassroom = () => _api('add_classroom', { body: {} });
+const apiDeleteClassroom = () => _api('delete_classroom', { body: {} });
 const apiChooseClassroom = (id) => _api('choose_classroom', { body: { classroom_id: id } });
 const apiStudentScores = (sid, subjectId) => {
   const params = { student_id: sid };
