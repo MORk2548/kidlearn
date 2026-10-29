@@ -6,6 +6,9 @@ if(typeof A.tcSubject  ==='undefined') A.tcSubject  = null;
 if(typeof A.tcStudents ==='undefined') A.tcStudents = [];
 if(typeof A.tcSubjects ==='undefined') A.tcSubjects = [];
 if(typeof A.tcTab      ==='undefined') A.tcTab      = 'scores';
+if(typeof A.tcGrade    ==='undefined') A.tcGrade    = '';
+if(typeof A.tcRoom     ==='undefined') A.tcRoom     = null;
+if(typeof A.tcClassrooms==='undefined') A.tcClassrooms = [];
 let _edGid=null, _edDbGid=null;
 
 // ════════════════════════════════════════════════════════
@@ -13,10 +16,12 @@ async function loadTeach() {
   const el=document.getElementById('tc-stats');
   if(el) el.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลด...</div>';
 
-  const [statsRes,stuRes]=await Promise.all([
+  const [statsRes,stuRes,roomRes]=await Promise.all([
     apiTeacherStats().catch(()=>({ok:false})),
-    apiAllStudents().catch(()=>({ok:false}))
+    apiAllStudents().catch(()=>({ok:false})),
+    apiClassrooms().catch(()=>({ok:false}))
   ]);
+  A.tcClassrooms=roomRes.ok?(roomRes.classrooms||[]):[];
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
 
@@ -33,6 +38,7 @@ async function loadTeach() {
   _renderTcTabs();
   ensureTcPlanPanel();
   _renderTcSubjectFilter();
+  _renderTcClassFilter();
   _renderTcStudentList();
   renderTcSubTable(A.tcSubjects);
   renderTcPlanPanel();
@@ -54,6 +60,47 @@ function _renderTcSubjectFilter(){
         onclick="selectTcSubject(${s.subject_id})">${s.icon||'📚'} ${s.subject_name}</button>`).join('')}
     </div>`;
 }
+function _tcVisibleStudents(){
+  return A.tcStudents.filter(s=>(!A.tcGrade||s.grade===A.tcGrade)&&(A.tcRoom===null||s.classroom_id==A.tcRoom));
+}
+function _renderTcClassFilter(){
+  const el=document.getElementById('tc-class-sel');
+  if(!el)return;
+  const grades=[...new Set(A.tcClassrooms.map(r=>r.grade))];
+  const rooms=A.tcClassrooms.filter(r=>r.grade===A.tcGrade);
+  const count=id=>A.tcStudents.filter(s=>s.classroom_id==id).length;
+  el.innerHTML=`
+    <div style="font-weight:700;font-size:.88rem;margin-bottom:.5rem;color:var(--s)">🏫 กรองตามชั้นเรียน</div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+      <button class="child-btn${A.tcGrade===''?' active':''}" onclick="selectTcGrade('')">ทุกชั้น</button>
+      ${grades.map(g=>`<button class="child-btn${A.tcGrade===g?' active':''}" onclick="selectTcGrade('${g}')">${g}</button>`).join('')}
+    </div>
+    ${A.tcGrade?`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem">
+      <button class="child-btn${A.tcRoom===null?' active':''}" onclick="selectTcRoom(null)">ทุกห้อง</button>
+      ${rooms.map(r=>`<button class="child-btn${A.tcRoom==r.classroom_id?' active':''}" onclick="selectTcRoom(${r.classroom_id})">${classLabel(r)} (${count(r.classroom_id)})</button>`).join('')}
+      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้อง</button>
+    </div>`:''}`;
+}
+function selectTcGrade(grade){
+  A.tcGrade=grade;
+  A.tcRoom=null;
+  _renderTcClassFilter();
+  _renderTcStudentList();
+}
+function selectTcRoom(id){
+  A.tcRoom=id;
+  _renderTcClassFilter();
+  _renderTcStudentList();
+}
+async function addTcRoom(){
+  if(!A.tcGrade||!confirm(`เพิ่มห้องเรียนใหม่ใน ${A.tcGrade}?`))return;
+  const res=await apiAddClassroom(A.tcGrade).catch(()=>({ok:false}));
+  if(!res.ok){alert(res.error||'เพิ่มห้องไม่สำเร็จ');return;}
+  A.tcClassrooms.push(res.classroom);
+  A.tcRoom=res.classroom.classroom_id;
+  _renderTcClassFilter();
+  _renderTcStudentList();
+}
 function _renderTcStudentSel(){
   const el=document.getElementById('tc-student-sel');
   if(!el)return;
@@ -61,7 +108,7 @@ function _renderTcStudentSel(){
     <div style="font-weight:700;font-size:.88rem;margin-bottom:.5rem;color:var(--s)">👦 เลือกนักเรียน</div>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
       <button class="child-btn${A.tcStudent===null?' active':''}" onclick="selectTcStudent(null)">📊 ภาพรวม</button>
-      ${A.tcStudents.map(s=>`<button class="child-btn${A.tcStudent==s.student_id?' active':''}"
+      ${_tcVisibleStudents().map(s=>`<button class="child-btn${A.tcStudent==s.student_id?' active':''}"
         onclick="selectTcStudent(${s.student_id})">👦 ${s.full_name}</button>`).join('')}
     </div>`;
 }
@@ -69,7 +116,7 @@ function _renderTcStudentList(){
   _renderTcStudentSel();
   const sl=document.getElementById('tc-students');
   if(!sl)return;
-  sl.innerHTML=A.tcStudents.map(s=>{
+  sl.innerHTML=_tcVisibleStudents().map(s=>{
     const avg=Math.round(+s.avg_score||0),isA=A.tcStudent==s.student_id;
     const c=avg>=80?'var(--g)':avg>=50?'#F59E0B':'#EF4444';
     return `<div class="sr" style="cursor:pointer;${isA?'background:linear-gradient(135deg,#EEF2FF,#F0F9FF);border:2px solid var(--s);':''}"
@@ -77,7 +124,7 @@ function _renderTcStudentList(){
       <div class="sa" style="${isA?'background:var(--s);color:#fff;':''}">${(s.full_name||'?').charAt(0)}</div>
       <div style="flex:1">
         <div class="sn2">${s.full_name}${isA?'<span style="font-size:.7rem;background:var(--s);color:#fff;padding:.1rem .5rem;border-radius:99px;margin-left:.4rem">กำลังดู</span>':''}</div>
-        <div class="si3">ชั้น ${s.grade||'—'} · เล่น ${s.games_played||0} ครั้ง${s.last_active?' · ล่าสุด '+new Date(s.last_active).toLocaleDateString('th-TH'):''}</div>
+        <div class="si3">ชั้น ${classLabel(s)} · เล่น ${s.games_played||0} ครั้ง${s.last_active?' · ล่าสุด '+new Date(s.last_active).toLocaleDateString('th-TH'):''}</div>
         <div class="mp"><div class="mf" style="width:${avg}%;background:${c}"></div></div>
       </div>
       <div style="font-size:.88rem;font-weight:800;color:${c}">${avg}%</div>

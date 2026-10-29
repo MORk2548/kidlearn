@@ -27,3 +27,21 @@ function formatPhone(p) {
 }
 
 if(typeof A.tcSubject==='undefined') A.tcSubject = null;
+
+function classLabel(o) {
+  if (!o?.grade) return '—';
+  return o.room_no ? `${o.grade}/${o.room_no}` : o.grade;
+}
+
+async function fillClassroomSelect(el, selectedId) {
+  if (!el) return;
+  const res = await apiClassrooms().catch(() => ({ ok: false }));
+  const rooms = res.ok ? (res.classrooms || []) : [];
+  const groups = {};
+  rooms.forEach(r => (groups[r.grade] ||= []).push(r));
+  el.innerHTML = '<option value="">เลือกห้องเรียน</option>' + Object.entries(groups).map(([grade, list]) =>
+    `<optgroup label="${grade}">${list.map(r =>
+      `<option value="${r.classroom_id}"${r.classroom_id == selectedId ? ' selected' : ''}>${classLabel(r)}</option>`
+    ).join('')}</optgroup>`
+  ).join('');
+}

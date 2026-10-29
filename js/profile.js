@@ -77,7 +77,7 @@ function loadProfile() {
 
   if (u.role === 'student') {
     const ge = document.getElementById('pf-grade');
-    if (ge) ge.value = u.grade || 'ป.1';
+    if (ge) ge.value = classLabel(u);
     const pe = document.getElementById('pf-pphone');
     if (pe) pe.value = u.parentPhone || '';
   }
@@ -101,10 +101,6 @@ async function saveProfile() {
   }
 
   const body = { full_name: name, email, old_phone: u.parentPhone || u.phone || '' };
-  if (u.role === 'student') {
-    body.grade = document.getElementById('pf-grade')?.value || u.grade;
-    body.parent_phone = document.getElementById('pf-pphone')?.value || u.parentPhone;
-  }
   if (u.role === 'teacher') {
     body.department = document.getElementById('pf-dept')?.value || u.department;
   }

@@ -76,7 +76,7 @@ function ofRenderUsersList() {
   
   content.innerHTML = filtered.map(u => {
     const meta = [];
-    if(u.grade) meta.push(`📚 ${u.grade}`);
+    if(u.grade) meta.push(`📚 ${classLabel(u)}`);
     if(u.phone) meta.push(`📱 ${u.phone}`);
     if(u.department) meta.push(`🏢 ${u.department}`);
     
@@ -152,9 +152,8 @@ function ofEditUser(uid) {
       
       ${user.role === 'student' ? `
         <div style="margin-bottom: .85rem;">
-          <label style="font-weight: 700; font-size: .82rem; display: block; margin-bottom: .3rem;">ชั้นเรียน</label>
-          <input id="of-grade" type="text" class="fc" value="${_esc(user.grade || '')}" 
-            placeholder="เช่น ป.1" style="font-size: .88rem; padding: .6rem .85rem;">
+          <label style="font-weight: 700; font-size: .82rem; display: block; margin-bottom: .3rem;">ห้องเรียน</label>
+          <select id="of-grade" class="fc" style="font-size: .88rem; padding: .6rem .85rem;"></select>
         </div>
       ` : user.role === 'parent' ? `
         <div style="margin-bottom: .85rem;">
@@ -177,8 +176,9 @@ function ofEditUser(uid) {
       </div>
       <div id="of-msg" style="font-size: .85rem; margin-top: .5rem; text-align: center;"></div>
     </div>`;
-  
+
   document.body.appendChild(overlay);
+  fillClassroomSelect(document.getElementById('of-grade'), user.classroom_id);
 }
 
 async function ofSaveUser(uid) {
@@ -197,7 +197,7 @@ async function ofSaveUser(uid) {
   if(msg) msg.innerHTML = '<span style="color: var(--mu);">⏳ กำลังบันทึก...</span>';
   
   const payload = { user_id: uid, full_name: name, email };
-  if(grade) payload.grade = grade;
+  if(grade) payload.classroom_id = grade;
   if(phone) payload.phone = phone;
   if(dept) payload.department = dept;
   

@@ -38,6 +38,28 @@ async function doLogin() {
   A.role = A.user.role;
   A.selChild = null;
   sessionSave();
+  if (A.role === 'student' && !A.user.classroom_id) {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('room-step').style.display = 'block';
+    fillClassroomSelect(document.getElementById('lg-room'));
+    return;
+  }
+  window.location.replace('app.html');
+}
+
+async function chooseRoom() {
+  const id = document.getElementById('lg-room').value;
+  if (!id) {
+    showAl('login-err', 'กรุณาเลือกห้องเรียน');
+    return;
+  }
+  const res = await apiChooseClassroom(id);
+  if (!res.ok) {
+    showAl('login-err', res.error || 'บันทึกห้องเรียนไม่สำเร็จ');
+    return;
+  }
+  Object.assign(A.user, res.classroom);
+  sessionSave();
   window.location.replace('app.html');
 }
 
@@ -88,7 +110,11 @@ async function doRegister() {
 
   const d = { full_name: name, username: uname, email, password: pass, role: A.selRole };
   if (A.selRole === 'student') {
-    d.grade = document.getElementById('rg').value || 'ป.1';
+    d.classroom_id = document.getElementById('rg').value;
+    if (!d.classroom_id) {
+      showAl('reg-err', 'กรุณาเลือกห้องเรียน');
+      return;
+    }
     const pp = document.getElementById('r-pphone').value.trim().replace(/\D/g, '');
     if (!pp || pp.length < 9) {
       showAl('reg-err', 'กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง');
@@ -168,6 +194,8 @@ function normalizeUser(u) {
     created_at: u.created_at,
     updated_at: u.updated_at,
     grade: u.grade,
+    classroom_id: u.classroom_id,
+    room_no: u.room_no,
     parentPhone: u.parent_phone,
     phone: u.phone,
     department: u.department,

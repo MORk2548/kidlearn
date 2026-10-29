@@ -71,7 +71,7 @@ async function _loadAdminUsers(){
 
 function _renderUserRow(u){
   const roleColor={student:'#10B981',parent:'#3B82F6',teacher:'#F59E0B',admin:'#EF4444'};
-  const extra=u.role==='student'?`ชั้น ${u.grade}`:u.role==='parent'?`โทร ${u.phone}`:u.role==='teacher'?u.department:'—';
+  const extra=u.role==='student'?`ชั้น ${classLabel(u)}`:u.role==='parent'?`โทร ${u.phone}`:u.role==='teacher'?u.department:'—';
   return `<tr style="border-bottom:1px solid #F1F5F9">
     <td style="padding:.55rem .75rem;font-weight:600">${u.full_name}</td>
     <td style="padding:.55rem .75rem;color:var(--mu)">${u.username}</td>

@@ -39,7 +39,7 @@ async function loadChildren() {
       <div class="sa">${(k.full_name||'?').charAt(0)}</div>
       <div style="flex:1">
         <div class="sn2">${k.full_name}</div>
-        <div class="si3">ชั้น ${k.grade||'—'} · เล่นแล้ว ${k.total_games||0} ครั้ง</div>
+        <div class="si3">ชั้น ${classLabel(k)} · เล่นแล้ว ${k.total_games||0} ครั้ง</div>
         <div class="mp" style="width:120px"><div class="mf" style="width:${avg}%"></div></div>
       </div>
       <div style="text-align:right">

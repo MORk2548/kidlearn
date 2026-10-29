@@ -23,10 +23,23 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS classrooms (
+  classroom_id SERIAL PRIMARY KEY,
+  grade        VARCHAR(20) NOT NULL CHECK (grade IN ('ป.1','ป.2','ป.3','ป.4','ป.5','ป.6')),
+  room_no      SMALLINT    NOT NULL CHECK (room_no > 0),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (grade, room_no)
+);
+
+INSERT INTO classrooms (grade, room_no)
+SELECT g, r FROM unnest(ARRAY['ป.1','ป.2','ป.3','ป.4','ป.5','ป.6']) AS g, generate_series(1, 3) AS r
+ON CONFLICT DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS students (
   student_id   SERIAL PRIMARY KEY,
   user_id      INT NOT NULL UNIQUE,
   grade        VARCHAR(20) NOT NULL DEFAULT 'ป.1',
+  classroom_id INT DEFAULT NULL REFERENCES classrooms(classroom_id),
   parent_phone VARCHAR(20) DEFAULT NULL,
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );

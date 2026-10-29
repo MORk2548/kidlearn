@@ -206,7 +206,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'save_subject', 'toggle_subject', 'save_question', 'delete_question',
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
-        'admin_create_staff', 'upload_image',
+        'admin_create_staff', 'upload_image', 'add_classroom', 'choose_classroom',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
         DB::fail('Method not allowed', 405);
@@ -398,6 +398,81 @@ function ensureGameQuestionBankSchema(): void {
     addColumnIfMissing('answers', 'pair_right_img', 'TEXT DEFAULT NULL');
 }
 
+const CLASSROOM_GRADES = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'];
+
+function ensureClassroomSchema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (tableColumnExists('students', 'classroom_id')) return;
+
+    $db = DB::get();
+    $db->rawQuery(
+        "CREATE TABLE IF NOT EXISTS classrooms (
+            classroom_id SERIAL PRIMARY KEY,
+            grade        VARCHAR(20) NOT NULL CHECK (grade IN ('ป.1','ป.2','ป.3','ป.4','ป.5','ป.6')),
+            room_no      SMALLINT    NOT NULL CHECK (room_no > 0),
+            created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (grade, room_no)
+        )"
+    );
+    $db->rawQuery(
+        "INSERT INTO classrooms (grade, room_no)
+         SELECT g, r FROM unnest(ARRAY['ป.1','ป.2','ป.3','ป.4','ป.5','ป.6']) AS g, generate_series(1, 3) AS r
+         ON CONFLICT DO NOTHING"
+    );
+    $db->rawQuery("ALTER TABLE students ADD COLUMN IF NOT EXISTS classroom_id INT REFERENCES classrooms(classroom_id)");
+}
+
+function findClassroom(mixed $classroomId): array {
+    ensureClassroomSchema();
+    $room = DB::get()->one("SELECT classroom_id, grade, room_no FROM classrooms WHERE classroom_id=?",
+        [(int)$classroomId], 'i');
+    if (!$room) DB::fail('กรุณาเลือกห้องเรียน', 400);
+    return $room;
+}
+
+function setStudentClassroom(int $userId, mixed $classroomId): void {
+    $room = findClassroom($classroomId);
+    DB::get()->run("UPDATE students SET classroom_id=?, grade=? WHERE user_id=?",
+        [$room['classroom_id'], $room['grade'], $userId], 'isi');
+}
+
+function handleChooseClassroom(): never {
+    global $body;
+    authRole('student');
+    $room = findClassroom($body['classroom_id'] ?? 0);
+    $db = DB::get();
+    $db->run("UPDATE students SET classroom_id=?, grade=? WHERE user_id=? AND classroom_id IS NULL",
+        [$room['classroom_id'], $room['grade'], myId()], 'isi');
+    if (!$db->affected()) DB::fail('เลือกห้องเรียนไปแล้ว ติดต่อครูหรือเจ้าหน้าที่เพื่อเปลี่ยนห้อง', 409);
+    DB::ok(['classroom' => $room]);
+}
+
+function handleClassrooms(): never {
+    ensureClassroomSchema();
+    DB::ok(['classrooms' => DB::get()->all(
+        "SELECT classroom_id, grade, room_no FROM classrooms ORDER BY grade, room_no"
+    )]);
+}
+
+function handleAddClassroom(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    ensureClassroomSchema();
+    $grade = trim((string)($body['grade'] ?? ''));
+    if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('ชั้นเรียนไม่ถูกต้อง', 400);
+    $db = DB::get();
+    $room = $db->one(
+        "INSERT INTO classrooms (grade, room_no)
+         SELECT ?, COALESCE(MAX(room_no), 0) + 1 FROM classrooms WHERE grade=?
+         RETURNING classroom_id, grade, room_no",
+        [$grade, $grade], 'ss'
+    );
+    logAudit('create', 'classroom', (string)$room['classroom_id'], "เพิ่มห้อง {$grade}/{$room['room_no']}");
+    DB::ok(['classroom' => $room]);
+}
+
 function jsonEncodeSafe(array $data): string {
     return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
@@ -586,6 +661,9 @@ match ($action) {
     'mark_notif_read' => handleMarkNotifRead(),
     'teacher_stats'   => handleTeacherStats(),
     'all_students'    => handleAllStudents(),
+    'classrooms'      => handleClassrooms(),
+    'add_classroom'   => handleAddClassroom(),
+    'choose_classroom' => handleChooseClassroom(),
     'save_lesson'     => handleSaveLessonV2(),
     'lesson_history'  => handleLessonHistory(),
     'delete_lesson'   => handleDeleteLesson(),
@@ -634,18 +712,20 @@ match ($action) {
 function handleLogin(): never {
     global $body;
     $db   = DB::get();
+    ensureClassroomSchema();
     $u    = trim($body['username'] ?? $_POST['username'] ?? '');
     $pass = $body['password'] ?? $_POST['password'] ?? '';
     if (!$u || !$pass) DB::fail('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 400);
 
     $user = $db->one(
-        "SELECT u.*, s.student_id, s.grade, s.parent_phone,
+        "SELECT u.*, s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no,
                 p.parent_id, p.phone,
                 t.teacher_id, t.department,
                 o.officer_id, o.permissions as officer_permissions,
                 e.executive_id, e.title as executive_title, e.permissions as executive_permissions
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
+         LEFT JOIN classrooms c ON c.classroom_id = s.classroom_id
          LEFT JOIN parents  p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
          LEFT JOIN officers o ON o.user_id = u.user_id
@@ -727,11 +807,11 @@ function handleRegister(): never {
 
     // INSERT role-specific table
     if ($role === 'student') {
-        $grade = $body['grade'] ?? 'ป.1';
+        $room = findClassroom($body['classroom_id'] ?? 0);
         $pp = normalizePhone($body['parent_phone'] ?? '');
         if (!$pp || strlen($pp) < 9) DB::fail('กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง', 400);
-        $db->run("INSERT INTO students (user_id,grade,parent_phone) VALUES (?,?,?)",
-            [$uid, $grade, $pp], 'iss');
+        $db->run("INSERT INTO students (user_id,grade,classroom_id,parent_phone) VALUES (?,?,?,?)",
+            [$uid, $room['grade'], $room['classroom_id'], $pp], 'isis');
         $sid = $db->insertId();
         // auto-link parent
         $parent = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$pp], 's');
@@ -770,15 +850,17 @@ function handleRegister(): never {
 
 function handleMe(): never {
     auth();
+    ensureClassroomSchema();
     $user = DB::get()->one(
         "SELECT u.user_id, u.username, u.email, u.role, u.full_name, u.avatar_url, u.created_at, u.updated_at,
-                s.student_id, s.grade, s.parent_phone,
+                s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no,
                 p.parent_id, p.phone,
                 t.teacher_id, t.department,
                 o.officer_id, o.permissions as officer_permissions,
                 e.executive_id, e.title as executive_title, e.permissions as executive_permissions
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
+         LEFT JOIN classrooms c ON c.classroom_id = s.classroom_id
          LEFT JOIN parents  p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
          LEFT JOIN officers o ON o.user_id = u.user_id
@@ -874,25 +956,6 @@ function handleUpdateProfile(): never {
     $db->run("UPDATE users SET full_name=?,email=? WHERE user_id=?", [$name, $email, $id], 'ssi');
     $accountDates = $db->one("SELECT created_at, updated_at FROM users WHERE user_id=?", [$id], 'i');
 
-    if ($role === 'student') {
-        $grade    = $body['grade']        ?? null;
-        $pp       = preg_replace('/\D/', '', $body['parent_phone'] ?? '');
-        $oldPhone = preg_replace('/\D/', '', $body['old_phone']    ?? '');
-        $db->run("UPDATE students SET grade=?,parent_phone=? WHERE user_id=?",
-            [$grade, $pp ?: null, $id], 'ssi');
-        // re-link
-        if ($pp && $pp !== $oldPhone) {
-            $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [$id], 'i');
-            if ($st) {
-                $db->run("DELETE FROM parent_student WHERE student_id=?", [$st['student_id']], 'i');
-                $p2 = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$pp], 's');
-                if ($p2) {
-                    $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
-                        [$p2['parent_id'], $st['student_id']], 'ii');
-                }
-            }
-        }
-    }
 
     if ($role === 'parent') {
         $phone    = preg_replace('/\D/', '', $body['phone']     ?? '');
@@ -1176,17 +1239,19 @@ function handleScores(): never {
 
 function handleMyChildren(): never {
     authRole('parent');
+    ensureClassroomSchema();
     $p = DB::get()->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
     if (!$p) DB::ok(['children' => []]);
 
     $kids = DB::get()->all(
-        "SELECT u.user_id, u.full_name, st.grade, st.student_id,
+        "SELECT u.user_id, u.full_name, st.grade, st.student_id, c.room_no,
                 COALESCE(pr.avg_score, 0)   AS avg_score,
                 COALESCE(pr.total_plays, 0) AS total_plays,
                 (SELECT COUNT(*) FROM scores sc WHERE sc.student_id = st.student_id) AS total_games
          FROM parent_student ps
          JOIN students st ON st.student_id = ps.student_id
          JOIN users    u  ON u.user_id     = st.user_id
+         LEFT JOIN classrooms c ON c.classroom_id = st.classroom_id
          LEFT JOIN (
              SELECT student_id, AVG(score) AS avg_score, COUNT(*) AS total_plays
              FROM scores GROUP BY student_id
@@ -1447,18 +1512,20 @@ function handleTeacherStats(): never {
 
 function handleAllStudents(): never {
     authRole('teacher', 'admin', 'officer');
+    ensureClassroomSchema();
     $db       = DB::get();
     $students = $db->all(
-        "SELECT u.user_id, st.student_id, u.full_name, st.grade,
+        "SELECT u.user_id, st.student_id, u.full_name, st.grade, st.classroom_id, c.room_no,
                 COUNT(DISTINCT sc.score_id)  AS games_played,
                 ROUND(AVG(sc.score), 1)      AS avg_score,
                 MAX(sc.played_at)            AS last_active
          FROM students st
          JOIN users u ON u.user_id=st.user_id
+         LEFT JOIN classrooms c ON c.classroom_id=st.classroom_id
          LEFT JOIN scores sc ON sc.student_id=st.student_id
          WHERE u.is_active=TRUE
-         GROUP BY u.user_id, st.student_id, u.full_name, st.grade
-         ORDER BY st.grade, u.full_name"
+         GROUP BY u.user_id, st.student_id, u.full_name, st.grade, st.classroom_id, c.room_no
+         ORDER BY st.grade, c.room_no, u.full_name"
     );
     DB::ok(['students' => $students]);
 }
@@ -2059,6 +2126,7 @@ function handleReportV2(): never {
 
 function handleAdminUsers(): never {
     authRole('admin');
+    ensureClassroomSchema();
     $db   = DB::get();
     $page = max(1, (int)($_GET['page'] ?? 1));
     $limit = 50;
@@ -2076,11 +2144,12 @@ function handleAdminUsers(): never {
 
     $users = $db->all("SELECT u.user_id, u.username, u.full_name, u.email, u.role,
             u.is_active, u.created_at, u.updated_at,
-            COALESCE(s.grade,'—') AS grade,
+            COALESCE(s.grade,'—') AS grade, c.room_no,
             COALESCE(p.phone,'—') AS phone,
             COALESCE(t.department,'—') AS department
         FROM users u
         LEFT JOIN students s ON s.user_id=u.user_id
+        LEFT JOIN classrooms c ON c.classroom_id=s.classroom_id
         LEFT JOIN parents  p ON p.user_id=u.user_id
         LEFT JOIN teachers t ON t.user_id=u.user_id
         $where ORDER BY u.created_at DESC LIMIT $limit OFFSET $offset",
@@ -2881,15 +2950,17 @@ function handlePlayQuestionsV2(): never {
 
 function handleOfficerUsers(): never {
     authRole('officer', 'admin');
+    ensureClassroomSchema();
     $db = DB::get();
     [$dateSql, $dateParams] = accountDateFilter('u.created_at');
     
     // ดึงรายชื่อผู้ใช้ทั้งหมด
     $users = $db->all(
         "SELECT u.user_id, u.username, u.email, u.full_name, u.role, u.is_active, 
-                u.created_at, u.updated_at, s.grade, p.phone, t.department
+                u.created_at, u.updated_at, s.grade, s.classroom_id, c.room_no, p.phone, t.department
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
+         LEFT JOIN classrooms c ON c.classroom_id = s.classroom_id
          LEFT JOIN parents p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
          WHERE u.role IN ('student', 'parent', 'teacher', 'officer', 'executive') $dateSql
@@ -2908,7 +2979,6 @@ function handleOfficerUpdateUser(): never {
     $uid   = (int)($body['user_id'] ?? 0);
     $name  = trim($body['full_name'] ?? '');
     $email = trim($body['email'] ?? '');
-    $grade = trim($body['grade'] ?? '');
     $phone = trim($body['phone'] ?? '');
     $dept  = trim($body['department'] ?? '');
     
@@ -2927,8 +2997,8 @@ function handleOfficerUpdateUser(): never {
     }
     
     // อัปเดต role-specific tables
-    if ($user['role'] === 'student' && $grade) {
-        $db->run("UPDATE students SET grade=? WHERE user_id=?", [$grade, $uid], 'si');
+    if ($user['role'] === 'student' && !empty($body['classroom_id'])) {
+        setStudentClassroom($uid, $body['classroom_id']);
     }
     if ($user['role'] === 'parent' && $phone) {
         $phone = normalizePhone($phone);
