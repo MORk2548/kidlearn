@@ -111,14 +111,34 @@ CREATE TABLE IF NOT EXISTS games (
   is_active      BOOLEAN NOT NULL DEFAULT TRUE,
   name           VARCHAR(100) NOT NULL,
   game_type      TEXT NOT NULL DEFAULT 'mcq'
-                 CHECK (game_type IN ('mcq','truefalse','fill','matching','sequence','wordsearch','letterorder')),
+                 CONSTRAINT games_game_type_check
+                 CHECK (game_type IN ('mcq','truefalse','fill','matching','linematch','sequence','wordsearch','letterorder')),
   level          TEXT NOT NULL DEFAULT 'easy'
                  CHECK (level IN ('easy','medium','hard')),
   icon           VARCHAR(10) DEFAULT '🎮',
   time_limit     INT         NOT NULL DEFAULT 60,
   question_count INT         DEFAULT NULL,
+  grade          VARCHAR(20) DEFAULT NULL
+                 CONSTRAINT games_grade_check CHECK (grade IN ('ป.1','ป.2','ป.3','ป.4','ป.5','ป.6')),
+  created_by     INT         DEFAULT NULL
+                 CONSTRAINT games_created_by_fkey REFERENCES users(user_id) ON DELETE SET NULL,
+  status         VARCHAR(20) NOT NULL DEFAULT 'draft'
+                 CONSTRAINT games_status_check CHECK (status IN ('draft','published')),
+  -- เกมที่ครูสร้างต้องมีระดับชั้น เกมเดิมที่ไม่มีเจ้าของเว้นได้
+  CONSTRAINT games_teacher_grade_check CHECK (created_by IS NULL OR grade IS NOT NULL),
   FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_games_grade_subject ON games(grade, subject_id);
+
+CREATE TABLE IF NOT EXISTS game_classrooms (
+  game_id      INT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+  classroom_id INT NOT NULL REFERENCES classrooms(classroom_id) ON DELETE CASCADE,
+  PRIMARY KEY (game_id, classroom_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_classrooms_classroom ON game_classrooms(classroom_id);
+ALTER TABLE game_classrooms ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE IF NOT EXISTS questions (
   question_id   SERIAL PRIMARY KEY,
