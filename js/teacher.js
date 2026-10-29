@@ -128,6 +128,7 @@ function scoreColor(v){ return v>=80?'#10B981':v>=50?'#F59E0B':'#EF4444'; }
 function _tcCardTitle(c){ return `${classLabel(c)} · ${c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา'}`; }
 
 function renderTcCards(cards){
+  A.tcCards=cards;
   const el=document.getElementById('tc-cards');
   if(!el)return;
   el.innerHTML=`<h3>🏫 ห้องที่ฉันสอน</h3>
@@ -165,12 +166,17 @@ async function openTcCard(classroomId, subjectId){
   const room=A.tcClassrooms.find(r=>r.classroom_id==classroomId)||{};
   const subject=subjectId?A.tcSubjects.find(s=>s.subject_id==subjectId):null;
   A.tcSubject=subjectId;
+  A.tcPlanCard=`${classroomId}:${subjectId??''}`;
+  A.tcPlanStudents=[];
   A.tcBook={...res, cells, classroom_id:classroomId, subject_id:subjectId,
     title:_tcCardTitle({...room, subject_id:subjectId, subject_name:subject?.subject_name, icon:subject?.icon})};
   book.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
       <h3 style="margin:0">📒 สมุดคะแนน ${A.tcBook.title}</h3>
-      <button class="btn btn-sm" onclick="closeTcCard()">✕ ปิด</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-sm" onclick="exportTcBookCsv()">⬇️ ส่งออก CSV</button>
+        <button class="btn btn-sm" onclick="closeTcCard()">✕ ปิด</button>
+      </div>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
       <input class="fc" style="flex:1;min-width:150px" placeholder="🔍 ค้นหาชื่อนักเรียน" value="${_esc(A.tcBookView.search)}"
@@ -196,15 +202,38 @@ function closeTcCard(){
   document.getElementById('tc-history').style.display='none';
 }
 
-function _renderTcBookRows(){
-  const el=document.getElementById('tc-book-rows');
-  if(!el||!A.tcBook)return;
-  const {columns,cells,students}=A.tcBook, v=A.tcBookView;
+function _tcBookVisibleRows(){
+  const {students}=A.tcBook, v=A.tcBookView;
   const q=v.search.trim().toLowerCase();
   const avg=s=>s.avg_score==null?-1:+s.avg_score;
   const sorters={name:(a,b)=>a.full_name.localeCompare(b.full_name,'th'), avg_asc:(a,b)=>avg(a)-avg(b),
     avg_desc:(a,b)=>avg(b)-avg(a), recent:(a,b)=>new Date(b.last_played||0)-new Date(a.last_played||0)};
-  const rows=students.filter(s=>(!q||s.full_name.toLowerCase().includes(q))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
+  return students.filter(s=>(!q||s.full_name.toLowerCase().includes(q))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
+}
+
+function exportTcBookCsv(){
+  if(!A.tcBook)return;
+  const {columns,cells}=A.tcBook;
+  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const lines=[
+    ['นักเรียน',...columns.map(c=>c.name),'เฉลี่ย','เล่นล่าสุด','ต้องดูแล'],
+    ..._tcBookVisibleRows().map(s=>[s.full_name,...columns.map(c=>cells[s.student_id]?.[c.id]),
+      s.avg_score==null?'':Math.round(+s.avg_score),
+      s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'',
+      s.needs_attention?'ใช่':'']),
+  ].map(r=>r.map(q).join(','));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  a.download=`คะแนน ${A.tcBook.title.replace(/[\\/:*?"<>|]/g,'-')} ${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function _renderTcBookRows(){
+  const el=document.getElementById('tc-book-rows');
+  if(!el||!A.tcBook)return;
+  const {columns,cells,students}=A.tcBook;
+  const rows=_tcBookVisibleRows();
   const cell=val=>val==null?'<span style="color:#CBD5E1">–</span>'
     :`<span style="display:inline-block;min-width:2.4rem;padding:.15rem .35rem;border-radius:6px;font-weight:700;color:#fff;background:${scoreColor(val)}">${val}</span>`;
   const th='padding:.5rem .6rem;white-space:nowrap;font-weight:700';
@@ -749,8 +778,22 @@ function selectOnlyTcPlanStudent(studentId){
   renderTcPlanPanel();
 }
 
+function _tcPlanScope(){
+  const [roomId,subjectId]=(A.tcPlanCard||'').split(':');
+  return {
+    students:(A.tcStudents||[]).filter(s=>!roomId||s.classroom_id==roomId),
+    subjectId:A.tcPlanCard?(+subjectId||null):A.tcSubject,
+  };
+}
+
+function setTcPlanCard(key){
+  A.tcPlanCard=key;
+  A.tcPlanStudents=[];
+  renderTcPlanPanel();
+}
+
 function selectAllTcPlanStudents(){
-  A.tcPlanStudents=(A.tcStudents||[]).map(s=>+s.student_id).filter(Boolean);
+  A.tcPlanStudents=_tcPlanScope().students.map(s=>+s.student_id).filter(Boolean);
   renderTcPlanPanel();
 }
 
@@ -817,7 +860,8 @@ async function renderTcPlanPanel(){
 
   const selectedStudentIds=getSelectedTcPlanStudents();
   const selectedStudentNames=selectedStudentIds.map(id=>(A.tcStudents||[]).find(s=>+s.student_id===+id)?.full_name).filter(Boolean);
-  const selectedGames=Object.values(GAMES_DB).filter(g=>A.tcSubject?g.sid==A.tcSubject:true).slice(0,12);
+  const scope=_tcPlanScope();
+  const selectedGames=Object.values(GAMES_DB).filter(g=>scope.subjectId?g.sid==scope.subjectId:true).slice(0,scope.subjectId?undefined:12);
   const planList=Object.values(grouped);
 
   panel.innerHTML=`
@@ -835,8 +879,13 @@ async function renderTcPlanPanel(){
             <button class="btn btn-sm" onclick="setTcPlanFilter(null)">${TC_PLAN_TEXT.allPlans}</button>
           </div>
         </div>
+        <select class="fc" style="margin-top:.7rem" onchange="setTcPlanCard(this.value)">
+          <option value="">🏫 ทุกห้องที่สอน</option>
+          ${(A.tcCards||[]).map(c=>{const key=`${c.classroom_id}:${c.subject_id??''}`;
+            return `<option value="${key}"${A.tcPlanCard===key?' selected':''}>${_tcCardTitle(c)} (${c.student_count} คน)</option>`;}).join('')}
+        </select>
         <div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:.5rem">
-          ${(A.tcStudents||[]).map(student=>{
+          ${scope.students.map(student=>{
             const sid=+student.student_id;
             const checked=selectedStudentIds.includes(sid);
             const active=filterId===sid;
