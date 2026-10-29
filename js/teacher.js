@@ -6,9 +6,9 @@ if(typeof A.tcSubject  ==='undefined') A.tcSubject  = null;
 if(typeof A.tcStudents ==='undefined') A.tcStudents = [];
 if(typeof A.tcSubjects ==='undefined') A.tcSubjects = [];
 if(typeof A.tcTab      ==='undefined') A.tcTab      = 'scores';
-if(typeof A.tcGrade    ==='undefined') A.tcGrade    = '';
-if(typeof A.tcRoom     ==='undefined') A.tcRoom     = null;
 if(typeof A.tcClassrooms==='undefined') A.tcClassrooms = [];
+if(typeof A.tcBook     ==='undefined') A.tcBook     = null;
+if(typeof A.tcBookView ==='undefined') A.tcBookView = { search: '', sort: 'name', attentionOnly: false };
 let _edGid=null, _edDbGid=null;
 
 // ════════════════════════════════════════════════════════
@@ -81,7 +81,6 @@ async function saveTcSetup(){
 async function loadTeach() {
   const setup=document.getElementById('tc-setup');
   const main=document.getElementById('tc-main');
-  let myRooms=null;
   if(A.role==='teacher'){
     const asg=await apiTeacherAssignments().catch(()=>({ok:false}));
     const assignments=asg.ok?(asg.assignments||[]):[];
@@ -90,7 +89,6 @@ async function loadTeach() {
       await _renderTcSetup();
       return;
     }
-    myRooms=new Set(assignments.map(a=>+a.classroom_id));
     if(setup) setup.innerHTML=`<div class="ts" style="font-size:.85rem">📌 ${assignmentSummary(assignments)}
       <div style="font-size:.72rem;color:var(--mu);margin-top:.25rem">ต้องการเปลี่ยนห้องหรือวิชา ให้ติดต่อเจ้าหน้าที่</div></div>`;
   } else if(setup) setup.innerHTML='';
@@ -99,12 +97,13 @@ async function loadTeach() {
   const el=document.getElementById('tc-stats');
   if(el) el.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลด...</div>';
 
-  const [statsRes,stuRes,roomRes]=await Promise.all([
+  const [statsRes,stuRes,roomRes,cardRes]=await Promise.all([
     apiTeacherStats().catch(()=>({ok:false})),
     apiAllStudents().catch(()=>({ok:false})),
-    apiClassrooms().catch(()=>({ok:false}))
+    apiClassrooms().catch(()=>({ok:false})),
+    apiTeacherClassSummary().catch(()=>({ok:false}))
   ]);
-  A.tcClassrooms=(roomRes.ok?(roomRes.classrooms||[]):[]).filter(r=>!myRooms||myRooms.has(+r.classroom_id));
+  A.tcClassrooms=roomRes.ok?(roomRes.classrooms||[]):[];
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
 
@@ -120,66 +119,121 @@ async function loadTeach() {
 
   _renderTcTabs();
   ensureTcPlanPanel();
-  _renderTcSubjectFilter();
-  _renderTcClassFilter();
-  _renderTcStudentList();
-  renderTcSubTable(A.tcSubjects);
+  renderTcCards(cardRes.ok?(cardRes.cards||[]):[]);
   renderTcPlanPanel();
-  const hist=document.getElementById('tc-history');
-  if(hist&&A.tcStudent===null)
-    hist.innerHTML='<div style="color:var(--mu);font-size:.85rem;padding:.5rem 0">👈 กดชื่อนักเรียนเพื่อดูคะแนน</div>';
+  if(A.tcBook) openTcCard(A.tcBook.classroom_id, A.tcBook.subject_id);
+}
+
+function scoreColor(v){ return v>=80?'#10B981':v>=50?'#F59E0B':'#EF4444'; }
+function _tcCardTitle(c){ return `${classLabel(c)} · ${c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา'}`; }
+
+function renderTcCards(cards){
+  const el=document.getElementById('tc-cards');
+  if(!el)return;
+  el.innerHTML=`<h3>🏫 ห้องที่ฉันสอน</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.75rem">
+      ${cards.map(c=>{
+        const avg=c.avg_score==null?null:Math.round(+c.avg_score);
+        return `<button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
+          style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
+          <div style="font-weight:800;font-size:.95rem">${_tcCardTitle(c)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin:.4rem 0">
+            <span style="font-size:.78rem;color:var(--mu)">👦 ${c.student_count} คน</span>
+            <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
+          </div>
+          <div style="font-size:.78rem;color:${c.needs_attention?'#B91C1C':'#047857'};font-weight:700">
+            ${c.needs_attention?`🔴 ต้องดูแล ${c.needs_attention} คน`:'🟢 ทุกคนไปได้ดี'}</div>
+          <div style="font-size:.72rem;color:var(--mu);margin-top:.2rem">เล่นล่าสุด ${c.last_played?new Date(c.last_played).toLocaleDateString('th-TH'):'–'}</div>
+        </button>`;
+      }).join('')||'<div style="color:var(--mu)">ยังไม่มีห้องเรียน</div>'}
+    </div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
+      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
+      <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
+    </div>`;
+}
+
+async function openTcCard(classroomId, subjectId){
+  const book=document.getElementById('tc-gradebook');
+  document.getElementById('tc-history').style.display='none';
+  book.style.display='block';
+  book.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลดสมุดคะแนน...</div>';
+  const res=await apiTeacherGradebook(classroomId, subjectId).catch(()=>({ok:false}));
+  if(!res.ok){book.innerHTML=`<div style="color:#EF4444">${res.error||'โหลดสมุดคะแนนไม่สำเร็จ'}</div>`;return;}
+  const cells={};
+  res.cells.forEach(c=>{(cells[c.student_id] ||= {})[c.col]=Math.round(+c.val);});
+  const room=A.tcClassrooms.find(r=>r.classroom_id==classroomId)||{};
+  const subject=subjectId?A.tcSubjects.find(s=>s.subject_id==subjectId):null;
+  A.tcSubject=subjectId;
+  A.tcBook={...res, cells, classroom_id:classroomId, subject_id:subjectId,
+    title:_tcCardTitle({...room, subject_id:subjectId, subject_name:subject?.subject_name, icon:subject?.icon})};
+  book.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+      <h3 style="margin:0">📒 สมุดคะแนน ${A.tcBook.title}</h3>
+      <button class="btn btn-sm" onclick="closeTcCard()">✕ ปิด</button>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
+      <input class="fc" style="flex:1;min-width:150px" placeholder="🔍 ค้นหาชื่อนักเรียน" value="${_esc(A.tcBookView.search)}"
+        oninput="A.tcBookView.search=this.value;_renderTcBookRows()">
+      <select class="fc" style="width:auto" onchange="A.tcBookView.sort=this.value;_renderTcBookRows()">
+        ${[['name','เรียงตามชื่อ'],['avg_asc','คะแนนน้อย → มาก'],['avg_desc','คะแนนมาก → น้อย'],['recent','เล่นล่าสุด']]
+          .map(([v,l])=>`<option value="${v}"${A.tcBookView.sort===v?' selected':''}>${l}</option>`).join('')}
+      </select>
+      <label style="font-size:.82rem;cursor:pointer"><input type="checkbox"${A.tcBookView.attentionOnly?' checked':''}
+        onchange="A.tcBookView.attentionOnly=this.checked;_renderTcBookRows()"> เฉพาะคนที่ต้องดูแล</label>
+    </div>
+    <div style="font-size:.72rem;color:var(--mu);margin-bottom:.5rem">🔴 ต้องดูแล = คะแนนเฉลี่ยต่ำกว่า ${res.attention_rule.min_score}% หรือไม่ได้เล่นเกิน ${res.attention_rule.inactive_days} วัน ·
+      ช่องในตาราง = ${subjectId?'คะแนนดีที่สุดของแต่ละเกม':'คะแนนเฉลี่ยของแต่ละวิชา'} · กดชื่อเพื่อดูประวัติ</div>
+    <div id="tc-book-rows"></div>`;
+  _renderTcBookRows();
+  book.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function closeTcCard(){
+  A.tcBook=null;
+  A.tcStudent=null;
+  document.getElementById('tc-gradebook').style.display='none';
+  document.getElementById('tc-history').style.display='none';
+}
+
+function _renderTcBookRows(){
+  const el=document.getElementById('tc-book-rows');
+  if(!el||!A.tcBook)return;
+  const {columns,cells,students}=A.tcBook, v=A.tcBookView;
+  const q=v.search.trim().toLowerCase();
+  const avg=s=>s.avg_score==null?-1:+s.avg_score;
+  const sorters={name:(a,b)=>a.full_name.localeCompare(b.full_name,'th'), avg_asc:(a,b)=>avg(a)-avg(b),
+    avg_desc:(a,b)=>avg(b)-avg(a), recent:(a,b)=>new Date(b.last_played||0)-new Date(a.last_played||0)};
+  const rows=students.filter(s=>(!q||s.full_name.toLowerCase().includes(q))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
+  const cell=val=>val==null?'<span style="color:#CBD5E1">–</span>'
+    :`<span style="display:inline-block;min-width:2.4rem;padding:.15rem .35rem;border-radius:6px;font-weight:700;color:#fff;background:${scoreColor(val)}">${val}</span>`;
+  const th='padding:.5rem .6rem;white-space:nowrap;font-weight:700';
+  const sticky='position:sticky;left:0;z-index:1';
+  el.innerHTML=`<div style="font-size:.78rem;color:var(--mu);margin-bottom:.35rem">แสดง ${rows.length} จาก ${students.length} คน ·
+      ต้องดูแล ${students.filter(s=>s.needs_attention).length} คน</div>
+    <div style="overflow-x:auto;border:1px solid #E2E8F0;border-radius:10px">
+    <table style="border-collapse:collapse;font-size:.8rem;width:100%">
+      <thead><tr style="background:#F1F5F9;color:#334155">
+        <th style="${th};${sticky};background:#F1F5F9;color:#334155;text-align:left">นักเรียน</th>
+        ${columns.map(c=>`<th style="${th};max-width:7rem;overflow:hidden;text-overflow:ellipsis" title="${_esc(c.name)}">${c.icon||''} ${_esc(c.name)}</th>`).join('')}
+        <th style="${th}">เฉลี่ย</th><th style="${th}">เล่นล่าสุด</th>
+      </tr></thead>
+      <tbody>${rows.map(s=>{
+        const bg=A.tcStudent==s.student_id?'#EEF2FF':'#fff';
+        return `<tr style="border-top:1px solid #F1F5F9;cursor:pointer;background:${bg}" onclick="selectTcStudent(${s.student_id})">
+        <td style="padding:.45rem .6rem;${sticky};background:${bg};white-space:nowrap;font-weight:600">${s.needs_attention?'🔴 ':''}${_esc(s.full_name)}</td>
+        ${columns.map(c=>`<td style="padding:.45rem .6rem;text-align:center">${cell(cells[s.student_id]?.[c.id])}</td>`).join('')}
+        <td style="padding:.45rem .6rem;text-align:center">${cell(s.avg_score==null?null:Math.round(+s.avg_score))}</td>
+        <td style="padding:.45rem .6rem;text-align:center;white-space:nowrap;color:var(--mu)">${s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'ยังไม่เคยเล่น'}</td>
+      </tr>`;}).join('')||`<tr><td colspan="${columns.length+3}" style="padding:1rem;text-align:center;color:var(--mu)">ไม่พบนักเรียน</td></tr>`}</tbody>
+    </table></div>`;
 }
 
 
 // ════════ SCORES ════════
-function _renderTcSubjectFilter(){
-  const el=document.getElementById('tc-subject-sel');
-  if(!el)return;
-  el.innerHTML=`
-    <div style="font-weight:700;font-size:.88rem;margin-bottom:.5rem;color:var(--s)">📚 กรองตามวิชา</div>
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      <button class="child-btn${A.tcSubject===null?' active':''}" onclick="selectTcSubject(null)">🔎 ทุกวิชา</button>
-      ${A.tcSubjects.map(s=>`<button class="child-btn${A.tcSubject==s.subject_id?' active':''}"
-        onclick="selectTcSubject(${s.subject_id})">${s.icon||'📚'} ${s.subject_name}</button>`).join('')}
-    </div>`;
-}
-function _tcVisibleStudents(){
-  return A.tcStudents.filter(s=>(!A.tcGrade||s.grade===A.tcGrade)&&(A.tcRoom===null||s.classroom_id==A.tcRoom));
-}
-function _renderTcClassFilter(){
-  const el=document.getElementById('tc-class-sel');
-  if(!el)return;
-  const grades=[...new Set(A.tcClassrooms.map(r=>r.grade))];
-  const rooms=A.tcClassrooms.filter(r=>r.grade===A.tcGrade);
-  const count=id=>A.tcStudents.filter(s=>s.classroom_id==id).length;
-  el.innerHTML=`
-    <div style="font-weight:700;font-size:.88rem;margin-bottom:.5rem;color:var(--s)">🏫 กรองตามชั้นเรียน</div>
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      <button class="child-btn${A.tcGrade===''?' active':''}" onclick="selectTcGrade('')">ทุกชั้น</button>
-      ${grades.map(g=>`<button class="child-btn${A.tcGrade===g?' active':''}" onclick="selectTcGrade('${g}')">${g}</button>`).join('')}
-      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
-      <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
-    </div>
-    ${A.tcGrade?`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem">
-      <button class="child-btn${A.tcRoom===null?' active':''}" onclick="selectTcRoom(null)">ทุกห้อง</button>
-      ${rooms.map(r=>`<button class="child-btn${A.tcRoom==r.classroom_id?' active':''}" onclick="selectTcRoom(${r.classroom_id})">${classLabel(r)} (${count(r.classroom_id)})</button>`).join('')}
-    </div>`:''}`;
-}
-function selectTcGrade(grade){
-  A.tcGrade=grade;
-  A.tcRoom=null;
-  _renderTcClassFilter();
-  _renderTcStudentList();
-}
-function selectTcRoom(id){
-  A.tcRoom=id;
-  _renderTcClassFilter();
-  _renderTcStudentList();
-}
 async function _applyTcRoomChange(req,failMsg){
   const res=await req().catch(()=>({ok:false}));
   if(!res.ok){alert(res.error||failMsg);return;}
-  A.tcRoom=null;
   loadTeach();
 }
 function addTcRoom(){
@@ -191,61 +245,18 @@ function deleteTcRoom(){
   if(!confirm(`ลบห้องที่ ${last} ของทุกระดับชั้น? (ลบได้เฉพาะห้องที่ไม่มีนักเรียน)`))return;
   _applyTcRoomChange(apiDeleteClassroom,'ลบห้องไม่สำเร็จ');
 }
-function _renderTcStudentSel(){
-  const el=document.getElementById('tc-student-sel');
-  if(!el)return;
-  el.innerHTML=`
-    <div style="font-weight:700;font-size:.88rem;margin-bottom:.5rem;color:var(--s)">👦 เลือกนักเรียน</div>
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      <button class="child-btn${A.tcStudent===null?' active':''}" onclick="selectTcStudent(null)">📊 ภาพรวม</button>
-      ${_tcVisibleStudents().map(s=>`<button class="child-btn${A.tcStudent==s.student_id?' active':''}"
-        onclick="selectTcStudent(${s.student_id})">👦 ${s.full_name}</button>`).join('')}
-    </div>`;
-}
-function _renderTcStudentList(){
-  _renderTcStudentSel();
-  const sl=document.getElementById('tc-students');
-  if(!sl)return;
-  sl.innerHTML=_tcVisibleStudents().map(s=>{
-    const avg=Math.round(+s.avg_score||0),isA=A.tcStudent==s.student_id;
-    const c=avg>=80?'var(--g)':avg>=50?'#F59E0B':'#EF4444';
-    return `<div class="sr" style="cursor:pointer;${isA?'background:linear-gradient(135deg,#EEF2FF,#F0F9FF);border:2px solid var(--s);':''}"
-      onclick="selectTcStudent(${s.student_id})">
-      <div class="sa" style="${isA?'background:var(--s);color:#fff;':''}">${(s.full_name||'?').charAt(0)}</div>
-      <div style="flex:1">
-        <div class="sn2">${s.full_name}${isA?'<span style="font-size:.7rem;background:var(--s);color:#fff;padding:.1rem .5rem;border-radius:99px;margin-left:.4rem">กำลังดู</span>':''}</div>
-        <div class="si3">ชั้น ${classLabel(s)} · เล่น ${s.games_played||0} ครั้ง${s.last_active?' · ล่าสุด '+new Date(s.last_active).toLocaleDateString('th-TH'):''}</div>
-        <div class="mp"><div class="mf" style="width:${avg}%;background:${c}"></div></div>
-      </div>
-      <div style="font-size:.88rem;font-weight:800;color:${c}">${avg}%</div>
-    </div>`;
-  }).join('')||'<div style="color:var(--mu);padding:1rem">ยังไม่มีนักเรียน</div>';
-}
-
-async function selectTcSubject(sid){
-  A.tcSubject=sid;
-  _renderTcSubjectFilter();
-  if(A.tcStudent!==null) await selectTcStudent(A.tcStudent);
-}
-
 async function selectTcStudent(sid){
   A.tcStudent=sid;
-  _renderTcStudentSel();
-  document.querySelectorAll('#tc-students .sr').forEach(el=>{
-    const id=el.getAttribute('onclick')?.match(/\d+/)?.[0];
-    const active=sid!==null&&+id===sid;
-    el.style.background=active?'linear-gradient(135deg,#EEF2FF,#F0F9FF)':'';
-    el.style.border=active?'2px solid var(--s)':'';
-  });
+  _renderTcBookRows();
   const hist=document.getElementById('tc-history');
   if(!hist)return;
-  if(sid===null){hist.innerHTML='<div style="color:var(--mu);font-size:.85rem;padding:.5rem 0">👈 กดชื่อนักเรียนเพื่อดูคะแนน</div>';return;}
+  hist.style.display='block';
 
   hist.innerHTML='<div style="color:var(--mu);padding:.5rem">⏳ กำลังโหลด...</div>';
   // ส่ง student_id (จาก students table) ไป API
   const res=await apiStudentScores(sid,A.tcSubject||null).catch(()=>({ok:false,scores:[]}));
   const sc=res.ok?(res.scores||[]):[];
-  const stu=A.tcStudents.find(s=>s.student_id==sid);
+  const stu=A.tcBook?.students.find(s=>s.student_id==sid)||A.tcStudents.find(s=>s.student_id==sid);
 
   if(!sc.length){
     hist.innerHTML=`<div style="text-align:center;padding:1.5rem;color:var(--mu)">
@@ -325,31 +336,6 @@ async function selectTcStudent(sid){
       </tr></thead>
       <tbody>${tableRows}</tbody>
     </table></div>`;
-}
-
-function renderTcSubTable(subjects=[]){
-  const tb=document.getElementById('tc-sub-table');
-  if(!tb)return;
-  if(!subjects.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:1.5rem">ยังไม่มีข้อมูล</td></tr>';return;}
-  tb.innerHTML=subjects.map(s=>{
-    const localSub=(typeof SUBS!=='undefined')?SUBS.find(x=>x.id==s.subject_id):null;
-    const icon=s.icon||localSub?.icon||'📚';
-    const avg=Math.round(+s.avg_score||0),c=avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
-    return `<tr style="cursor:pointer;border-bottom:1px solid #F1F5F9" onclick="selectTcSubject(${s.subject_id})">
-      <td style="padding:.65rem .75rem;font-weight:600">${icon} ${s.subject_name}</td>
-      <td style="padding:.65rem .75rem;text-align:center">${s.student_count||0}</td>
-      <td style="padding:.65rem .75rem;text-align:center">${s.total_plays||0}</td>
-      <td style="padding:.65rem .75rem;min-width:130px">
-        <div style="display:flex;align-items:center;gap:.5rem">
-          <div style="flex:1;height:7px;background:#E2E8F0;border-radius:4px">
-            <div style="width:${avg}%;height:100%;background:${c};border-radius:4px"></div>
-          </div>
-          <span style="font-weight:700;color:${c};font-size:.82rem;min-width:38px">${avg}%</span>
-        </div>
-      </td>
-      <td style="padding:.65rem .75rem;text-align:center;font-weight:700;color:${c}">${s.best_score||0}</td>
-    </tr>`;
-  }).join('');
 }
 
 // ════════ LESSON EDITOR ════════

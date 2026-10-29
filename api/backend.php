@@ -574,6 +574,97 @@ function handleSaveTeacherAssignments(): never {
     DB::ok(['saved' => true]);
 }
 
+const ATTENTION_MIN_SCORE = 50;
+const ATTENTION_INACTIVE_DAYS = 7;
+
+function needsAttention(?string $avgScore, ?string $lastPlayed): bool {
+    if ($avgScore === null || $lastPlayed === null) return true;
+    return (float)$avgScore < ATTENTION_MIN_SCORE
+        || strtotime($lastPlayed) < strtotime('-' . ATTENTION_INACTIVE_DAYS . ' days');
+}
+
+// การ์ด = (ห้อง, วิชา) ที่ครูสอน; subject_id ว่าง = ทุกวิชา (ครูประจำชั้น / เจ้าหน้าที่)
+function teacherCardsSql(): string {
+    if (myRole() === 'teacher')
+        return "SELECT classroom_id, subject_id FROM teacher_assignments WHERE teacher_user_id = " . myId();
+    return "SELECT classroom_id, NULL::int AS subject_id FROM classrooms";
+}
+
+function cardStudentRows(string $cardsSql, array $params = []): array {
+    return DB::get()->all(
+        "WITH cards AS ({$cardsSql})
+         SELECT k.classroom_id, k.subject_id, st.student_id, u.full_name,
+                ROUND(AVG(sc.score), 1) AS avg_score, MAX(sc.played_at) AS last_played
+         FROM cards k
+         JOIN students st ON st.classroom_id = k.classroom_id
+         JOIN users u ON u.user_id = st.user_id AND u.is_active = TRUE
+         LEFT JOIN scores sc ON sc.student_id = st.student_id
+              AND (k.subject_id IS NULL OR sc.game_id IN (SELECT game_id FROM games WHERE subject_id = k.subject_id))
+         GROUP BY k.classroom_id, k.subject_id, st.student_id, u.full_name
+         ORDER BY u.full_name",
+        $params);
+}
+
+function handleTeacherClassSummary(): never {
+    authRole('teacher', 'admin', 'officer');
+    ensureTeacherAssignmentSchema();
+    $cards = DB::get()->all(
+        "SELECT k.classroom_id, k.subject_id, c.grade, c.room_no, sub.name AS subject_name, sub.icon
+         FROM (" . teacherCardsSql() . ") k
+         JOIN classrooms c ON c.classroom_id = k.classroom_id
+         LEFT JOIN subjects sub ON sub.subject_id = k.subject_id
+         ORDER BY c.grade, c.room_no, k.subject_id NULLS FIRST");
+    $byCard = [];
+    foreach (cardStudentRows(teacherCardsSql()) as $r) $byCard["{$r['classroom_id']}:{$r['subject_id']}"][] = $r;
+    foreach ($cards as &$card) {
+        $rows = $byCard["{$card['classroom_id']}:{$card['subject_id']}"] ?? [];
+        $scored = array_filter(array_column($rows, 'avg_score'), fn($v) => $v !== null);
+        $card['student_count'] = count($rows);
+        $card['avg_score'] = $scored ? round(array_sum($scored) / count($scored), 1) : null;
+        $card['needs_attention'] = count(array_filter($rows, fn($r) => needsAttention($r['avg_score'], $r['last_played'])));
+        $card['last_played'] = $rows ? max(array_column($rows, 'last_played')) : null;
+    }
+    DB::ok(['cards' => $cards]);
+}
+
+function handleTeacherGradebook(): never {
+    authRole('teacher', 'admin', 'officer');
+    ensureTeacherAssignmentSchema();
+    $db = DB::get();
+    $classroomId = (int)($_GET['classroom_id'] ?? 0);
+    $subjectId = (int)($_GET['subject_id'] ?? 0) ?: null;
+    if (myRole() === 'teacher' && !$db->one(
+        "SELECT 1 FROM teacher_assignments WHERE teacher_user_id=? AND classroom_id=?
+         AND (subject_id IS NULL OR subject_id = ?::int)",
+        [myId(), $classroomId, $subjectId], 'iii'))
+        DB::fail('ไม่มีสิทธิ์ดูคะแนนห้องนี้', 403);
+
+    $students = cardStudentRows("SELECT ?::int AS classroom_id, ?::int AS subject_id", [$classroomId, $subjectId]);
+    foreach ($students as &$s) $s['needs_attention'] = needsAttention($s['avg_score'], $s['last_played']);
+
+    // วิชาเดียว: คอลัมน์ = เกม (คะแนนดีที่สุด); ทุกวิชา: คอลัมน์ = วิชา (คะแนนเฉลี่ย)
+    if ($subjectId) {
+        $columns = $db->all("SELECT game_id AS id, name, icon FROM games
+                             WHERE subject_id=? AND is_active=TRUE ORDER BY game_id", [$subjectId], 'i');
+        $cells = $db->all(
+            "SELECT sc.student_id, sc.game_id AS col, MAX(sc.score) AS val
+             FROM scores sc JOIN students st ON st.student_id = sc.student_id
+             JOIN games g ON g.game_id = sc.game_id AND g.subject_id = ?
+             WHERE st.classroom_id = ? GROUP BY sc.student_id, sc.game_id",
+            [$subjectId, $classroomId], 'ii');
+    } else {
+        $columns = $db->all("SELECT subject_id AS id, name, icon FROM subjects ORDER BY order_no");
+        $cells = $db->all(
+            "SELECT sc.student_id, g.subject_id AS col, ROUND(AVG(sc.score)) AS val
+             FROM scores sc JOIN students st ON st.student_id = sc.student_id
+             JOIN games g ON g.game_id = sc.game_id
+             WHERE st.classroom_id = ? GROUP BY sc.student_id, g.subject_id",
+            [$classroomId], 'i');
+    }
+    DB::ok(['columns' => $columns, 'cells' => $cells, 'students' => $students,
+            'attention_rule' => ['min_score' => ATTENTION_MIN_SCORE, 'inactive_days' => ATTENTION_INACTIVE_DAYS]]);
+}
+
 function jsonEncodeSafe(array $data): string {
     return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
@@ -768,6 +859,8 @@ match ($action) {
     'choose_classroom' => handleChooseClassroom(),
     'teacher_assignments'      => handleTeacherAssignments(),
     'save_teacher_assignments' => handleSaveTeacherAssignments(),
+    'teacher_class_summary'    => handleTeacherClassSummary(),
+    'teacher_gradebook'        => handleTeacherGradebook(),
     'save_lesson'     => handleSaveLessonV2(),
     'lesson_history'  => handleLessonHistory(),
     'delete_lesson'   => handleDeleteLesson(),
