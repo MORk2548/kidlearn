@@ -6,16 +6,17 @@
 //   emptyQuestion()         คำถามว่างสำหรับปุ่ม "เพิ่มข้อ"
 //   editorHtml(q)           ช่องกรอกของคำถามหนึ่งข้อ
 //   readEditor(root)        อ่านช่องกรอกกลับเป็นคำถาม
-//   render(q, root, done)   หน้าเล่นคำถามหนึ่งข้อ ตอบเสร็จเรียก done({ correct, total })
-//                           total คือจำนวนจุดที่ให้คะแนนในข้อนั้น คะแนนเกม = ผลรวม correct / ผลรวม total
+//   points(q)               จำนวนจุดที่ให้คะแนนในข้อนั้น (ข้อแบบเลือกตอบ = 1, จับคู่ = จำนวนคู่)
+//   render(q, root, done)   หน้าเล่นคำถามหนึ่งข้อ ตอบเสร็จเรียก done(จำนวนจุดที่ถูก)
+//                           คะแนนเกม = จุดที่ถูกทั้งหมด / points ของทุกข้อ × 100
 
 function _gtEsc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function _gtTextField(label, key, value, placeholder = '') {
-  return `<div class="fg"><label class="fl">${label}</label>
-    <input class="fc" data-k="${key}" value="${_gtEsc(value)}" placeholder="${_gtEsc(placeholder)}"></div>`;
+  return `<label class="fg" style="display:block"><span class="fl">${label}</span>
+    <input class="fc" data-k="${key}" value="${_gtEsc(value)}" placeholder="${_gtEsc(placeholder)}"></label>`;
 }
 
 // radio ของแต่ละข้อต้องมี name ไม่ซ้ำกัน ไม่อย่างนั้นทุกข้อในหน้าจะเป็นกลุ่มเดียวกัน
@@ -34,7 +35,7 @@ function _gtFinishChoice(root, picked, correctBtn, done) {
   root.querySelectorAll('button').forEach(b => { b.disabled = true; });
   correctBtn.classList.add('ok');
   if (picked !== correctBtn) picked.classList.add('no');
-  done({ correct: picked === correctBtn ? 1 : 0, total: 1 });
+  done(picked === correctBtn ? 1 : 0);
 }
 
 const GAME_TYPES = {
@@ -42,6 +43,7 @@ const GAME_TYPES = {
     label: 'ตอบคำถามสี่ตัวเลือก',
     icon: '🔤',
     desc: 'โจทย์ 1 ข้อ มี 4 ตัวเลือก ถูก 1 ข้อ',
+    points: () => 1,
     emptyQuestion: () => ({ text: '', choices: ['', '', '', ''], correct: null, explanation: '' }),
     editorHtml(q) {
       const name = _gtRadioName();
@@ -84,6 +86,7 @@ const GAME_TYPES = {
     label: 'ถูกหรือผิด',
     icon: '⭕',
     desc: 'ข้อความ 1 ข้อ ให้ตอบว่าถูกหรือผิด',
+    points: () => 1,
     emptyQuestion: () => ({ text: '', answer: null, explanation: '' }),
     editorHtml(q) {
       const name = _gtRadioName();

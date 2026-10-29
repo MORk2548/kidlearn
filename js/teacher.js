@@ -378,16 +378,20 @@ function _renderTcTabs(){
   if(!wrap)return;
   wrap.innerHTML=`
     <button class="rec-tab${A.tcTab==='scores'?' active':''}"  onclick="switchTcTab('scores')">คะแนนนักเรียน</button>
+    <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">เกมของฉัน</button>
     <button class="rec-tab${A.tcTab==='plans'?' active':''}"   onclick="switchTcTab('plans')">แผนรายสัปดาห์</button>`;
   const scorePanel=document.getElementById('tc-score-panel');
+  const gamePanel=document.getElementById('tc-game-panel');
   const planPanel=document.getElementById('tc-plan-panel');
   if(scorePanel) scorePanel.style.display=A.tcTab==='scores'?'block':'none';
+  if(gamePanel) gamePanel.style.display=A.tcTab==='games'?'block':'none';
   if(planPanel) planPanel.style.display=A.tcTab==='plans'?'block':'none';
 }
 
 function switchTcTab(tab){
   A.tcTab=tab;
   _renderTcTabs();
+  if(tab==='games') loadGameBuilder();
   if(tab==='plans') renderTcPlanPanel();
 }
 
