@@ -5,22 +5,12 @@
 let _ofUsers = [];
 let _ofFilter = 'all';
 let _ofDateRange = 'all';
-let _ofTab = 'users'; // 'users' | 'lessons' | 'games'
 
 function _renderOfficerPanel(){
   const panel = document.getElementById('of-dashboard');
   if(!panel) return;
-  panel.innerHTML = `
-    <div class="rec-tabs" style="margin:0 0 1rem">
-      <button class="rec-tab${_ofTab==='users'?' active':''}" onclick="_ofSwitchTab('users')">👥 จัดการผู้ใช้</button>
-      <button class="rec-tab${_ofTab==='lessons'?' active':''}" onclick="_ofSwitchTab('lessons')">📝 แก้ไขบทเรียน</button>
-      <button class="rec-tab${_ofTab==='games'?' active':''}" onclick="_ofSwitchTab('games')">🎮 แก้ไขเกม</button>
-    </div>
-    <div id="of-tab-users"  style="display:${_ofTab==='users'?'block':'none'}"></div>
-    <div id="of-tab-lessons" style="display:${_ofTab==='lessons'?'block':'none'}"></div>
-    <div id="of-tab-games"  style="display:${_ofTab==='games'?'block':'none'}"></div>
-  `;
-  _ofRenderCurrentTab();
+  panel.innerHTML = '<div id="of-tab-users"></div>';
+  _ofRenderUsersTab();
 }
 
 
@@ -352,28 +342,6 @@ async function ofSubmitCreateStaff() {
     msg.innerHTML = `<span style="color:#EF4444">❌ ${res.error || 'สร้างไม่สำเร็จ'}</span>`;
   }
 }
-// ════════ TAB RENDERING ════════
-function _ofSwitchTab(tab) {
-  _ofTab = tab;
-  _renderOfficerPanel();
-}
-
-function _ofRenderCurrentTab() {
-  if (_ofTab === 'users') {
-    _ofRenderUsersTab();
-  } else if (_ofTab === 'lessons') {
-    const t = document.getElementById('of-tab-lessons');
-    if (!t) return;
-    t.innerHTML = '<div id="of-lesson-panel" style="display:block"></div>';
-    _renderLessonEditorIn('of-lesson-panel');
-  } else if (_ofTab === 'games') {
-    const t = document.getElementById('of-tab-games');
-    if (!t) return;
-    t.innerHTML = '<div id="of-game-panel" style="display:block"></div>';
-    _renderGameEditorIn('of-game-panel');
-  }
-}
-
 function _ofRenderUsersTab() {
   const wrap = document.getElementById('of-tab-users');
   if (!wrap) return;

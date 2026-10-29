@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════
 // HISTORY — ปุ่มย้อนกลับของเบราว์เซอร์กลับไปหน้าก่อนหน้าในแอป
-// state: { sec, sub?, lesson? }
+// state: { sec }
 // ══════════════════════════════════════════════════════
 let _navRestoring = false;
 
@@ -18,13 +18,9 @@ function navPush(state) {
 window.addEventListener('popstate', e => {
   const s = e.state;
   if (!s) return;
-  clearInterval(A.tmr);
   _navRestoring = true;
   try {
-    // เกมที่เล่นค้างไว้กู้คืนไม่ได้ จึงกลับไปหน้ารายการเกมของวิชานั้นแทน
-    if (s.sub) openSub(s.sub);
-    if (s.lesson) openGameContent(s.lesson);
-    if (!s.sub) sec(s.sec === 'game' ? 'home' : s.sec);
+    sec(s.sec);
   } finally {
     _navRestoring = false;
   }
@@ -33,18 +29,10 @@ window.addEventListener('popstate', e => {
 function sec(name, state = { sec: name }) {
   navPush(state);
   // ซ่อนทุก section รวมถึง s-lessons และ s-content
-  ['home','subs','games','game','scores','rec','children','teach','officer','executive','admin','profile'].forEach(s => {
+  ['home','scores','rec','children','teach','officer','executive','admin','profile'].forEach(s => {
     const e = document.getElementById('s-' + s);
     if (e) e.style.display = 'none';
   });
-  // ซ่อน lesson page เมื่อสลับแท็บ
-  ['s-lessons','s-content'].forEach(id => {
-    const e = document.getElementById(id);
-    if (e) e.style.display = 'none';
-  });
-  // ปิด modal ด้วย
-  const gm = document.getElementById('gmodal');
-  if (gm) gm.classList.remove('show');
 
   const el = document.getElementById('s-' + name);
   if (el) el.style.display = 'block';
@@ -57,7 +45,6 @@ function sec(name, state = { sec: name }) {
   });
 
   if (name === 'home')     loadHome();
-  if (name === 'subs')     loadSubs();
   if (name === 'scores')   loadScores();
   if (name === 'rec')      loadRec();
   if (name === 'children') loadChildren();
@@ -84,10 +71,8 @@ function applyRoleUI() {
   const isOf = u.role === 'officer';
   const isEx = u.role === 'executive';
   const isAd = u.role === 'admin';
-  const isSt = u.role === 'student';
 
   // Sidebar
-  document.getElementById('sl-subs').style.display      = isSt ? 'flex' : 'none';
   document.getElementById('sl-rec').style.display       = isPa ? 'flex'  : 'none';
   document.getElementById('sl-children').style.display  = isPa ? 'flex'  : 'none';
   document.getElementById('sl-teach').style.display     = isTc ? 'flex'  : 'none';
@@ -103,8 +88,6 @@ function applyRoleUI() {
   const bnChildren = document.getElementById('bn-children');
   const bnTeach    = document.getElementById('bn-teach');
   const bnScores   = document.getElementById('bn-scores');
-  const bnSubs     = document.getElementById('bn-subs');
-  if (bnSubs)     bnSubs.style.display      = isSt ? 'flex' : 'none';
   if (bnRec)      bnRec.style.display      = isPa ? 'flex' : 'none';
   if (bnChildren) bnChildren.style.display = isPa ? 'flex' : 'none';
   if (bnTeach)    bnTeach.style.display    = isTc ? 'flex' : 'none';

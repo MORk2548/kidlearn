@@ -196,7 +196,6 @@ async function _loadReports(){
     ['summary','ภาพรวม'],
     ['by_subject','รายวิชา'],
     ['by_student','รายนักเรียน'],
-    ['by_game','รายเกม'],
     ['daily','รายวัน'],
     ['engagement','Engagement'],
     ['at_risk','At Risk'],
@@ -214,7 +213,7 @@ async function _loadReports(){
 function switchReportTab(t){
   A.reportTab=t;
   document.querySelectorAll('#adm-report-panel .child-btn').forEach((b,i)=>{
-    const labels=['summary','by_subject','by_student','by_game','daily','engagement','at_risk','mastery','plans','notifications'];
+    const labels=['summary','by_subject','by_student','daily','engagement','at_risk','mastery','plans','notifications'];
     b.classList.toggle('active', labels[i]===t);
   });
   _renderReport(t);
@@ -259,18 +258,6 @@ async function _renderReport(type){
         <td style="padding:.6rem .75rem">${s.last_active?new Date(s.last_active).toLocaleDateString('th-TH'):'-'}</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>นักเรียน</th><th style="text-align:center">ชั้น</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th><th>ล่าสุด</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-    return;
-  }
-  if(type==='by_game'){
-    const rows=(res.games||[]).map(g=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
-        <td style="padding:.6rem .75rem;font-weight:600">${g.game_name}</td>
-        <td style="padding:.6rem .75rem">${g.subject_name}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${g.game_type}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${g.total_plays||0}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+g.avg_score||0)}%</td>
-      </tr>`).join('');
-    el.innerHTML=`<div class="tw"><table><thead><tr><th>เกม</th><th>วิชา</th><th style="text-align:center">ประเภท</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     return;
   }
   if(type==='daily'){

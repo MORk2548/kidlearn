@@ -18,11 +18,11 @@ The site is served at `http://localhost:8080`; check API availability at `/api/b
 
 ## Coding Style & Naming
 
-Follow the surrounding file conventions: keep frontend code in the existing plain JavaScript modules, use descriptive camelCase names for JavaScript functions and variables, and use clear snake_case for PHP functions/variables where already established. Indent consistently with nearby code (JavaScript and PHP generally use four spaces). Keep game logic in `js/game.js`, API calls in `js/api.js`, and database operations in the backend rather than duplicating them in page scripts. Use lowercase, descriptive filenames, preserving existing names when editing.
+Follow the surrounding file conventions: keep frontend code in the existing plain JavaScript modules, use descriptive camelCase names for JavaScript functions and variables, and use clear snake_case for PHP functions/variables where already established. Indent consistently with nearby code (JavaScript and PHP generally use four spaces). Keep API calls in `js/api.js`, and database operations in the backend rather than duplicating them in page scripts. Use lowercase, descriptive filenames, preserving existing names when editing.
 
 ## Testing Guidelines
 
-No unit test framework or coverage requirement is configured. For API or database changes, run the smoke check and verify the health endpoint. For UI/game changes, open the affected page in a browser and exercise the changed flow, including a narrow viewport when layout is affected. Include reproducible verification steps in your change description.
+No unit test framework or coverage requirement is configured. For API or database changes, run the smoke check and verify the health endpoint. For UI changes, open the affected page in a browser and exercise the changed flow, including a narrow viewport when layout is affected. Include reproducible verification steps in your change description.
 
 ## Commits and Pull Requests
 

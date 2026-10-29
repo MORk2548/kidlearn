@@ -3,11 +3,7 @@
 // ══════════════════════════════════════════════════════
 let A = {
   user: null, role: '', selRole: 'student',
-  curSub: null, curGame: null, gs: {}, tmr: null,
   selChild: null, tcStudent: null,
-  pendingGame: null, curLessonNo: 1,
-  progCache: null,   // { subId: pct } — cache progress bar
-  progDirty: true,   // true = ต้อง fetch ใหม่
 };
 
 function showAl(id, msg) {

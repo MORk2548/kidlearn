@@ -2,7 +2,6 @@
 
 let _exTab = 'dashboard';
 let _exCache = null;
-let _exLessonDetail = null;
 let _exDateRange = 'all';
 
 function exSelectTab(tab) {
@@ -33,17 +32,6 @@ function _exDateRangeFilter() {
   </label>`;
 }
 
-function exOpenLesson(contentId) {
-  if (!_exCache?.lessons?.length) return;
-  _exLessonDetail = _exCache.lessons.find(item => +item.content_id === +contentId) || null;
-  _renderExecutivePanel();
-}
-
-function exCloseLesson() {
-  _exLessonDetail = null;
-  _renderExecutivePanel();
-}
-
 function _exScoreColor(pct) {
   if (pct >= 80) return '#16A34A';
   if (pct >= 60) return '#D97706';
@@ -68,20 +56,16 @@ function _exEmptyState(message) {
 async function _exLoadAllData() {
   if (_exCache) return _exCache;
 
-  const [dashboard, users, scores, lessons, questions] = await Promise.all([
+  const [dashboard, users, scores] = await Promise.all([
     apiExecutiveDashboard(_exDateRange).catch(() => ({ ok: false })),
     apiExecutiveUsers(_exDateRange).catch(() => ({ ok: false, users: [] })),
-    apiExecutiveContent('scores', _exDateRange).catch(() => ({ ok: false, scores: [] })),
-    apiExecutiveContent('lessons').catch(() => ({ ok: false, lessons: [] })),
-    apiExecutiveContent('questions').catch(() => ({ ok: false, questions: [] }))
+    apiExecutiveContent('scores', _exDateRange).catch(() => ({ ok: false, scores: [] }))
   ]);
 
   _exCache = {
     dashboard: dashboard.ok ? dashboard : { total_students: 0, total_teachers: 0, total_plays: 0, avg_score: 0 },
     users: users.ok ? (users.users || []) : [],
-    scores: scores.ok ? (scores.scores || []) : [],
-    lessons: lessons.ok ? (lessons.lessons || []) : [],
-    questions: questions.ok ? (questions.questions || []) : []
+    scores: scores.ok ? (scores.scores || []) : []
   };
 
   return _exCache;
@@ -89,7 +73,6 @@ async function _exLoadAllData() {
 
 function _exTopSummary(data) {
   const scores = data.scores || [];
-  const lessons = data.lessons || [];
   const lowScores = scores.filter(item => {
     const maxScore = +item.max_score || 100;
     return Math.round(((+item.score || 0) / maxScore) * 100) < 60;
@@ -122,18 +105,12 @@ function _exTopSummary(data) {
         <div class="ex-stat-value">${lowScores}</div>
         <div class="ex-stat-label">คะแนนต่ำกว่า 60%</div>
       </div>
-      <div class="ex-stat-card">
-        <div class="ex-stat-icon" style="background:#EDE9FE;color:#6D28D9">📖</div>
-        <div class="ex-stat-value">${lessons.length}</div>
-        <div class="ex-stat-label">บทเรียนทั้งหมด</div>
-      </div>
     </div>
   `;
 }
 
 function _exRenderDashboard(data) {
   const topScores = data.scores.slice(0, 6);
-  const recentLessons = data.lessons.slice(0, 4);
 
   return `
     <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem">${_exDateRangeFilter()}</div>
@@ -167,26 +144,6 @@ function _exRenderDashboard(data) {
             }).join('')}
           </div>
         ` : _exEmptyState('ยังไม่มีข้อมูลคะแนน')}
-      </div>
-      <div class="ex-surface">
-        <div class="ex-section-head">
-          <div>
-            <div class="ex-section-title">บทเรียนที่มีในระบบ</div>
-            <div class="ex-section-sub">กดเปิดดูรายละเอียดได้ทันที</div>
-          </div>
-          <button class="ex-link-btn" onclick="exSelectTab('lessons')">ดูบทเรียน</button>
-        </div>
-        ${recentLessons.length ? `
-          <div class="ex-list">
-            ${recentLessons.map(lesson => `
-              <button class="ex-lesson-card" onclick="exOpenLesson(${lesson.content_id})">
-                <div class="ex-item-title">${lesson.title || 'ไม่มีชื่อบทเรียน'}</div>
-                <div class="ex-item-sub">${lesson.subject_icon || '📚'} ${lesson.subject_name || '-'} · ${lesson.game_name || '-'} · บทที่ ${lesson.lesson_no || 1}</div>
-                <div class="ex-note" style="margin-top:.45rem">${lesson.summary || 'ไม่มีสรุปบทเรียน'}</div>
-              </button>
-            `).join('')}
-          </div>
-        ` : _exEmptyState('ยังไม่มีข้อมูลบทเรียน')}
       </div>
     </div>
   `;
@@ -274,100 +231,9 @@ function _exRenderScores(data) {
   `;
 }
 
-function _exRenderLessons(data) {
-  return `
-    <div style="display:grid;grid-template-columns:minmax(320px,1.1fr) minmax(380px,1.4fr);gap:1rem">
-      <div class="ex-surface">
-        <div class="ex-section-head">
-          <div>
-            <div class="ex-section-title">รายการบทเรียน</div>
-            <div class="ex-section-sub">เลือกบทเรียนเพื่อดูเนื้อหาด้านขวา</div>
-          </div>
-        </div>
-        ${data.lessons.length ? `
-          <div class="ex-list">
-            ${data.lessons.map(lesson => {
-              const active = _exLessonDetail && +_exLessonDetail.content_id === +lesson.content_id;
-              return `
-                <button class="ex-lesson-card${active ? ' active' : ''}" onclick="exOpenLesson(${lesson.content_id})">
-                  <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start">
-                    <div>
-                      <div class="ex-item-title">${lesson.title || 'ไม่มีชื่อบทเรียน'}</div>
-                      <div class="ex-item-sub">${lesson.subject_icon || '📚'} ${lesson.subject_name || '-'} · ${lesson.game_name || '-'} · บทที่ ${lesson.lesson_no || 1}</div>
-                    </div>
-                    <span class="ex-role-pill" style="${_exBadgeStyle('blue')}">${lesson.read_time || 0} นาที</span>
-                  </div>
-                  <div class="ex-note" style="margin-top:.5rem">${lesson.summary || 'ไม่มีสรุปบทเรียน'}</div>
-                  <div class="ex-note" style="margin-top:.3rem">แก้ไขล่าสุด ${formatDateTimeTH(lesson.updated_at)}</div>
-                </button>
-              `;
-            }).join('')}
-          </div>
-        ` : _exEmptyState('ยังไม่มีข้อมูลบทเรียน')}
-      </div>
-      <div class="ex-surface">
-        <div class="ex-section-head">
-          <div>
-            <div class="ex-section-title">รายละเอียดบทเรียน</div>
-            <div class="ex-section-sub">เนื้อหาเต็มสำหรับการตรวจสอบโดยผู้บริหาร</div>
-          </div>
-          ${_exLessonDetail ? `<button class="ex-link-btn" onclick="exCloseLesson()">ปิด</button>` : ''}
-        </div>
-        ${_exLessonDetail ? `
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-            <span class="ex-role-pill" style="${_exBadgeStyle('blue')}">${_exLessonDetail.subject_icon || '📚'} ${_exLessonDetail.subject_name || '-'}</span>
-            <span class="ex-role-pill" style="${_exBadgeStyle('amber')}">${_exLessonDetail.game_name || '-'}</span>
-            <span class="ex-role-pill" style="${_exBadgeStyle('green')}">บทที่ ${_exLessonDetail.lesson_no || 1}</span>
-          </div>
-          <div style="font-weight:800;font-size:1.05rem;color:#0F172A;margin-bottom:.5rem">${_exLessonDetail.title || 'ไม่มีชื่อบทเรียน'}</div>
-          <div style="font-size:.9rem;color:#475569;line-height:1.7;margin-bottom:1rem">${_exLessonDetail.summary || 'ไม่มีสรุปบทเรียน'}</div>
-          <div class="ex-note" style="margin-bottom:.75rem">แก้ไขล่าสุด ${formatDateTimeTH(_exLessonDetail.updated_at)}</div>
-          <div class="ex-lesson-body">${(_exLessonDetail.body || 'ไม่มีเนื้อหาบทเรียน').replace(/\n/g, '<br>')}</div>
-        ` : _exEmptyState('เลือกบทเรียนจากรายการด้านซ้ายเพื่อดูรายละเอียด')}
-      </div>
-    </div>
-  `;
-}
-
-function _exRenderQuestions(data) {
-  return `
-    <div class="ex-surface">
-      <div class="ex-section-head">
-        <div>
-          <div class="ex-section-title">คำถามและคำตอบเกม</div>
-          <div class="ex-section-sub">คำตอบที่มี [correct] คือคำตอบที่ระบบกำหนดว่าถูกต้อง</div>
-        </div>
-      </div>
-      ${data.questions.length ? `
-        <div class="ex-table-wrap">
-          <table class="ex-table">
-            <thead>
-              <tr><th>วิชา</th><th>เกม</th><th style="text-align:center">ลำดับ</th><th>คำถาม</th><th>คำตอบ</th><th>แก้ไขล่าสุด</th></tr>
-            </thead>
-            <tbody>
-              ${data.questions.map(question => `
-                <tr>
-                  <td>${question.subject_icon || '📚'} ${question.subject_name || '-'}</td>
-                  <td>${question.game_name || '-'}</td>
-                  <td style="text-align:center">${question.order_no || '-'}</td>
-                  <td>${question.question_text || '-'}</td>
-                  <td>${question.answers_summary || '-'}</td>
-                  <td style="white-space:nowrap">${formatDateTimeTH(question.updated_at)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      ` : _exEmptyState('ยังไม่มีข้อมูลคำถามเกม')}
-    </div>
-  `;
-}
-
 function _exBuildPanelHtml(data) {
   if (_exTab === 'users') return _exRenderUsers(data);
   if (_exTab === 'scores') return _exRenderScores(data);
-  if (_exTab === 'lessons') return _exRenderLessons(data);
-  if (_exTab === 'questions') return _exRenderQuestions(data);
   return _exRenderDashboard(data);
 }
 
@@ -446,17 +312,6 @@ function _renderExecutivePanel() {
         padding:.9rem .85rem; border-bottom:1px solid #EEF2F7; vertical-align:top; color:#0F172A;
       }
       .ex-table tr:hover td { background:#FBFDFF; }
-      .ex-lesson-card {
-        width:100%; border:1px solid #E5EEF9; background:#F8FBFF; border-radius:16px; padding:1rem;
-        text-align:left; cursor:pointer; transition:.18s ease;
-      }
-      .ex-lesson-card:hover, .ex-lesson-card.active {
-        background:#FFFFFF; border-color:#BFDBFE; box-shadow:0 12px 24px rgba(59,130,246,.10);
-      }
-      .ex-lesson-body {
-        background:#FAFCFF; border:1px solid #E5EEF9; border-radius:16px; padding:1rem 1.05rem;
-        color:#334155; line-height:1.8; font-size:.9rem; white-space:normal; word-break:break-word;
-      }
       @media (max-width: 980px) {
         .ex-hero { flex-wrap:wrap; }
       }
@@ -470,7 +325,7 @@ function _renderExecutivePanel() {
         <div class="ex-hero-icon">💼</div>
         <div style="flex:1">
           <div class="ex-hero-title">แผงผู้บริหาร</div>
-          <div class="ex-hero-sub">ดูภาพรวมระบบ คะแนนนักเรียน เนื้อหาบทเรียน และคำถามคำตอบเกมในหน้าที่อ่านง่ายขึ้น</div>
+          <div class="ex-hero-sub">ดูภาพรวมระบบ คะแนนนักเรียนในหน้าที่อ่านง่ายขึ้น</div>
         </div>
         <button class="ex-toolbar-btn" onclick="exReload()">รีโหลด</button>
       </div>
@@ -479,8 +334,6 @@ function _renderExecutivePanel() {
         <button class="ex-tab-btn ${_exTab === 'dashboard' ? 'active' : ''}" onclick="exSelectTab('dashboard')">📊 ภาพรวม</button>
         <button class="ex-tab-btn ${_exTab === 'users' ? 'active' : ''}" onclick="exSelectTab('users')">👥 ผู้ใช้</button>
         <button class="ex-tab-btn ${_exTab === 'scores' ? 'active' : ''}" onclick="exSelectTab('scores')">🏆 คะแนน</button>
-        <button class="ex-tab-btn ${_exTab === 'lessons' ? 'active' : ''}" onclick="exSelectTab('lessons')">📖 บทเรียน</button>
-        <button class="ex-tab-btn ${_exTab === 'questions' ? 'active' : ''}" onclick="exSelectTab('questions')">❓ คำถามเกม</button>
       </div>
 
       <div id="ex-body" style="display:grid;gap:1rem">
@@ -493,9 +346,6 @@ function _renderExecutivePanel() {
   if (!body) return;
 
   _exLoadAllData().then(data => {
-    if (_exLessonDetail) {
-      _exLessonDetail = data.lessons.find(item => +item.content_id === +_exLessonDetail.content_id) || null;
-    }
     body.innerHTML = _exBuildPanelHtml(data);
   }).catch(err => {
     console.error('Error loading executive data:', err);

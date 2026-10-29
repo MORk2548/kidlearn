@@ -162,18 +162,6 @@ function accountDateFilter(string $column): array {
     return [" AND $column >= NOW() - INTERVAL '{$intervals[$range]}' AND $column <= NOW()", []];
 }
 
-function canEditContent(?array $content, bool $allowUnowned = false): bool {
-    if (!in_array(myRole(), ['teacher', 'admin', 'officer'], true)) return false;
-    if (myRole() !== 'teacher') return true;
-    $ownerId = (int)($content['created_by'] ?? 0);
-    if (!$ownerId) $ownerId = (int)($content['updated_by'] ?? 0);
-    return $content !== null && ($ownerId === myId() || ($allowUnowned && !$ownerId));
-}
-
-function requireContentOwner(?array $content, bool $allowUnowned = false): void {
-    if (!canEditContent($content, $allowUnowned)) DB::fail('แก้ไขได้เฉพาะเนื้อหาที่คุณเป็นเจ้าของ', 403);
-}
-
 function csrfToken(): string {
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -200,10 +188,10 @@ function enforceRequestPolicy(string $action, array $body): void {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $postActions = [
         'login', 'logout', 'register', 'update_profile', 'change_password',
-        'save_score', 'auto_link', 'unlink_child', 'mark_notif_read',
-        'save_lesson', 'delete_lesson', 'save_game_settings', 'create_plan',
+        'auto_link', 'unlink_child', 'mark_notif_read',
+        'create_plan',
         'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
-        'save_subject', 'toggle_subject', 'save_question', 'delete_question',
+        'save_subject', 'toggle_subject',
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
         'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
@@ -248,10 +236,6 @@ function addColumnIfMissing(string $table, string $column, string $definition): 
     if (tableColumnExists($table, $column)) return;
     $definition = normalizeColumnDefinition($definition);
     DB::get()->rawQuery("ALTER TABLE {$table} ADD COLUMN IF NOT EXISTS {$column} {$definition}");
-}
-
-function ensureQuestionImageColumnCapacity(): void {
-    // PostgreSQL text columns do not need the MySQL MEDIUMTEXT upgrade path.
 }
 
 function ensureAdvancedSchema(): void {
@@ -384,19 +368,6 @@ function ensureAdvancedSchema(): void {
     addColumnIfMissing('lesson_content', 'approved_by', "INT DEFAULT NULL AFTER updated_by");
     addColumnIfMissing('lesson_content', 'published_at', "DATETIME DEFAULT NULL AFTER approved_by");
     addColumnIfMissing('parent_notifications', 'event_key', "VARCHAR(80) DEFAULT NULL AFTER notif_type");
-}
-
-function ensureGameQuestionBankSchema(): void {
-    static $done = false;
-    if ($done) return;
-    $done = true;
-
-    addColumnIfMissing('subjects', 'is_active', 'BOOLEAN NOT NULL DEFAULT TRUE');
-    addColumnIfMissing('games', 'is_active', 'BOOLEAN NOT NULL DEFAULT TRUE');
-    addColumnIfMissing('games', 'question_count', 'INT DEFAULT NULL');
-    addColumnIfMissing('answers', 'answer_img', 'TEXT DEFAULT NULL');
-    addColumnIfMissing('answers', 'pair_left_img', 'TEXT DEFAULT NULL');
-    addColumnIfMissing('answers', 'pair_right_img', 'TEXT DEFAULT NULL');
 }
 
 const CLASSROOM_GRADES = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'];
@@ -669,20 +640,6 @@ function jsonEncodeSafe(array $data): string {
     return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
-function arrayShuffleStable(array $rows): array {
-    if (count($rows) < 2) return array_values($rows);
-    $copy = array_values($rows);
-    shuffle($copy);
-    return $copy;
-}
-
-function arrayTakeRandom(array $rows, int $count): array {
-    $rows = array_values($rows);
-    if ($count <= 0 || count($rows) <= $count) return $rows;
-    shuffle($rows);
-    return array_slice($rows, 0, $count);
-}
-
 function logAudit(string $actionType, string $entityType, string $entityId = '', string $summary = '', array $meta = []): void {
     ensureAdvancedSchema();
     $db = DB::get();
@@ -691,77 +648,6 @@ function logAudit(string $actionType, string $entityType, string $entityId = '',
          VALUES (?,?,?,?,?,?,?)",
         [myId() ?: null, myRole() ?: null, $actionType, $entityType, $entityId ?: null, $summary ?: null, jsonEncodeSafe($meta)],
         'sssssss'
-    );
-}
-
-function inferSkillMeta(array $game): array {
-    $subjectId = (int)($game['subject_id'] ?? 0);
-    $gameName = mb_strtolower(trim((string)($game['name'] ?? '')), 'UTF-8');
-
-    $map = [
-        1 => ['key' => 'math_foundation', 'name' => 'พื้นฐานคณิตศาสตร์'],
-        2 => ['key' => 'science_concepts', 'name' => 'แนวคิดวิทยาศาสตร์'],
-        3 => ['key' => 'thai_language', 'name' => 'ภาษาไทย'],
-        4 => ['key' => 'english_language', 'name' => 'ภาษาอังกฤษ'],
-        5 => ['key' => 'social_studies', 'name' => 'สังคมศึกษา'],
-        6 => ['key' => 'health_education', 'name' => 'สุขศึกษา'],
-    ];
-
-    $skill = $map[$subjectId] ?? ['key' => 'general_learning', 'name' => 'ทักษะการเรียนรู้'];
-
-    $keywordMap = [
-        'บวก' => ['addition', 'การบวกเลข'],
-        'ลบ' => ['subtraction', 'การลบเลข'],
-        'เลข' => ['number_sense', 'ความเข้าใจจำนวน'],
-        'คำศัพท์' => ['vocabulary', 'คำศัพท์'],
-        'สะกด' => ['spelling', 'การสะกดคำ'],
-        'อ่าน' => ['reading', 'การอ่าน'],
-        'ประโยค' => ['sentence_building', 'การเรียงประโยค'],
-        'world search' => ['word_search', 'การค้นหาคำ'],
-        'english' => ['english_reading', 'การอ่านภาษาอังกฤษ'],
-        'วิทย์' => ['science_reasoning', 'การคิดเชิงวิทยาศาสตร์'],
-    ];
-
-    foreach ($keywordMap as $needle => $mapped) {
-        if ($gameName !== '' && mb_strpos($gameName, $needle, 0, 'UTF-8') !== false) {
-            return ['key' => $mapped[0], 'name' => $mapped[1]];
-        }
-    }
-
-    return $skill;
-}
-
-function upsertMastery(int $studentId, int $subjectId, string $skillKey, string $skillName, float $latestScore, int $attemptsCount, int $wrongCount): void {
-    ensureAdvancedSchema();
-    $db = DB::get();
-    $row = $db->one(
-        "SELECT mastery_id, mastery_score, weak_streak, strong_streak, attempts_count
-         FROM student_mastery WHERE student_id=? AND skill_key=?",
-        [$studentId, $skillKey], 'is'
-    );
-
-    if ($row) {
-        $prev = (float)$row['mastery_score'];
-        $newScore = round(($prev * 0.65) + ($latestScore * 0.35), 2);
-        $weakStreak = $latestScore < 60 ? ((int)$row['weak_streak'] + 1) : 0;
-        $strongStreak = $latestScore >= 85 ? ((int)$row['strong_streak'] + 1) : 0;
-        $db->run(
-            "UPDATE student_mastery
-             SET subject_id=?, skill_name=?, mastery_score=?, last_score=?, attempts_count=attempts_count+?,
-                 weak_streak=?, strong_streak=?, updated_at=NOW()
-             WHERE mastery_id=?",
-            [$subjectId, $skillName, $newScore, $latestScore, max(1, $attemptsCount), $weakStreak, $strongStreak, $row['mastery_id']],
-            'isddiiii'
-        );
-        return;
-    }
-
-    $db->run(
-        "INSERT INTO student_mastery
-         (student_id, subject_id, skill_key, skill_name, mastery_score, last_score, attempts_count, weak_streak, strong_streak)
-         VALUES (?,?,?,?,?,?,?,?,?)",
-        [$studentId, $subjectId, $skillKey, $skillName, $latestScore, $latestScore, max(1, $attemptsCount), $latestScore < 60 ? 1 : 0, $latestScore >= 85 ? 1 : 0],
-        'iissddiii'
     );
 }
 
@@ -784,44 +670,6 @@ function createParentNotification(int $studentId, string $title, string $message
     }
 }
 
-function awardBadge(int $studentId, string $badgeCode, string $title, string $description, array $meta = []): bool {
-    ensureAdvancedSchema();
-    $db = DB::get();
-    $exists = $db->one("SELECT badge_id FROM student_badges WHERE student_id=? AND badge_code=?", [$studentId, $badgeCode], 'is');
-    if ($exists) return false;
-    $db->run(
-        "INSERT INTO student_badges (student_id, badge_code, badge_title, description, meta_json)
-         VALUES (?,?,?,?,?)",
-        [$studentId, $badgeCode, $title, $description, jsonEncodeSafe($meta)],
-        'issss'
-    );
-    createParentNotification($studentId, 'ได้รับเหรียญใหม่', "เด็กได้รับเหรียญ \"$title\" แล้ว", 'praise', '🏅', 'badge_' . $badgeCode);
-    return true;
-}
-
-function recalcStudentBadges(int $studentId): void {
-    ensureAdvancedSchema();
-    $db = DB::get();
-    $summary = $db->one(
-        "SELECT COUNT(*) AS total_plays, MAX(score) AS best_score, COUNT(DISTINCT DATE(played_at)) AS active_days
-         FROM scores WHERE student_id=?",
-        [$studentId], 'i'
-    ) ?: ['total_plays' => 0, 'best_score' => 0, 'active_days' => 0];
-
-    if ((int)$summary['total_plays'] >= 1) {
-        awardBadge($studentId, 'first_steps', 'ก้าวแรกของนักเรียน', 'เริ่มเล่นและบันทึกคะแนนครั้งแรก');
-    }
-    if ((int)$summary['total_plays'] >= 5) {
-        awardBadge($studentId, 'five_sessions', 'นักฝึกประจำ', 'เล่นครบ 5 ครั้ง');
-    }
-    if ((int)$summary['best_score'] >= 100) {
-        awardBadge($studentId, 'perfect_score', 'คะแนนเต็ม 100', 'ทำคะแนนเต็มในเกมอย่างน้อย 1 ครั้ง');
-    }
-    if ((int)$summary['active_days'] >= 3) {
-        awardBadge($studentId, 'three_day_streak', 'สม่ำเสมอ 3 วัน', 'เข้าเรียนอย่างน้อย 3 วัน');
-    }
-}
-
 // ── ROUTER ────────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
 $body   = parseRequestBody();
@@ -841,10 +689,7 @@ match ($action) {
     'change_password' => handleChangePassword(),
     'upload_image'    => handleUploadImage(),
     'subjects'        => handleSubjects(),
-    'games'           => handleGames(),
-    'save_score'      => handleSaveScoreV2(),
     'scores'          => handleScores(),
-    'lesson_content'  => handleLessonContentV2(),
     'my_children'     => handleMyChildren(),
     'auto_link'       => handleAutoLink(),
     'unlink_child'    => handleUnlinkChild(),
@@ -861,10 +706,6 @@ match ($action) {
     'save_teacher_assignments' => handleSaveTeacherAssignments(),
     'teacher_class_summary'    => handleTeacherClassSummary(),
     'teacher_gradebook'        => handleTeacherGradebook(),
-    'save_lesson'     => handleSaveLessonV2(),
-    'lesson_history'  => handleLessonHistory(),
-    'delete_lesson'   => handleDeleteLesson(),
-    'save_game_settings' => handleSaveGameSettingsV2(),
     'student_analytics' => handleStudentAnalytics(),
     'student_plans'     => handleStudentPlansV2(),
     'create_plan'       => handleCreatePlanV3(),
@@ -877,11 +718,6 @@ match ($action) {
     // 3.0 subjects
     'save_subject'       => handleSaveSubject(),
     'toggle_subject'     => handleToggleSubject(),
-    // 4.0 game questions
-    'game_questions'     => handleGetGameQuestionsV2(),
-    'play_questions'     => handlePlayQuestionsV2(),
-    'save_question'      => handleSaveQuestionV2(),
-    'delete_question'    => handleDeleteQuestion(),
     // 8.0 reports
     'report'             => handleReportV2(),
     // forgot/reset password
@@ -1136,8 +972,7 @@ function storageUploadImage(string $path, string $bytes, string $mime): string {
 function handleUploadImage(): never {
     global $body;
     auth();
-    $purpose = ($body['purpose'] ?? '') === 'avatar' ? 'avatar' : 'content';
-    if ($purpose === 'content') authRole('teacher', 'admin', 'officer');
+    $purpose = 'avatar';
 
     if (!preg_match('#^data:image/[\w.+-]+;base64,(.+)$#s', (string)($body['data_url'] ?? ''), $m)) {
         DB::fail('ไฟล์รูปภาพไม่ถูกต้อง', 400);
@@ -1160,10 +995,8 @@ function handleUploadImage(): never {
          VALUES (?,?,?,?,?,?) RETURNING image_id",
         [IMAGE_BUCKET, $path, mb_substr((string)($body['filename'] ?? ''), 0, 255), $mime, strlen($bytes), $id]
     );
-    if ($purpose === 'avatar') {
-        $db->run("UPDATE users SET avatar_url=? WHERE user_id=?", [$url, $id], 'si');
-        $_SESSION['user']['avatar_url'] = $url;
-    }
+    $db->run("UPDATE users SET avatar_url=? WHERE user_id=?", [$url, $id], 'si');
+    $_SESSION['user']['avatar_url'] = $url;
     DB::ok(['url' => $url, 'image_id' => $asset['image_id'] ?? null]);
 }
 
@@ -1208,189 +1041,12 @@ function handleChangePassword(): never {
 }
 
 // ============================================================
-// GAME / SCORES
+// SCORES
 // ============================================================
 
 function handleSubjects(): never {
     auth();
     DB::ok(['subjects' => DB::get()->all("SELECT * FROM subjects ORDER BY order_no")]);
-}
-
-function handleGames(): never {
-    auth();
-    $sid = (int)($_GET['subject_id'] ?? 0);
-    if (!$sid) DB::fail('ต้องส่ง subject_id', 400);
-    DB::ok(['games' => DB::get()->all(
-        "SELECT * FROM games WHERE subject_id=? AND is_active=TRUE ORDER BY game_id", [$sid], 'i'
-    )]);
-}
-
-function handleSaveScoreV2(): never {
-    global $body;
-    auth();
-    $db = DB::get();
-
-    $gameId    = (int)($body['game_id'] ?? 0);
-    $score     = (int)($body['score'] ?? 0);
-    $timeSpent = (int)($body['time_spent'] ?? 0);
-    $lessonNo  = (int)($body['lesson_no'] ?? 1);
-    $attempts  = is_array($body['attempts'] ?? null) ? $body['attempts'] : [];
-    if ($lessonNo < 1 || $lessonNo > 6) $lessonNo = 1;
-    if ($score < 0 || $score > 100) DB::fail('คะแนนต้องอยู่ระหว่าง 0-100', 400);
-
-    $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
-    if (!$st) DB::fail('ต้องเป็นนักเรียนเท่านั้น', 403);
-    $studentId = (int)$st['student_id'];
-    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
-
-    $db->run(
-        "INSERT INTO scores (student_id,game_id,lesson_no,score,time_spent) VALUES (?,?,?,?,?)",
-        [$studentId, $gameId, $lessonNo, $score, $timeSpent],
-        'iiiii'
-    );
-    $scoreId = $db->insertId();
-
-    $game = $db->one("SELECT game_id, subject_id, name, game_type FROM games WHERE game_id=?", [$gameId], 'i');
-
-    $skillMeta = inferSkillMeta($game ?: []);
-    $correctCount = 0;
-
-    foreach ($attempts as $idx => $attempt) {
-        if (!is_array($attempt)) continue;
-        $isCorrect = !empty($attempt['is_correct']) ? 1 : 0;
-        $correctCount += $isCorrect;
-        $db->run(
-            "INSERT INTO score_attempt_details
-             (score_id, student_id, game_id, subject_id, skill_key, skill_name, question_key, prompt_text, correct_answer, student_answer, is_correct)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            [
-                $scoreId,
-                $studentId,
-                $gameId,
-                (int)($game['subject_id'] ?? 0),
-                trim((string)($attempt['skill_key'] ?? $skillMeta['key'])),
-                trim((string)($attempt['skill_name'] ?? $skillMeta['name'])),
-                trim((string)($attempt['question_key'] ?? ('q' . ($idx + 1)))),
-                trim((string)($attempt['prompt'] ?? '')),
-                trim((string)($attempt['correct_answer'] ?? '')),
-                trim((string)($attempt['student_answer'] ?? '')),
-                $isCorrect
-            ],
-            'iiiissssssi'
-        );
-    }
-
-    if ($game) {
-        $latestSkillScore = count($attempts) > 0
-            ? round(($correctCount / max(1, count($attempts))) * 100, 2)
-            : (float)$score;
-        upsertMastery(
-            $studentId,
-            (int)$game['subject_id'],
-            $skillMeta['key'],
-            $skillMeta['name'],
-            $latestSkillScore,
-            count($attempts),
-            max(0, count($attempts) - $correctCount)
-        );
-    }
-
-    recalcStudentBadges($studentId);
-    logAudit('score_saved', 'score', (string)$scoreId, 'บันทึกผลการเล่นเกม', [
-        'student_id' => $studentId,
-        'game_id' => $gameId,
-        'lesson_no' => $lessonNo,
-        'score' => $score,
-        'attempt_count' => count($attempts),
-    ]);
-
-    try { generateRecommendationsV2($studentId, myId()); } catch (Exception $e) {}
-    try { refreshStudentNotifications($studentId); } catch (Exception $e) {}
-
-    DB::ok(['score_id' => $scoreId, 'score' => $score]);
-}
-
-// ── ดึงเนื้อหาบทเรียน (GET ?action=lesson_content&game_id=X&lesson_no=Y) ──
-function handleLessonContent(): never {
-    // soft auth — ถ้า session หมดยังดึงเนื้อหาได้ (เนื้อหาเป็น public)
-    $db       = DB::get();
-    $gameId   = (int)($_GET['game_id']   ?? 0);
-    $lessonNo = (int)($_GET['lesson_no'] ?? 0);
-
-    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
-
-    // ดึงทุกบทของเกมนั้น (ไม่ระบุ lesson_no) หรือบทเดียว
-    if ($lessonNo) {
-        $content = $db->one(
-            "SELECT content_id, game_id, lesson_no, title, body, summary, read_time, created_by, updated_by, updated_at
-             FROM lesson_content
-             WHERE game_id=? AND lesson_no=?
-             LIMIT 1",
-            [$gameId, $lessonNo], 'ii'
-        );
-        if (!$content) {
-            DB::ok(['content' => null, 'placeholder' => true]);
-        }
-        $content['can_edit'] = canEditContent($content);
-        DB::ok(['content' => $content]);
-    } else {
-        // ดึงรายชื่อทุกบทของเกมนี้ (สำหรับ lesson selector)
-        $list = $db->all(
-            "SELECT content_id, lesson_no, title, summary, read_time, created_by, updated_by, updated_at FROM lesson_content
-             WHERE game_id=? ORDER BY lesson_no",
-            [$gameId], 'i'
-        );
-        foreach ($list as &$content) $content['can_edit'] = canEditContent($content);
-        unset($content);
-        DB::ok(['lessons' => $list]);
-    }
-}
-
-function handleLessonContentV2(): never {
-    $db       = DB::get();
-    $gameId   = (int)($_GET['game_id'] ?? 0);
-    $lessonNo = (int)($_GET['lesson_no'] ?? 0);
-    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
-
-    if ($lessonNo) {
-        $content = $db->one(
-            "SELECT content_id, game_id, lesson_no, title, body, summary, read_time, status, version_no, published_at, created_by, updated_by, updated_at, approved_by
-             FROM lesson_content
-             WHERE game_id=? AND lesson_no=?
-             LIMIT 1",
-            [$gameId, $lessonNo], 'ii'
-        );
-        if (!$content) DB::ok(['content' => null, 'placeholder' => true, 'can_edit' => true]);
-        $content['can_edit'] = canEditContent($content, true);
-        $content['can_delete'] = canEditContent($content);
-        DB::ok(['content' => $content]);
-    }
-
-    $list = $db->all(
-        "SELECT content_id, lesson_no, title, summary, read_time, status, version_no, published_at, created_by, updated_by, updated_at
-         FROM lesson_content
-         WHERE game_id=? ORDER BY lesson_no",
-        [$gameId], 'i'
-    );
-    foreach ($list as &$content) $content['can_edit'] = canEditContent($content, true);
-    unset($content);
-    DB::ok(['lessons' => $list]);
-}
-
-function handleLessonHistory(): never {
-    authRole('teacher', 'admin', 'officer');
-    $gameId = (int)($_GET['game_id'] ?? 0);
-    $lessonNo = (int)($_GET['lesson_no'] ?? 1);
-    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
-    $rows = DB::get()->all(
-        "SELECT history_id, title, status, version_no, snapshot_at
-         FROM lesson_content_history
-         WHERE game_id=? AND lesson_no=?
-         ORDER BY snapshot_at DESC
-         LIMIT 20",
-        [$gameId, $lessonNo], 'ii'
-    );
-    DB::ok(['history' => $rows]);
 }
 
 function handleScores(): never {
@@ -1743,155 +1399,6 @@ function handleAllStudents(): never {
     );
     DB::ok(['students' => $students]);
 }
-
-// ============================================================
-// LESSON CONTENT EDITOR (ครูแก้ไขได้)
-// ============================================================
-
-function handleSaveLesson(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    $db       = DB::get();
-    $gameId   = (int)($body['game_id']   ?? 0);
-    $lessonNo = (int)($body['lesson_no'] ?? 1);
-    $title    = trim($body['title']      ?? '');
-    $bodyHtml = trim($body['body']       ?? '');
-    $summary  = trim($body['summary']    ?? '');
-    $readTime = (int)($body['read_time'] ?? 5);
-
-    if (!$gameId || !$title) DB::fail('ต้องส่ง game_id และ title', 400);
-
-    // upsert
-    $exists = $db->one(
-        "SELECT content_id FROM lesson_content WHERE game_id=? AND lesson_no=?",
-        [$gameId, $lessonNo], 'ii'
-    );
-    if ($exists) {
-        $db->run(
-            "UPDATE lesson_content SET title=?,body=?,summary=?,read_time=? WHERE content_id=?",
-            [$title, $bodyHtml, $summary, $readTime, $exists['content_id']], 'sssii'
-        );
-    } else {
-        $db->run(
-            "INSERT INTO lesson_content (game_id,lesson_no,title,body,summary,read_time) VALUES (?,?,?,?,?,?)",
-            [$gameId, $lessonNo, $title, $bodyHtml, $summary, $readTime], 'iisssi'
-        );
-    }
-    DB::ok(['message' => 'บันทึกสำเร็จ']);
-}
-
-function handleSaveLessonV2(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    $db       = DB::get();
-    $gameId   = (int)($body['game_id'] ?? 0);
-    $lessonNo = (int)($body['lesson_no'] ?? 1);
-    $title    = trim($body['title'] ?? '');
-    $bodyHtml = trim($body['body'] ?? '');
-    $summary  = trim($body['summary'] ?? '');
-    $readTime = (int)($body['read_time'] ?? 5);
-    $status   = trim((string)($body['status'] ?? 'draft'));
-    if (!in_array($status, ['draft', 'published'], true)) $status = 'draft';
-    if (!$gameId || !$title) DB::fail('ต้องส่ง game_id และ title', 400);
-
-    $exists = $db->one(
-        "SELECT * FROM lesson_content WHERE game_id=? AND lesson_no=?",
-        [$gameId, $lessonNo], 'ii'
-    );
-    if ($exists) requireContentOwner($exists, true);
-
-    $approvedBy = $status === 'published' ? myId() : null;
-    $publishedAt = $status === 'published' ? date('Y-m-d H:i:s') : null;
-
-    if ($exists) {
-        $db->run(
-            "INSERT INTO lesson_content_history
-             (content_id, game_id, lesson_no, title, summary, body, read_time, status, version_no, snapshot_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?)",
-            [
-                $exists['content_id'],
-                $exists['game_id'],
-                $exists['lesson_no'],
-                $exists['title'],
-                $exists['summary'],
-                $exists['body'],
-                $exists['read_time'],
-                $exists['status'] ?? 'draft',
-                (int)($exists['version_no'] ?? 1),
-                myId()
-            ],
-            'iiisssssii'
-        );
-
-        $db->run(
-            "UPDATE lesson_content
-             SET title=?, body=?, summary=?, read_time=?, status=?, version_no=version_no+1,
-                 created_by=COALESCE(created_by, ?), updated_by=?, approved_by=?, published_at=?
-             WHERE content_id=?",
-            [$title, $bodyHtml, $summary, $readTime, $status, myId(), myId(), $approvedBy, $publishedAt, $exists['content_id']],
-            'sssisiiisi'
-        );
-        $contentId = (int)$exists['content_id'];
-    } else {
-        $db->run(
-            "INSERT INTO lesson_content
-             (game_id, lesson_no, title, body, summary, read_time, status, version_no, created_by, updated_by, approved_by, published_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            [$gameId, $lessonNo, $title, $bodyHtml, $summary, $readTime, $status, 1, myId(), myId(), $approvedBy, $publishedAt],
-            'iisssisiiiis'
-        );
-        $contentId = $db->insertId();
-    }
-
-    logAudit(
-        $status === 'published' ? 'lesson_published' : 'lesson_saved_draft',
-        'lesson_content',
-        (string)$contentId,
-        $title,
-        ['game_id' => $gameId, 'lesson_no' => $lessonNo, 'status' => $status]
-    );
-
-    $contentDate = $db->one("SELECT updated_at FROM lesson_content WHERE content_id=?", [$contentId], 'i');
-    DB::ok(['message' => 'บันทึกสำเร็จ', 'content_id' => $contentId, 'status' => $status, 'updated_at' => $contentDate['updated_at'] ?? null]);
-}
-
-function handleDeleteLesson(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    $gameId   = (int)($body['game_id']   ?? 0);
-    $lessonNo = (int)($body['lesson_no'] ?? 1);
-    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
-    $db = DB::get();
-    $content = $db->one("SELECT created_by, updated_by FROM lesson_content WHERE game_id=? AND lesson_no=?", [$gameId, $lessonNo], 'ii');
-    if (!$content) DB::fail('ไม่พบบทเรียน', 404);
-    requireContentOwner($content);
-    $db->run(
-        "DELETE FROM lesson_content WHERE game_id=? AND lesson_no=?",
-        [$gameId, $lessonNo], 'ii'
-    );
-    DB::ok(['message' => 'ลบสำเร็จ']);
-}
-
-function handleSaveGameSettings(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    $db        = DB::get();
-    $gameId    = (int)($body['game_id'] ?? 0);
-    $timeLimit = (int)($body['time_limit'] ?? 0);
-
-    if (!$gameId) DB::fail('ต้องส่ง game_id', 400);
-    if ($timeLimit < 10 || $timeLimit > 3600) {
-        DB::fail('เวลาเล่นต้องอยู่ระหว่าง 10 ถึง 3600 วินาที', 400);
-    }
-
-    $db->run(
-        "UPDATE games SET time_limit=? WHERE game_id=?",
-        [$timeLimit, $gameId],
-        'ii'
-    );
-    DB::ok(['message' => 'บันทึกเวลาเล่นสำเร็จ', 'time_limit' => $timeLimit]);
-}
-
 
 // ============================================================
 // 2.0 จัดการข้อมูลผู้ใช้ (admin)
@@ -2442,75 +1949,6 @@ function handleToggleSubject(): never {
 // ============================================================
 // 4.0 ครูแก้ไขคำถาม-คำตอบในเกม
 // ============================================================
-function handleGetGameQuestions(): never {
-    auth();
-    ensureQuestionImageColumnCapacity();
-    $gid  = (int)($_GET['game_id'] ?? 0);
-    if (!$gid) DB::fail('ต้องส่ง game_id', 400);
-    $db   = DB::get();
-    $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
-    $qs   = $db->all("SELECT * FROM questions WHERE game_id=? ORDER BY order_no", [$gid], 'i');
-    foreach ($qs as &$q) {
-        $q['answers'] = $db->all("SELECT * FROM answers WHERE question_id=? ORDER BY answer_id",
-            [$q['question_id']], 'i');
-    }
-    DB::ok(['game' => $game, 'questions' => $qs]);
-}
-
-function handleSaveQuestion(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    ensureQuestionImageColumnCapacity();
-    $db   = DB::get();
-    $qid  = (int)($body['question_id'] ?? 0);
-    $gid  = (int)($body['game_id'] ?? 0);
-    $text = trim($body['question_text'] ?? '');
-    $hint = trim($body['hint'] ?? '');
-    $questionImg = trim($body['question_img'] ?? '');
-    $order = (int)($body['order_no'] ?? 1);
-    $answers = $body['answers'] ?? [];
-    if (!$gid || !$text) DB::fail('ต้องส่ง game_id และ question_text', 400);
-
-    if ($qid) {
-        $db->run("UPDATE questions SET question_text=?,question_img=?,hint=?,order_no=? WHERE question_id=?",
-            [$text, $questionImg ?: null, $hint ?: null, $order, $qid], 'sssii');
-        // ลบ answers เดิมแล้วใส่ใหม่
-        $db->run("DELETE FROM answers WHERE question_id=?", [$qid], 'i');
-    } else {
-        $db->run("INSERT INTO questions (game_id,question_text,question_img,hint,order_no) VALUES (?,?,?,?,?)",
-            [$gid, $text, $questionImg ?: null, $hint ?: null, $order], 'isssi');
-        $qid = $db->insertId();
-    }
-    foreach ($answers as $ans) {
-        $atext     = trim($ans['answer_text'] ?? '');
-        $correct   = (int)($ans['is_correct']  ?? 0);
-        $pairLeft  = trim($ans['pair_left']    ?? '') ?: null;
-        $pairRight = trim($ans['pair_right']   ?? '') ?: null;
-        $seqOrder  = isset($ans['seq_order']) ? (int)$ans['seq_order'] : null;
-        if (!$atext) continue;
-        $db->run(
-            "INSERT INTO answers (question_id,answer_text,is_correct,pair_left,pair_right,seq_order)
-             VALUES (?,?,?,?,?,?)",
-            [$qid, $atext, $correct, $pairLeft, $pairRight, $seqOrder],
-            'isiiss'
-        );
-    }
-    DB::ok(['question_id' => $qid]);
-}
-
-function handleDeleteQuestion(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    $qid = (int)($body['question_id'] ?? 0);
-    if (!$qid) DB::fail('ต้องส่ง question_id', 400);
-    $db = DB::get();
-    $question = $db->one("SELECT created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
-    if (!$question) DB::fail('Question not found', 404);
-    requireContentOwner($question);
-    $db->run("DELETE FROM questions WHERE question_id=?", [$qid], 'i');
-    DB::ok();
-}
-
 // ============================================================
 // 8.0 ออกรายงาน (ผู้บริหาร/ครู)
 // ============================================================
@@ -2555,17 +1993,6 @@ function handleReport(): never {
             WHERE u.is_active=TRUE
             GROUP BY st.student_id, u.user_id ORDER BY avg_score DESC NULLS LAST LIMIT 100");
         DB::ok(['students' => $rows]);
-    }
-    if ($type === 'by_game') {
-        $rows = $db->all("SELECT g.game_id, g.name AS game_name, g.game_type, g.level,
-            sub.name AS subject_name,
-            COUNT(sc.score_id) AS total_plays,
-            ROUND(AVG(sc.score),1) AS avg_score,
-            MAX(sc.score) AS best_score
-            FROM games g JOIN subjects sub ON sub.subject_id=g.subject_id
-            LEFT JOIN scores sc ON sc.game_id=g.game_id
-            GROUP BY g.game_id, sub.subject_id ORDER BY total_plays DESC");
-        DB::ok(['games' => $rows]);
     }
     if ($type === 'daily') {
         $days = (int)($_GET['days'] ?? 30);
@@ -2670,494 +2097,6 @@ function handleValidateEmail(): never {
 // โหลดคำถามสำหรับเล่นเกม (public — ไม่ต้อง auth)
 // รองรับทุกประเภท: mcq, truefalse, fill, matching, sequence, wordsearch
 // ============================================================
-function handlePlayQuestions(): never {
-    ensureQuestionImageColumnCapacity();
-    $db    = DB::get();
-    $gid   = (int)($_GET['game_id'] ?? 0);
-    if (!$gid) DB::fail('ต้องส่ง game_id', 400);
-
-    // ข้อมูลเกม
-    $game = $db->one("SELECT * FROM games WHERE game_id=?", [$gid], 'i');
-    if (!$game) DB::fail('ไม่พบเกม', 404);
-
-    $type = $game['game_type'];
-
-    // โหลดคำถามทั้งหมด
-    $qs = $db->all(
-        "SELECT question_id, question_text, question_img, hint, question_type, difficulty, explanation, order_no
-         FROM questions WHERE game_id=? ORDER BY order_no",
-        [$gid], 'i'
-    );
-    if (!$qs) DB::ok(['game' => $game, 'questions' => [], 'type' => $type]);
-
-    $result = [];
-
-    foreach ($qs as $q) {
-        $qid = $q['question_id'];
-        $answers = $db->all(
-            "SELECT answer_id, answer_text, is_correct, pair_left, pair_right, seq_order
-             FROM answers WHERE question_id=? ORDER BY COALESCE(seq_order, 999999), answer_id",
-            [$qid], 'i'
-        );
-
-        if ($type === 'mcq') {
-            $opts   = array_column($answers, 'answer_text');
-            $ans_idx = 0;
-            foreach ($answers as $i => $a) {
-                if ($a['is_correct']) { $ans_idx = $i; break; }
-            }
-            $result[] = [
-                'q'    => $q['question_text'],
-                'img'  => $q['question_img'],
-                'opts' => $opts,
-                'ans'  => $ans_idx,
-                'hint' => $q['hint'],
-            ];
-        } elseif ($type === 'truefalse') {
-            $correct_ans = null;
-            foreach ($answers as $a) {
-                if ($a['is_correct']) {
-                    $text = mb_strtolower(trim((string)$a['answer_text']), 'UTF-8');
-                    if (in_array($text, ['ถูก', 'จริง', 'true', 'yes', 'ใช่'], true)) {
-                        $correct_ans = true;
-                    } elseif (in_array($text, ['ผิด', 'เท็จ', 'false', 'no', 'ไม่ใช่'], true)) {
-                        $correct_ans = false;
-                    }
-                    break;
-                }
-            }
-            $result[] = [
-                'q'   => $q['question_text'],
-                'img' => $q['question_img'],
-                'ans' => $correct_ans ?? true,
-            ];
-        } elseif ($type === 'fill') {
-            $ans_text = '';
-            foreach ($answers as $a) {
-                if ($a['is_correct']) { $ans_text = $a['answer_text']; break; }
-            }
-            $result[] = [
-                'q'    => $q['question_text'],
-                'img'  => $q['question_img'],
-                'ans'  => $ans_text,
-                'hint' => $q['hint'] ?? '',
-            ];
-        } elseif ($type === 'matching') {
-            if ($answers) {
-                foreach ($answers as $i => $a) {
-                    $left = trim((string)($a['pair_left'] ?? ''));
-                    $right = trim((string)($a['pair_right'] ?? ''));
-                    if ($left === '' && $right === '') {
-                        $left = $i === 0 ? trim((string)$q['question_text']) : '';
-                        $right = trim((string)$a['answer_text']);
-                    }
-                    if ($left !== '' && $right !== '') {
-                        $result[] = ['left' => $left, 'right' => $right];
-                    }
-                }
-            } elseif (trim((string)$q['question_text']) !== '') {
-                $result[] = ['left' => trim((string)$q['question_text']), 'right' => ''];
-            }
-        } elseif ($type === 'sequence') {
-            if ($answers) {
-                $seqItems = [];
-                foreach ($answers as $i => $a) {
-                    $text = trim((string)$a['answer_text']);
-                    if ($text === '') continue;
-                    $seqItems[] = [
-                        'id'    => 'q' . $qid . '_a' . ($a['answer_id'] ?? $i),
-                        'text'  => $text,
-                        'order' => (int)($a['seq_order'] ?? ($i + 1)),
-                    ];
-                }
-                if (!empty($seqItems)) {
-                    usort($seqItems, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
-                    $result[] = [
-                        'prompt' => trim((string)($q['question_text'] ?? '')),
-                        'items'  => $seqItems,
-                    ];
-                }
-            } elseif (trim((string)$q['question_text']) !== '') {
-                $result[] = [
-                    'prompt' => trim((string)$q['question_text']),
-                    'items'  => [['id' => 'q' . $qid, 'text' => trim((string)$q['question_text']), 'order' => 1]],
-                ];
-            }
-        } elseif ($type === 'wordsearch') {
-            if ($answers) {
-                foreach ($answers as $a) {
-                    $word = trim((string)$a['answer_text']);
-                    if ($word !== '') $result[] = $word;
-                }
-            } else {
-                $word = trim((string)$q['question_text']);
-                if ($word !== '') $result[] = $word;
-            }
-        }
-    }
-
-    if ($type === 'sequence') {
-        usort($result, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
-    } elseif ($type === 'wordsearch') {
-        $result = array_values(array_unique($result));
-    }
-
-    // จัดรูปแบบ response ตาม type
-    $formatted = [];
-    if ($type === 'matching') {
-        $formatted = ['pairs' => $result];
-    } elseif ($type === 'sequence') {
-        $formatted = ['qs' => $result];
-    } elseif ($type === 'wordsearch') {
-        $formatted = ['words' => $result];
-    } else {
-        $formatted = ['qs' => $result];
-    }
-
-    DB::ok(array_merge(['game' => $game, 'type' => $type], $formatted));
-}
-
-function handleSaveGameSettingsV2(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    ensureGameQuestionBankSchema();
-
-    $db        = DB::get();
-    $gameId    = (int)($body['game_id'] ?? 0);
-    $timeLimit = (int)($body['time_limit'] ?? 0);
-    $questionCountRaw = isset($body['question_count']) ? (int)$body['question_count'] : 0;
-    $gameType = trim((string)($body['game_type'] ?? ''));
-    $gameName = trim((string)($body['name'] ?? ''));
-
-    if (!$gameId) DB::fail('Missing game_id', 400);
-    if ($timeLimit < 10 || $timeLimit > 3600) DB::fail('Time limit must be between 10 and 3600 seconds', 400);
-    if ($questionCountRaw < 0 || $questionCountRaw > 100) DB::fail('Question count must be between 0 and 100', 400);
-    $allowedTypes = ['mcq', 'truefalse', 'fill', 'matching', 'sequence', 'wordsearch', 'letterorder'];
-    if ($gameType !== '' && !in_array($gameType, $allowedTypes, true)) DB::fail('Invalid game type', 400);
-    if ($gameName !== '' && mb_strlen($gameName, 'UTF-8') > 100) DB::fail('Game name must be 100 characters or fewer', 400);
-
-    $game = $db->one("SELECT game_id, game_type, name FROM games WHERE game_id=? LIMIT 1", [$gameId], 'i');
-    if (!$game) DB::fail('Game not found', 404);
-    if ($gameType === '') $gameType = (string)($game['game_type'] ?? '');
-    if ($gameName === '') $gameName = (string)($game['name'] ?? '');
-
-    $questionCount = $questionCountRaw > 0 ? $questionCountRaw : null;
-    if ($gameType === 'wordsearch' && $questionCount !== null) {
-        $questionCount = max(1, min(10, $questionCount));
-    }
-
-    $db->run(
-        "UPDATE games SET time_limit=?, question_count=?, game_type=?, name=? WHERE game_id=?",
-        [$timeLimit, $questionCount, $gameType, $gameName, $gameId],
-        'iissi'
-    );
-
-    DB::ok([
-        'message' => 'Game settings saved',
-        'time_limit' => $timeLimit,
-        'question_count' => $questionCount,
-        'game_type' => $gameType,
-        'name' => $gameName,
-    ]);
-}
-
-function handleGetGameQuestionsV2(): never {
-    auth();
-    ensureQuestionImageColumnCapacity();
-
-    $gid = (int)($_GET['game_id'] ?? 0);
-    if (!$gid) DB::fail('Missing game_id', 400);
-
-    $db = DB::get();
-    $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
-    if (!$game) DB::fail('Game not found', 404);
-
-    $questions = $db->all(
-        "SELECT * FROM questions WHERE game_id=? ORDER BY order_no, question_id",
-        [$gid],
-        'i'
-    );
-
-    foreach ($questions as &$question) {
-        $question['can_edit'] = canEditContent($question, true);
-        $question['can_delete'] = canEditContent($question);
-        $question['answers'] = $db->all(
-            "SELECT answer_id, question_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order
-             FROM answers
-             WHERE question_id=?
-             ORDER BY COALESCE(seq_order, 999999), answer_id",
-            [$question['question_id']],
-            'i'
-        );
-    }
-    unset($question);
-
-    DB::ok(['game' => $game, 'questions' => $questions]);
-}
-
-function handleSaveQuestionV2(): never {
-    global $body;
-    authRole('teacher', 'admin', 'officer');
-    ensureQuestionImageColumnCapacity();
-    ensureGameQuestionBankSchema();
-
-    $db   = DB::get();
-    $qid  = (int)($body['question_id'] ?? 0);
-    $gid  = (int)($body['game_id'] ?? 0);
-    $text = trim((string)($body['question_text'] ?? ''));
-    $hint = trim((string)($body['hint'] ?? ''));
-    $questionImg = trim((string)($body['question_img'] ?? ''));
-    $difficulty = trim((string)($body['difficulty'] ?? 'medium'));
-    $explanation = trim((string)($body['explanation'] ?? ''));
-    $order = (int)($body['order_no'] ?? 1);
-    $answers = is_array($body['answers'] ?? null) ? $body['answers'] : [];
-
-    if (!$gid || $text === '') DB::fail('Missing game_id or question_text', 400);
-    if (!in_array($difficulty, ['easy', 'medium', 'hard', 'challenge'], true)) DB::fail('Invalid question difficulty', 400);
-
-    if ($qid) {
-        $existing = $db->one("SELECT game_id, created_by, updated_by FROM questions WHERE question_id=?", [$qid], 'i');
-        if (!$existing) DB::fail('Question not found', 404);
-        if ((int)$existing['game_id'] !== $gid) DB::fail('Question does not belong to this game', 400);
-        requireContentOwner($existing, true);
-        $db->run(
-            "UPDATE questions SET question_text=?, question_img=?, hint=?, difficulty=?, explanation=?, order_no=?, created_by=COALESCE(created_by, ?), updated_by=? WHERE question_id=?",
-            [$text, $questionImg ?: null, $hint ?: null, $difficulty, $explanation ?: null, $order, myId(), myId(), $qid],
-            'sssssiiii'
-        );
-        $db->run("DELETE FROM answers WHERE question_id=?", [$qid], 'i');
-    } else {
-        $db->run(
-            "INSERT INTO questions (game_id, question_text, question_img, hint, difficulty, explanation, order_no, created_by, updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
-            [$gid, $text, $questionImg ?: null, $hint ?: null, $difficulty, $explanation ?: null, $order, myId(), myId()],
-            'isssssiii'
-        );
-        $qid = $db->insertId();
-    }
-
-    foreach ($answers as $answer) {
-        if (!is_array($answer)) continue;
-        $answerText = trim((string)($answer['answer_text'] ?? ''));
-        $answerImg = trim((string)($answer['answer_img'] ?? ''));
-        $pairLeft = trim((string)($answer['pair_left'] ?? ''));
-        $pairLeftImg = trim((string)($answer['pair_left_img'] ?? ''));
-        $pairRight = trim((string)($answer['pair_right'] ?? ''));
-        $pairRightImg = trim((string)($answer['pair_right_img'] ?? ''));
-        $isCorrect = !empty($answer['is_correct']) ? 1 : 0;
-        $seqOrder = array_key_exists('seq_order', $answer) ? (int)$answer['seq_order'] : null;
-
-        $hasAnswer = ($answerText !== '' || $answerImg !== '');
-        $hasPair = ($pairLeft !== '' || $pairLeftImg !== '' || $pairRight !== '' || $pairRightImg !== '');
-        if (!$hasAnswer && !$hasPair) continue;
-
-        $db->run(
-            "INSERT INTO answers (question_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order)
-             VALUES (?,?,?,?,?,?,?,?,?)",
-            [
-                $qid,
-                $answerText,
-                $answerImg ?: null,
-                $isCorrect,
-                $pairLeft ?: null,
-                $pairLeftImg ?: null,
-                $pairRight ?: null,
-                $pairRightImg ?: null,
-                $seqOrder
-            ],
-            'ississssi'
-        );
-    }
-
-    $questionDate = $db->one("SELECT updated_at FROM questions WHERE question_id=?", [$qid], 'i');
-    DB::ok(['question_id' => $qid, 'updated_at' => $questionDate['updated_at'] ?? null]);
-}
-
-function handlePlayQuestionsV2(): never {
-    ensureQuestionImageColumnCapacity();
-
-    $db  = DB::get();
-    $gid = (int)($_GET['game_id'] ?? 0);
-    if (!$gid) DB::fail('Missing game_id', 400);
-
-    $game = $db->one("SELECT * FROM games WHERE game_id=? LIMIT 1", [$gid], 'i');
-    if (!$game) DB::fail('Game not found', 404);
-
-    $type = (string)($game['game_type'] ?? '');
-    $requestedCount = (int)($game['question_count'] ?? 0);
-    $questions = $db->all(
-        "SELECT question_id, question_text, question_img, hint, question_type, difficulty, explanation, order_no
-         FROM questions
-         WHERE game_id=?
-         ORDER BY order_no, question_id",
-        [$gid],
-        'i'
-    );
-
-    $missions = [];
-    foreach ($questions as $question) {
-        $mission = json_decode((string)($question['question_img'] ?? ''), true);
-        if (!is_array($mission) || !is_array($mission['steps'] ?? null)) continue;
-        $missions[] = ['id' => (int)$question['question_id'], 'title' => $question['question_text'], 'difficulty' => $question['difficulty'] ?? 'medium'] + $mission;
-    }
-    if ($missions) DB::ok(['game' => $game, 'type' => 'mission', 'missions' => $missions]);
-
-    if (in_array($type, ['mcq', 'truefalse', 'fill'], true) && $requestedCount > 0) {
-        $questions = arrayTakeRandom($questions, $requestedCount);
-    }
-
-    $result = [];
-    foreach ($questions as $question) {
-        $answers = $db->all(
-            "SELECT answer_id, answer_text, answer_img, is_correct, pair_left, pair_left_img, pair_right, pair_right_img, seq_order
-             FROM answers
-             WHERE question_id=?
-             ORDER BY COALESCE(seq_order, 999999), answer_id",
-            [$question['question_id']],
-            'i'
-        );
-
-        if ($type === 'mcq') {
-            $options = [];
-            $correctIndex = 0;
-            foreach ($answers as $idx => $answer) {
-                $options[] = [
-                    'text' => (string)($answer['answer_text'] ?? ''),
-                    'img' => (string)($answer['answer_img'] ?? ''),
-                ];
-                if (!empty($answer['is_correct'])) $correctIndex = $idx;
-            }
-            if ($options) {
-                $result[] = [
-                    'q' => $question['question_text'],
-                    'img' => $question['question_img'],
-                    'hint' => $question['hint'] ?? '',
-                    'difficulty' => $question['difficulty'] ?? 'medium',
-                    'explanation' => $question['explanation'] ?? '',
-                    'opts' => $options,
-                    'ans' => $correctIndex,
-                ];
-            }
-            continue;
-        }
-
-        if ($type === 'truefalse') {
-            $correctValue = true;
-            foreach ($answers as $answer) {
-                if (empty($answer['is_correct'])) continue;
-                $normalized = mb_strtolower(trim((string)($answer['answer_text'] ?? '')), 'UTF-8');
-                $correctValue = in_array($normalized, ['true', 'yes', 'ถูก', 'จริง'], true);
-                break;
-            }
-            $result[] = [
-                'q' => $question['question_text'],
-                'img' => $question['question_img'],
-                'ans' => $correctValue,
-            ];
-            continue;
-        }
-
-        if ($type === 'fill') {
-            $correctText = '';
-            foreach ($answers as $answer) {
-                if (!empty($answer['is_correct'])) {
-                    $correctText = (string)($answer['answer_text'] ?? '');
-                    break;
-                }
-            }
-            $result[] = [
-                'q' => $question['question_text'],
-                'img' => $question['question_img'],
-                'hint' => $question['hint'] ?? '',
-                'difficulty' => $question['difficulty'] ?? 'medium',
-                'explanation' => $question['explanation'] ?? '',
-                'ans' => $correctText,
-            ];
-            continue;
-        }
-
-        if ($type === 'matching') {
-            foreach ($answers as $idx => $answer) {
-                $leftText = trim((string)($answer['pair_left'] ?? ''));
-                $leftImg = trim((string)($answer['pair_left_img'] ?? ''));
-                $rightText = trim((string)($answer['pair_right'] ?? ''));
-                $rightImg = trim((string)($answer['pair_right_img'] ?? ''));
-
-                if ($leftText === '' && $leftImg === '' && $idx === 0) {
-                    $leftText = trim((string)($question['question_text'] ?? ''));
-                    $leftImg = trim((string)($question['question_img'] ?? ''));
-                }
-                if ($rightText === '' && $rightImg === '') {
-                    $rightText = trim((string)($answer['answer_text'] ?? ''));
-                    $rightImg = trim((string)($answer['answer_img'] ?? ''));
-                }
-
-                if ($leftText === '' && $leftImg === '') continue;
-                if ($rightText === '' && $rightImg === '') continue;
-
-                $result[] = [
-                    'id' => 'm' . $question['question_id'] . '_' . ($answer['answer_id'] ?? $idx),
-                    'left' => $leftText,
-                    'left_img' => $leftImg,
-                    'right' => $rightText,
-                    'right_img' => $rightImg,
-                ];
-            }
-            continue;
-        }
-
-        if ($type === 'sequence' || $type === 'letterorder') {
-            $seqItems = [];
-            foreach ($answers as $idx => $answer) {
-                $text = trim((string)($answer['answer_text'] ?? ''));
-                if ($text === '') continue;
-                $seqItems[] = [
-                    'id' => 's' . $question['question_id'] . '_' . ($answer['answer_id'] ?? $idx),
-                    'text' => $text,
-                    'order' => (int)($answer['seq_order'] ?? ($idx + 1)),
-                ];
-            }
-            if (!empty($seqItems)) {
-                usort($seqItems, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
-                $result[] = [
-                    'prompt' => trim((string)($question['question_text'] ?? '')),
-                    'items' => $seqItems,
-                ];
-            }
-            continue;
-        }
-
-        if ($type === 'wordsearch') {
-            foreach ($answers as $answer) {
-                $word = trim((string)($answer['answer_text'] ?? ''));
-                if ($word !== '') $result[] = $word;
-            }
-            if (!$answers) {
-                $word = trim((string)($question['question_text'] ?? ''));
-                if ($word !== '') $result[] = $word;
-            }
-        }
-    }
-
-    if ($type === 'matching') {
-        $pairCount = $requestedCount > 0 ? $requestedCount : count($result);
-        $result = arrayTakeRandom($result, $pairCount);
-        DB::ok(['game' => $game, 'type' => $type, 'pairs' => $result]);
-    }
-
-    if ($type === 'sequence' || $type === 'letterorder') {
-        DB::ok(['game' => $game, 'type' => $type, 'qs' => $result]);
-    }
-
-    if ($type === 'wordsearch') {
-        $result = array_values(array_unique(array_filter($result, fn($word) => trim((string)$word) !== '')));
-        $wordCount = $requestedCount > 0 ? min(10, $requestedCount) : 10;
-        $result = arrayTakeRandom($result, $wordCount);
-        DB::ok(['game' => $game, 'type' => $type, 'words' => $result]);
-    }
-
-    DB::ok(['game' => $game, 'type' => $type, 'qs' => $result]);
-}
-
 // ============================================================
 // OFFICER HANDLERS — เจ้าหน้าที่จัดการผู้ใช้
 // ============================================================
@@ -3295,46 +2234,6 @@ function handleExecutiveContent(): never {
 
     $type = $_GET['type'] ?? 'all';
     
-    if ($type === 'all' || $type === 'summary') {
-        $subjects = $db->all(
-            "SELECT sub.subject_id, sub.name, sub.icon, sub.color,
-                    COUNT(DISTINCT g.game_id) AS game_count,
-                    COUNT(DISTINCT q.question_id) AS question_count
-             FROM subjects sub
-             LEFT JOIN games g ON g.subject_id = sub.subject_id
-             LEFT JOIN questions q ON q.game_id = g.game_id
-             GROUP BY sub.subject_id
-             ORDER BY sub.order_no"
-        );
-        
-        DB::ok([
-            'type' => 'summary',
-            'subjects' => $subjects
-        ]);
-    }
-    
-    if ($type === 'games') {
-        $games = $db->all(
-            "SELECT g.game_id, g.name, g.game_type, g.level,
-                    sub.name AS subject_name, sub.icon AS subject_icon,
-                    COUNT(q.question_id) AS question_count,
-                    COUNT(DISTINCT s.score_id) AS play_count,
-                    ROUND(AVG(s.score), 1) AS avg_score
-             FROM games g
-             LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-             LEFT JOIN questions q ON q.game_id = g.game_id
-             LEFT JOIN scores s ON s.game_id = g.game_id
-             WHERE g.is_active = 1
-             GROUP BY g.game_id
-             ORDER BY sub.subject_id, g.game_id"
-        );
-        
-        DB::ok([
-            'type' => 'games',
-            'games' => $games
-        ]);
-    }
-
     if ($type === 'scores') {
         [$scoreDateSql] = accountDateFilter('sc.played_at');
         $scores = $db->all(
@@ -3355,46 +2254,6 @@ function handleExecutiveContent(): never {
         DB::ok(['type' => 'scores', 'scores' => $scores]);
     }
 
-    if ($type === 'lessons') {
-        $lessons = $db->all(
-            "SELECT lc.content_id, lc.game_id, lc.lesson_no, lc.title, lc.summary, lc.read_time, lc.updated_at,
-                    g.name AS game_name,
-                    sub.name AS subject_name,
-                    sub.icon AS subject_icon
-             FROM lesson_content lc
-             LEFT JOIN games g ON g.game_id = lc.game_id
-             LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-             ORDER BY sub.subject_id, lc.game_id, lc.lesson_no"
-        );
-        DB::ok(['type' => 'lessons', 'lessons' => $lessons]);
-    }
-
-    if ($type === 'questions') {
-        $questions = $db->all(
-            "SELECT q.question_id, q.game_id, q.order_no, q.question_type, q.question_text, q.updated_at,
-                    g.name AS game_name,
-                    sub.name AS subject_name,
-                    sub.icon AS subject_icon,
-                    COALESCE(
-                        STRING_AGG(
-                            TRIM(
-                                COALESCE(a.answer_text, '') ||
-                                CASE WHEN COALESCE(a.is_correct, FALSE) THEN ' [correct]' ELSE '' END
-                            ),
-                            ' | ' ORDER BY a.answer_id
-                        ),
-                        ''
-                    ) AS answers_summary
-             FROM questions q
-             LEFT JOIN games g ON g.game_id = q.game_id
-             LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-             LEFT JOIN answers a ON a.question_id = q.question_id
-             GROUP BY q.question_id, q.game_id, q.order_no, q.question_type, q.question_text, q.updated_at,
-                      g.name, sub.name, sub.icon, sub.subject_id
-             ORDER BY sub.subject_id, q.game_id, q.order_no, q.question_id"
-        );
-        DB::ok(['type' => 'questions', 'questions' => $questions]);
-    }
 
     DB::ok(['type' => $type, 'items' => []]);
 }

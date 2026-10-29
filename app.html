@@ -6,7 +6,7 @@
   <title>KidLearn — เรียนสนุก เล่นสนุก</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=5.0">
+  <link rel="stylesheet" href="style.css?v=5.1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -28,7 +28,6 @@
       <div class="rb" id="sb-rb">นักเรียน</div>
     </div>
     <button class="sl active" id="sl-home"     onclick="sec('home')">    <span class="ico">🏠</span>หน้าหลัก</button>
-    <button class="sl"        id="sl-subs"     onclick="sec('subs')">    <span class="ico">📚</span>วิชาทั้งหมด</button>
     <button class="sl"        id="sl-scores"   onclick="sec('scores')">  <span class="ico">🏆</span>คะแนน</button>
     <button class="sl"        id="sl-rec"      onclick="sec('rec')"      style="display:none"><span class="ico">💡</span>คำแนะนำ</button>
     <button class="sl"        id="sl-children" onclick="sec('children')" style="display:none"><span class="ico">👨‍👩‍👧</span>จัดการบุตรหลาน</button>
@@ -49,72 +48,6 @@
     <div id="s-home">
       <div class="pg-title">👋 ยินดีต้อนรับ, <span id="wn">ผู้ใช้</span>!</div>
       <div class="stats" id="home-stats"></div>
-      <div class="pg-title" style="font-size:1.05rem">📚 วิชาทั้งหมด</div>
-      <div class="cards"  id="home-subs"></div>
-    </div>
-
-    <!-- ── SUBJECTS ── -->
-    <div id="s-subs" style="display:none">
-      <div class="pg-title">📚 เลือกวิชา</div>
-      <div class="cards" id="subs-grid"></div>
-    </div>
-
-    <!-- ── GAMES LIST ── -->
-    <div id="s-games" style="display:none">
-      <div id="games-topbar" style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.4rem;flex-wrap:wrap">
-        <button class="btn btn-sm btn-s" id="games-back-btn" onclick="gamesBack()">← กลับ</button>
-        <div class="pg-title" style="margin:0" id="games-hd">เกม</div>
-        <span id="games-badge" class="badge be" style="display:none"></span>
-      </div>
-      <div class="gcards" id="games-grid"></div>
-      <!-- lesson wrap (embed ใน s-games) -->
-      <div id="lesson-wrap" style="display:none"></div>
-    </div>
-
-    <!-- ── GAME PLAY ── -->
-    <div id="s-game" class="game-screen" style="display:none">
-      <div class="game-topline">
-        <button class="game-back" onclick="backToGames()" aria-label="กลับไปเลือกเกม">← <span>กลับไปเลือกเกม</span></button>
-        <span class="game-world-label"><span aria-hidden="true">✦</span> ดินแดนแห่งการเรียนรู้</span>
-      </div>
-      <div class="gw">
-        <header class="game-banner">
-          <div class="game-banner-mark" aria-hidden="true">🧭</div>
-          <div class="game-banner-copy">
-            <div class="game-eyebrow">ภารกิจของคุณ</div>
-            <h1 class="gtitle" id="g-title">เกม</h1>
-          </div>
-          <div class="timer" id="g-timer" role="timer" aria-label="เวลาที่เหลือ 60 วินาที">⏱ 60</div>
-        </header>
-        <section class="quest-hud" aria-label="ความคืบหน้าภารกิจ">
-          <div class="quest-hud-top">
-            <div class="quest-step"><span class="quest-step-icon" aria-hidden="true">🗺️</span><span>เส้นทางภารกิจ</span><strong id="g-qno">0/0</strong></div>
-            <div class="quest-score" id="g-live" aria-live="polite"><span aria-hidden="true">⭐</span> คะแนน 0</div>
-          </div>
-          <div class="qpb" role="progressbar" aria-label="ความคืบหน้าภารกิจ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div class="qpf" id="g-qf" style="width:0%"></div>
-          </div>
-        </section>
-        <div class="quest-content" id="g-content" aria-label="พื้นที่เล่นเกม"></div>
-        <div class="game-feedback" id="g-feedback" role="status" aria-live="polite" hidden></div>
-        <section class="result" id="g-result" aria-labelledby="r-ti" tabindex="-1">
-          <div class="result-emblem" id="r-emblem" aria-hidden="true">🏆</div>
-          <div class="result-kicker">สรุปภารกิจ</div>
-          <div class="rring" id="r-ring" style="background:conic-gradient(var(--p) 0%,#E5E7EB 0%)">
-            <div class="rinner">
-              <div class="rscore" id="r-sc">0</div>
-              <div class="rmax" id="r-mx">/ 100</div>
-            </div>
-          </div>
-          <div class="rtitle" id="r-ti">🎉</div>
-          <div class="rmsg" id="r-mg"></div>
-          <div class="result-trail" id="r-trail">ทุกคำตอบช่วยให้คุณเก่งขึ้น 🌱</div>
-          <div class="rbtns">
-            <button class="btn btn-p" onclick="replayGame()">🔄 เล่นภารกิจอีกครั้ง</button>
-            <button class="btn btn-s" onclick="backToGames()">🗺️ กลับไปเลือกเกม</button>
-          </div>
-        </section>
-      </div>
     </div>
 
     <!-- ── SCORES ── -->
@@ -191,9 +124,6 @@
         <div class="ts" id="tc-history" style="display:none"></div>
       </div>
 
-      <!-- ── แท็บ 2: แก้ไขบทเรียน ── -->
-      <div id="tc-lesson-panel" style="display:none"></div>
-      <div id="tc-game-panel" style="display:none"></div>
       </div>
     </div>
 
@@ -315,28 +245,10 @@
 
   </main>
 </div>
-
-<!-- ════════════════════════════════════════════════════
-     MODAL — เริ่มเกม
-════════════════════════════════════════════════════ -->
-<div class="overlay" id="gmodal">
-  <div class="modal">
-    <div class="modal-t" id="m-title">🎮 เริ่มเกม</div>
-    <div id="m-body"></div>
-    <div class="modal-btns">
-      <button class="btn btn-sm btn-s" onclick="closeModal()">ยกเลิก</button>
-      <button class="btn btn-sm btn-p" onclick="startFromModal()">▶ เริ่มเลย!</button>
-    </div>
-  </div>
-</div>
-
 <!-- ════ BOTTOM TAB BAR (mobile) ════ -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bn-item active" id="bn-home"     onclick="sec('home')">
     <i class="fa-solid fa-house"></i><span>หน้าหลัก</span>
-  </button>
-  <button class="bn-item" id="bn-subs"     onclick="sec('subs')">
-    <i class="fa-solid fa-book-open"></i><span>วิชา</span>
   </button>
   <button class="bn-item" id="bn-scores"   onclick="sec('scores')">
     <i class="fa-solid fa-trophy"></i><span>คะแนน</span>
@@ -365,30 +277,19 @@
 <!-- ════════════════════════════════════════════════════
      SCRIPTS (order matters)
 ════════════════════════════════════════════════════ -->
-<script src="js/api.js?v=3.15"></script>
-<script src="js/data.js?v=4.4"></script>
-<script src="js/math_questions.js?v=2.2"></script>
-<script src="js/health_missions.js?v=1.1"></script>
-<script src="js/health/detective.js?v=1.0"></script>
-<script src="js/health/meal_chef.js?v=1.0"></script>
-<script src="js/health/routine.js?v=1.0"></script>
-<script src="js/health/sports.js?v=1.0"></script>
-<script src="js/health/safety.js?v=1.0"></script>
-<script src="js/health/teamwork.js?v=1.0"></script>
-<script src="js/state.js?v=3.7"></script>
-<script src="js/router.js?v=3.7"></script>
+<script src="js/api.js?v=3.16"></script>
+<script src="js/data.js?v=4.5"></script>
+<script src="js/state.js?v=3.8"></script>
+<script src="js/router.js?v=3.8"></script>
 <script src="js/auth.js?v=3.11"></script>
-<script src="js/home.js?v=3.14"></script>
-<script src="js/game.js?v=4.8"></script>
+<script src="js/home.js?v=3.15"></script>
 <script src="js/scores.js?v=3.6"></script>
 <script src="js/recommendations.js?v=3.6"></script>
 <script src="js/children.js?v=3.7"></script>
-<script src="js/teacher.js?v=3.14"></script>
-<script src="js/game_editor.js?v=3.16"></script>
-<script src="js/mission_editor.js?v=1.3"></script>
-<script src="js/officer.js?v=3.10"></script>
-<script src="js/executive.js?v=3.7"></script>
-<script src="js/admin.js?v=3.9"></script>
+<script src="js/teacher.js?v=3.15"></script>
+<script src="js/officer.js?v=3.11"></script>
+<script src="js/executive.js?v=3.8"></script>
+<script src="js/admin.js?v=3.10"></script>
 <script src="js/profile.js?v=3.11"></script>
 <script>
   window.addEventListener('DOMContentLoaded', async () => {

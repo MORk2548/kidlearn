@@ -6,7 +6,7 @@
 
 - `index.html` - หน้าเข้าสู่ระบบ โหลด `js/api.js`, `js/data.js`, `js/state.js`, `js/auth.js` แล้วเรียกตรวจ session ก่อนพาผู้ใช้เข้า `app.html`.
 - `register.html` - หน้าสมัครสมาชิก เลือกบทบาทนักเรียน/ผู้ปกครอง/ครู แล้วส่งข้อมูลสมัครผ่านฟังก์ชันใน `js/auth.js`.
-- `app.html` - หน้าแอปหลักหลังเข้าสู่ระบบ มีโครง HTML ของ dashboard, game, scores, role panels และโหลดไฟล์ JavaScript หลักทุกโมดูล.
+- `app.html` - หน้าแอปหลักหลังเข้าสู่ระบบ มีโครง HTML ของ dashboard, scores, role panels และโหลดไฟล์ JavaScript หลักทุกโมดูล.
 - `style.css` - stylesheet รวมของทั้งระบบ ใช้ร่วมกันทั้งหน้า login, register และ app.
 
 ## Frontend JavaScript
@@ -15,14 +15,12 @@
 - `js/state.js` - state กลางของ session/user/context ที่ไฟล์อื่นใช้อ่านร่วมกัน.
 - `js/auth.js` - login, logout, register, forgot/reset password และ session loading.
 - `js/router.js` - สลับ section ใน `app.html` และควบคุมเมนูตามบทบาทผู้ใช้.
-- `js/data.js` - metadata/fallback data ของวิชา เกม และข้อมูลที่ frontend ใช้ประกอบการแสดงผล.
-- `js/home.js` - โหลดภาพรวมหน้าแรกและรายการวิชา.
-- `js/game.js` - logic การเล่นเกมและการส่งคะแนน.
+- `js/data.js` - metadata/fallback data ของวิชาและข้อมูลที่ frontend ใช้ประกอบการแสดงผล.
+- `js/home.js` - โหลดภาพรวมหน้าแรกและสถิติตามบทบาท.
 - `js/scores.js` - แสดงประวัติคะแนนและตารางผลการเล่น.
 - `js/recommendations.js` - คำแนะนำสำหรับผู้ปกครองจากข้อมูลคะแนน.
 - `js/children.js` - จัดการความสัมพันธ์ผู้ปกครองกับนักเรียน.
-- `js/teacher.js` - dashboard ครู รายงานนักเรียน และเครื่องมือจัดเนื้อหา.
-- `js/game_editor.js` - เครื่องมือแก้ไขคลังคำถาม/เกมสำหรับครู.
+- `js/teacher.js` - dashboard ครู รายงานนักเรียน และสมุดคะแนน.
 - `js/officer.js` - dashboard เจ้าหน้าที่สำหรับจัดการข้อมูลผู้ใช้/ระบบ.
 - `js/executive.js` - dashboard ผู้บริหารและรายงานภาพรวม.
 - `js/admin.js` - dashboard ผู้ดูแลระบบ.
@@ -32,20 +30,12 @@
 
 - `api/backend.php` - API หลักของระบบ รับ request จาก frontend และเชื่อมต่อฐานข้อมูล.
 - `api/kidlearn_patch_v4.sql` - migration สำหรับวันแก้ไขบัญชีและเจ้าของเนื้อหา; ใช้กับฐานข้อมูลเดิมหลัง patch ก่อนหน้า.
-- `api/kidlearn_patch_math_grade5.sql` - ปิดเกมคณิตเดิมใน catalog โดยเก็บ ID/คะแนนไว้ และเพิ่มเกม ป.5 ชุดใหม่.
-- `kidlearn_full.sql` - schema และ seed หลักสำหรับติดตั้งฐานข้อมูลใหม่.
-- `content/lessons.sql` - seed บทเรียนแยกสำหรับ import เองเมื่อจำเป็น.
+- `kidlearn_full.sql` - schema และข้อมูลตั้งต้นสำหรับติดตั้งฐานข้อมูลใหม่.
 
 ## Scripts
 
 - `scripts/db/smoke-test.ps1` - ตรวจแบบเร็วว่า web/API ตอบสนองได้.
 - `scripts/db/supabase_pg_client.py` - PostgreSQL client แบบไม่พึ่ง library ภายนอก ใช้กับ Supabase/Postgres.
-- `scripts/db/update_english_grade5.sql` - SQL เพิ่ม/แก้ข้อมูลภาษาอังกฤษ ป.5.
-- `scripts/seed/add_grade5_extra_content.py` - เพิ่มบทเรียนและคำถามเสริม ป.5 เข้า Postgres.
-- `scripts/seed/seed_grade5_th_en.py` - seed เนื้อหา ป.5 ภาษาไทยและอังกฤษ.
-- `scripts/seed/seed_sequence_grade5.py` - seed เกมเรียงลำดับสำหรับ ป.5.
-- `scripts/seed/seed_math_grade5.py` - เติมคลังโจทย์ 3 ระดับและบทเรียนให้เกมคณิต ป.5 ชุดใหม่ หลังรัน migration.
-- `scripts/seed/seed_thai_letterorder.py` - seed เกมเรียงตัวอักษรภาษาไทย.
 
 ## Deployment And Config
 
@@ -62,7 +52,7 @@
 - `README.md` - คู่มือภาพรวมและวิธีรันโปรเจกต์.
 - `DOCKER.md` - คู่มือรันด้วย Docker.
 - `SUPABASE_SETUP.md` - วิธีตั้งค่าการเชื่อมต่อ Supabase.
-- `images/` - รูปประกอบเกม/ตัวอย่าง.
+- `images/` - รูปประกอบ/ตัวอย่าง.
 
 ## Removed Or Ignored Local Files
 
@@ -72,4 +62,4 @@
 ## Files That Could Be Combined Later
 
 - `js/admin.js`, `js/officer.js`, `js/executive.js` สามารถดึง helper dashboard/report ที่ซ้ำกันออกมาใช้ร่วมกันได้ แต่ไม่ควรรวมทันทีถ้ายังไม่มี test.
-- `api/backend.php` ใหญ่เกินไปในระยะยาว ควรแยกตาม domain เช่น auth, users, games, scores, reports เมื่อพร้อม refactor backend.
+- `api/backend.php` ใหญ่เกินไปในระยะยาว ควรแยกตาม domain เช่น auth, users, scores, reports เมื่อพร้อม refactor backend.
