@@ -128,23 +128,32 @@ function renderTcCards(cards){
   A.tcCards=cards;
   const el=document.getElementById('tc-cards');
   if(!el)return;
+  const bySubject={};
+  cards.forEach(c=>{
+    const s=(bySubject[c.subject_id??'all'] ||= {title:c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา', grades:{}});
+    (s.grades[c.grade||'—'] ||= []).push(c);
+  });
+  const subjects=Object.values(bySubject);
+  const multi=subjects.length>1;
+  const card=c=>{
+    const avg=c.avg_score==null?null:Math.round(+c.avg_score);
+    return `<button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
+      style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
+      <div style="font-weight:800;font-size:.95rem">${multi?classLabel(c):_tcCardTitle(c)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin:.4rem 0">
+        <span style="font-size:.78rem;color:var(--mu)">👦 ${c.student_count} คน</span>
+        <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
+      </div>
+    </button>`;
+  };
   el.innerHTML=`<h3>🏫 ห้องที่ฉันสอน</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.75rem">
-      ${cards.map(c=>{
-        const avg=c.avg_score==null?null:Math.round(+c.avg_score);
-        return `<button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
-          style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
-          <div style="font-weight:800;font-size:.95rem">${_tcCardTitle(c)}</div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin:.4rem 0">
-            <span style="font-size:.78rem;color:var(--mu)">👦 ${c.student_count} คน</span>
-            <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
-          </div>
-          <div style="font-size:.78rem;color:${c.needs_attention?'#B91C1C':'#047857'};font-weight:700">
-            ${c.needs_attention?`🔴 ต้องดูแล ${c.needs_attention} คน`:'🟢 ทุกคนไปได้ดี'}</div>
-          <div style="font-size:.72rem;color:var(--mu);margin-top:.2rem">เล่นล่าสุด ${c.last_played?new Date(c.last_played).toLocaleDateString('th-TH'):'–'}</div>
-        </button>`;
-      }).join('')||'<div style="color:var(--mu)">ยังไม่มีห้องเรียน</div>'}
-    </div>
+    ${subjects.map(s=>`
+      ${multi?`<h4 style="margin:1rem 0 .4rem;font-size:1rem">${s.title}</h4>`:''}
+      ${Object.entries(s.grades).map(([grade,list])=>`
+        <div style="font-size:.82rem;font-weight:700;color:var(--mu);margin:.6rem 0 .35rem">${grade}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem">
+          ${list.map(card).join('')}
+        </div>`).join('')}`).join('')||'<div style="color:var(--mu)">ยังไม่มีห้องเรียน</div>'}
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
       <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
       <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
