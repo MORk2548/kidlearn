@@ -8,6 +8,7 @@ if(typeof A.tcSubjects ==='undefined') A.tcSubjects = [];
 if(typeof A.tcTab      ==='undefined') A.tcTab      = 'scores';
 if(typeof A.tcClassrooms==='undefined') A.tcClassrooms = [];
 if(typeof A.tcBook     ==='undefined') A.tcBook     = null;
+if(typeof A.tcCardSubject==='undefined') A.tcCardSubject = null;
 if(typeof A.tcBookView ==='undefined') A.tcBookView = { search: '', sort: 'name', attentionOnly: false };
 
 // ════════════════════════════════════════════════════════
@@ -128,11 +129,36 @@ function renderTcCards(cards){
   if(!el)return;
   const bySubject={};
   cards.forEach(c=>{
-    const s=(bySubject[c.subject_id??'all'] ||= {title:c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา', grades:{}});
+    const key=String(c.subject_id??'all');
+    const s=(bySubject[key] ||= {key, title:c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา', grades:{}, cards:[]});
     (s.grades[c.grade||'—'] ||= []).push(c);
+    s.cards.push(c);
   });
-  const subjects=Object.values(bySubject);
-  const multi=subjects.length>1;
+  const all=Object.values(bySubject);
+  const multi=all.length>1;
+  if(!bySubject[A.tcCardSubject]) A.tcCardSubject=null;
+  const roomButtons=`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
+      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
+      <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
+    </div>`;
+  if(multi&&!A.tcCardSubject){
+    el.innerHTML=`<h3>📚 เลือกวิชาที่ต้องการดูคะแนน</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.6rem">
+        ${all.map(s=>{
+          const scored=s.cards.filter(c=>c.avg_score!=null);
+          const avg=scored.length?Math.round(scored.reduce((t,c)=>t+(+c.avg_score),0)/scored.length):null;
+          return `<button onclick="openTcSubject('${s.key}')"
+            style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
+            <div style="font-weight:800;font-size:1rem">${s.title}</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:.4rem">
+              <span style="font-size:.78rem;color:var(--mu)">🏫 ${s.cards.length} ห้อง · 👦 ${s.cards.reduce((t,c)=>t+(+c.student_count||0),0)} คน</span>
+              <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
+            </div>
+          </button>`;}).join('')}
+      </div>${roomButtons}`;
+    return;
+  }
+  const subjects=multi?[bySubject[A.tcCardSubject]]:all;
   const card=c=>{
     const avg=c.avg_score==null?null:Math.round(+c.avg_score);
     return `<button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
@@ -144,18 +170,23 @@ function renderTcCards(cards){
       </div>
     </button>`;
   };
-  el.innerHTML=`<h3>🏫 ห้องที่ฉันสอน</h3>
+  el.innerHTML=`${multi?`<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="openTcSubject(null)">← ทุกวิชา</button>
+        <h3 style="margin:0">${subjects[0].title}</h3>
+      </div>`:'<h3>🏫 ห้องที่ฉันสอน</h3>'}
     ${subjects.map(s=>`
-      ${multi?`<h4 style="margin:1rem 0 .4rem;font-size:1rem">${s.title}</h4>`:''}
       ${Object.entries(s.grades).map(([grade,list])=>`
         <div style="font-size:.82rem;font-weight:700;color:var(--mu);margin:.6rem 0 .35rem">${grade}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem">
           ${list.map(card).join('')}
         </div>`).join('')}`).join('')||'<div style="color:var(--mu)">ยังไม่มีห้องเรียน</div>'}
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
-      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
-      <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
-    </div>`;
+    ${roomButtons}`;
+}
+
+function openTcSubject(key){
+  A.tcCardSubject=key;
+  closeTcCard();
+  renderTcCards(A.tcCards||[]);
 }
 
 async function openTcCard(classroomId, subjectId){
