@@ -299,7 +299,6 @@ async function selectTcStudent(sid){
     return;
   }
 
-  const TYPE_LBL={mcq:'MCQ',truefalse:'จริง/เท็จ',fill:'เติมคำ',matching:'จับคู่',sequence:'เรียงลำดับ',letterorder:'เรียงตัวอักษร',wordsearch:'Search'};
   // สรุปรายวิชา
   const bySub={};
   sc.forEach(s=>{
@@ -341,7 +340,7 @@ async function selectTcStudent(sid){
     const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
       const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
       return `<tr style="border-bottom:1px solid #F1F5F9">
-        <td style="padding:.5rem .75rem">${s.game_name||'—'}<br><span style="font-size:.7rem;color:var(--mu)">${TYPE_LBL[s.game_type]||''}</span></td>
+        <td style="padding:.5rem .75rem">${s.game_name||'—'}<br><span style="font-size:.7rem;color:var(--mu)">${GAME_TYPES[s.game_type]?.label||''}</span></td>
         <td style="padding:.5rem .75rem;text-align:center">
           <strong style="color:${c}">${pct}%</strong><span style="color:#9CA3AF"> (${s.score}/${s.max_score||100})</span>
           ${pct>=80?' ⭐⭐⭐':pct>=50?' ⭐⭐':pct>0?' ⭐':''}

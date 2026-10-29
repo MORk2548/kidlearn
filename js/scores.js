@@ -204,7 +204,6 @@ function renderScoreTable(sc){
     return;
   }
 
-  const typeLabel={mcq:'MCQ',truefalse:'True/False',fill:'Fill',matching:'Match',sequence:'Sequence',wordsearch:'Search'};
   const groups=buildScoreSubjectSummary(sc);
   if(!groups.length){
     tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
@@ -223,7 +222,7 @@ function renderScoreTable(sc){
       return `<tr>
         <td>${s.subject_name||s.sub||'-'}</td>
         <td>${s.game_name||s.game||'-'}</td>
-        <td>${typeLabel[s.game_type||s.type] || s.type || '-'}</td>
+        <td>${GAME_TYPES[s.game_type]?.label || s.game_type || '-'}</td>
         <td><strong style="color:${c}">${pct}%</strong><span style="color:#9CA3AF"> (${score}/${max})</span></td>
         <td>${time}</td>
         <td>${date}</td>
