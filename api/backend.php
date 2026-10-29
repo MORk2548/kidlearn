@@ -969,6 +969,33 @@ function normalizePhone(string $raw): string {
     return $p;
 }
 
+// ── เปลี่ยนเบอร์ผู้ปกครอง แล้วย้ายเบอร์ของนักเรียนที่ผูกกับเบอร์เดิมไปเป็นเบอร์ใหม่ ──
+function setParentPhone(int $uid, string $raw): void {
+    $db    = DB::get();
+    $phone = normalizePhone($raw);
+    if (strlen($phone) < 9) DB::fail('เบอร์โทรไม่ถูกต้อง', 400);
+
+    $p = $db->one("SELECT parent_id, phone FROM parents WHERE user_id=?", [$uid], 'i');
+    if (!$p) return;
+    $old = normalizePhone($p['phone'] ?? '');
+    if ($phone === $old) return;
+    if ($db->one("SELECT 1 FROM parents WHERE phone=? AND user_id<>?", [$phone, $uid], 'si'))
+        DB::fail('เบอร์โทรนี้ถูกใช้แล้ว', 409);
+
+    $db->run("UPDATE parents SET phone=? WHERE user_id=?", [$phone, $uid], 'si');
+    if ($old) {
+        $db->run("UPDATE students SET parent_phone=? WHERE parent_phone=? OR parent_phone=?",
+            [$phone, $old, ltrim($old, '0')], 'sss');
+    }
+
+    $students = $db->all("SELECT student_id FROM students WHERE parent_phone=? OR parent_phone=?",
+        [$phone, ltrim($phone, '0')], 'ss');
+    foreach ($students as $s) {
+        $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
+            [$p['parent_id'], $s['student_id']], 'ii');
+    }
+}
+
 function handleRegister(): never {
     global $body;
     $db    = DB::get();
@@ -1150,27 +1177,10 @@ function handleUpdateProfile(): never {
     $email = trim($body['email']     ?? '');
     if (!$name || !$email) DB::fail('กรุณากรอกข้อมูลให้ครบ', 400);
 
+    if ($role === 'parent' && trim($body['phone'] ?? '') !== '') setParentPhone($id, $body['phone']);
+
     $db->run("UPDATE users SET full_name=?,email=? WHERE user_id=?", [$name, $email, $id], 'ssi');
     $accountDates = $db->one("SELECT created_at, updated_at FROM users WHERE user_id=?", [$id], 'i');
-
-
-    if ($role === 'parent') {
-        $phone    = preg_replace('/\D/', '', $body['phone']     ?? '');
-        $oldPhone = preg_replace('/\D/', '', $body['old_phone'] ?? '');
-        if ($phone && strlen($phone) < 9) DB::fail('เบอร์โทรไม่ถูกต้อง', 400);
-        if ($phone) $db->run("UPDATE parents SET phone=? WHERE user_id=?", [$phone, $id], 'si');
-        // re-link students using new phone
-        if ($phone && $phone !== $oldPhone) {
-            $p = $db->one("SELECT parent_id FROM parents WHERE user_id=?", [$id], 'i');
-            if ($p) {
-                $students = $db->all("SELECT student_id FROM students WHERE parent_phone=?", [$phone], 's');
-                foreach ($students as $s) {
-                    $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
-                        [$p['parent_id'], $s['student_id']], 'ii');
-                }
-            }
-        }
-    }
 
     if ($role === 'teacher') {
         $dept = trim($body['department'] ?? '');
@@ -3190,7 +3200,9 @@ function handleOfficerUpdateUser(): never {
     
     $user = $db->one("SELECT role FROM users WHERE user_id=?", [$uid], 'i');
     if (!$user) DB::fail('ไม่พบผู้ใช้', 404);
-    
+
+    if ($user['role'] === 'parent' && $phone) setParentPhone($uid, $phone);
+
     // อัปเดต users table
     if ($email) {
         $existing = $db->one("SELECT 1 FROM users WHERE email=? AND user_id!=?", [$email, $uid], 'si');
@@ -3203,11 +3215,6 @@ function handleOfficerUpdateUser(): never {
     // อัปเดต role-specific tables
     if ($user['role'] === 'student' && !empty($body['classroom_id'])) {
         setStudentClassroom($uid, $body['classroom_id']);
-    }
-    if ($user['role'] === 'parent' && $phone) {
-        $phone = normalizePhone($phone);
-        if (strlen($phone) < 9) DB::fail('เบอร์โทรไม่ถูกต้อง', 400);
-        $db->run("UPDATE parents SET phone=? WHERE user_id=?", [$phone, $uid], 'si');
     }
     if ($user['role'] === 'teacher' && $dept) {
         $db->run("UPDATE teachers SET department=? WHERE user_id=?", [$dept, $uid], 'si');

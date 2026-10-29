@@ -100,7 +100,7 @@ async function saveProfile() {
     return;
   }
 
-  const body = { full_name: name, email, old_phone: u.parentPhone || u.phone || '' };
+  const body = { full_name: name, email };
   if (u.role === 'teacher') {
     body.department = document.getElementById('pf-dept')?.value || u.department;
   }
@@ -117,6 +117,7 @@ async function saveProfile() {
   A.user.name = name;
   A.user.full_name = name;
   A.user.email = email;
+  if (body.phone) A.user.phone = body.phone;
   A.user.created_at = res.created_at || A.user.created_at;
   A.user.updated_at = res.updated_at || A.user.updated_at;
   const updatedAt = document.getElementById('pf-updated-at');
