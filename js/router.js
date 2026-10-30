@@ -61,7 +61,6 @@ function applyRoleUI() {
   document.getElementById('sb-av').className    = 'avatar ' + u.role;
   applyAvatar(document.getElementById('sb-av'), u.name.charAt(0));
   document.getElementById('sb-nm').textContent  = u.name;
-  document.getElementById('wn').textContent     = u.name.split(' ')[0];
 
   const rb = document.getElementById('sb-rb');
   rb.className   = 'rb ' + u.role;

@@ -22,11 +22,18 @@
 }
 
 body {
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   background: var(--bg);
   color: var(--tx);
   min-height: 100vh;
   overflow-x: hidden
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit
 }
 
 /* LAYOUT */
@@ -285,7 +292,7 @@ body {
   gap: .4rem;
   padding: .58rem 1.15rem;
   border-radius: 10px;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .86rem;
   font-weight: 600;
   cursor: pointer;
@@ -436,7 +443,7 @@ tbody tr:last-child td {
   padding: .7rem 1rem;
   border: 2px solid #E5E7EB;
   border-radius: 10px;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .88rem;
   color: var(--tx);
   transition: var(--tr);
@@ -533,7 +540,7 @@ tbody tr:last-child td {
   border-radius: 99px;
   border: 2px solid #E5E7EB;
   background: #fff;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .88rem;
   font-weight: 700;
   cursor: pointer;
@@ -634,7 +641,7 @@ tbody tr:last-child td {
   padding: .6rem 1.2rem;
   border: none;
   background: none;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .88rem;
   font-weight: 700;
   color: var(--mu);
@@ -1071,7 +1078,7 @@ tbody tr:last-child td {
   background: none;
   border: none;
   cursor: pointer;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .6rem;
   font-weight: 700;
   color: var(--mu);
@@ -1202,7 +1209,7 @@ tbody tr:last-child td {
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .95rem;
   font-weight: 700;
   background: #F59E0B;
@@ -1245,7 +1252,7 @@ tbody tr:last-child td {
   border: 3px solid #E5E7EB;
   border-radius: 16px;
   background: #fff;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: 1rem;
   font-weight: 600;
   color: var(--tx);
@@ -1287,7 +1294,7 @@ tbody tr:last-child td {
   border: 3px solid #E5E7EB;
   border-radius: 18px;
   background: #fff;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--tx);
@@ -1605,7 +1612,7 @@ tbody tr:last-child td {
   border: 2px solid #E5E7EB;
   border-radius: 16px;
   background: #fff;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   text-align: left;
   cursor: pointer;
   transition: var(--tr)
@@ -1761,7 +1768,7 @@ tbody tr:last-child td {
   border: 2px solid #E5E7EB;
   border-radius: 16px;
   background: #fff;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   text-align: left;
   color: var(--tx);
   cursor: pointer;
@@ -1856,7 +1863,7 @@ tbody tr:last-child td {
   border: 3px solid #E5E7EB;
   border-radius: 14px;
   background: #fff;
-  font-family: 'Kanit', sans-serif;
+  font-family: 'KoHo', sans-serif;
   font-size: .95rem;
   font-weight: 600;
   color: var(--tx);

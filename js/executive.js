@@ -258,7 +258,7 @@ function _renderExecutivePanel() {
       .ex-hero-sub { font-size:.82rem; color:#64748B; margin-top:.15rem; }
       .ex-toolbar-btn {
         border:1px solid #BFDBFE; background:#fff; color:#1D4ED8; border-radius:999px;
-        padding:.55rem 1rem; font-family:'Kanit',sans-serif; font-weight:700; cursor:pointer;
+        padding:.55rem 1rem; font-family:'KoHo',sans-serif; font-weight:700; cursor:pointer;
       }
       .ex-tabs {
         display:flex; gap:.4rem; flex-wrap:wrap; padding:.35rem;
@@ -266,7 +266,7 @@ function _renderExecutivePanel() {
       }
       .ex-tab-btn {
         padding:.7rem 1rem; border:none; border-radius:14px; background:transparent; color:#64748B;
-        font-family:'Kanit',sans-serif; font-size:.92rem; font-weight:800; cursor:pointer; transition:.18s ease;
+        font-family:'KoHo',sans-serif; font-size:.92rem; font-weight:800; cursor:pointer; transition:.18s ease;
       }
       .ex-tab-btn.active { background:#fff; color:#0F4C81; box-shadow:0 10px 24px rgba(15,76,129,.12); }
       .ex-surface {
@@ -288,7 +288,7 @@ function _renderExecutivePanel() {
       .ex-section-sub { font-size:.8rem; color:#64748B; margin-top:.12rem; }
       .ex-link-btn {
         border:none; background:#EFF6FF; color:#1D4ED8; border-radius:999px; padding:.5rem .85rem;
-        font-family:'Kanit',sans-serif; font-weight:700; cursor:pointer;
+        font-family:'KoHo',sans-serif; font-weight:700; cursor:pointer;
       }
       .ex-list { display:grid; gap:.75rem; }
       .ex-list-item {

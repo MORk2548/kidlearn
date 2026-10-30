@@ -362,7 +362,7 @@ function _ofRenderUsersTab() {
       .of-user-role{font-size:.82rem;color:var(--mu)}
       .of-user-meta{display:grid;grid-template-columns:1fr auto;gap:.4rem;font-size:.8rem;color:#666}
       .of-user-actions{display:flex;gap:.4rem;flex-wrap:wrap}
-      .of-btn-sm{padding:.4rem .7rem;font-size:.75rem;border:1px solid #E2E8F0;border-radius:6px;background:#fff;cursor:pointer;font-family:'Kanit',sans-serif;transition:all .15s}
+      .of-btn-sm{padding:.4rem .7rem;font-size:.75rem;border:1px solid #E2E8F0;border-radius:6px;background:#fff;cursor:pointer;font-family:'KoHo',sans-serif;transition:all .15s}
       .of-btn-sm:hover{background:#EEF2FF;border-color:#A5B4FC;color:var(--s)}
       .of-btn-danger:hover{background:#FEE2E2;border-color:#FECACA;color:#DC2626}
     </style>

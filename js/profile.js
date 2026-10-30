@@ -123,7 +123,6 @@ async function saveProfile() {
   const updatedAt = document.getElementById('pf-updated-at');
   if (updatedAt) updatedAt.textContent = formatDateTimeTH(A.user.updated_at);
   document.getElementById('sb-nm').textContent = name;
-  document.getElementById('wn').textContent = name.split(' ')[0];
   const nd = document.getElementById('pf-nm-display');
   if (nd) nd.textContent = name;
   showAl('pf-ok', 'บันทึกข้อมูลโปรไฟล์สำเร็จ');
