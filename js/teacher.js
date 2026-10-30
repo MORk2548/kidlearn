@@ -92,7 +92,7 @@ async function _renderTcSetup(){
   const [roomRes,subRes]=await Promise.all([apiClassrooms(),apiSubjects()]);
   setup.innerHTML=`<div class="ts">
     <h3>👋 ยินดีต้อนรับ! เลือกห้องและวิชาที่คุณสอน</h3>
-    <div style="font-size:.82rem;color:var(--mu);margin-bottom:.75rem">เลือกได้ครั้งเดียว ถ้าต้องการแก้ไขภายหลังให้ติดต่อเจ้าหน้าที่</div>
+    <div style="font-size:.82rem;color:var(--mu);margin-bottom:.75rem">เพิ่มหรือลบห้องที่สอนได้ภายหลังในแท็บคะแนนนักเรียน</div>
     <div id="tc-setup-form"></div>
     <div id="tc-setup-err" class="al ae" style="display:none"></div>
     <button class="btn btn-p btn-fw" onclick="saveTcSetup()">💾 บันทึกห้องและวิชาที่สอน</button>
@@ -127,13 +127,15 @@ async function loadTeach() {
   const el=document.getElementById('tc-stats');
   if(el) el.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลด...</div>';
 
-  const [statsRes,stuRes,roomRes,cardRes]=await Promise.all([
+  const [statsRes,stuRes,roomRes,cardRes,subRes]=await Promise.all([
     apiTeacherStats().catch(()=>({ok:false})),
     apiAllStudents().catch(()=>({ok:false})),
     apiClassrooms().catch(()=>({ok:false})),
-    apiTeacherClassSummary().catch(()=>({ok:false}))
+    apiTeacherClassSummary().catch(()=>({ok:false})),
+    apiSubjects().catch(()=>({ok:false}))
   ]);
   A.tcClassrooms=roomRes.ok?(roomRes.classrooms||[]):[];
+  A.tcAllSubjects=subRes.ok?(subRes.subjects||[]):[];
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
 
@@ -169,9 +171,15 @@ function renderTcCards(cards){
   const all=Object.values(bySubject);
   const multi=all.length>1;
   if(!bySubject[A.tcCardSubject]) A.tcCardSubject=null;
-  const roomButtons=`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
-      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องทุกชั้น</button>
-      <button class="child-btn" onclick="deleteTcRoom()">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
+  const roomButtons=A.role!=='teacher'?'':`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
+      <select class="fc" id="tc-add-subject" style="width:auto">
+        <option value="">🏠 ครูประจำชั้น (ทุกวิชา)</option>
+        ${(A.tcAllSubjects||[]).map(s=>`<option value="${s.subject_id}"${String(s.subject_id)===A.tcCardSubject?' selected':''}>${s.icon||'📚'} ${_esc(s.name)}</option>`).join('')}
+      </select>
+      <select class="fc" id="tc-add-room" style="width:auto">
+        ${A.tcClassrooms.map(r=>`<option value="${r.classroom_id}">${classLabel(r)}</option>`).join('')}
+      </select>
+      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องที่สอน</button>
     </div>`;
   if(multi&&!A.tcCardSubject){
     el.innerHTML=`<h3>📚 เลือกวิชาที่ต้องการดูคะแนน</h3>
@@ -193,14 +201,15 @@ function renderTcCards(cards){
   const subjects=multi?[bySubject[A.tcCardSubject]]:all;
   const card=c=>{
     const avg=c.avg_score==null?null:Math.round(+c.avg_score);
-    return `<button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
+    return `<div style="position:relative;display:grid"><button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
       style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
-      <div style="font-weight:800;font-size:.95rem">${multi?classLabel(c):_tcCardTitle(c)}</div>
+      <div style="font-weight:800;font-size:.95rem;padding-right:1.5rem">${multi?classLabel(c):_tcCardTitle(c)}</div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin:.4rem 0">
         <span style="font-size:.78rem;color:var(--mu)">👦 ${c.student_count} คน</span>
         <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
       </div>
-    </button>`;
+    </button>${A.role!=='teacher'?'':`<button title="เลิกสอนห้องนี้" aria-label="เลิกสอนห้องนี้" onclick="deleteTcRoom(${c.classroom_id},${c.subject_id??'null'})"
+      style="position:absolute;top:.4rem;right:.4rem;background:none;border:0;cursor:pointer">🗑️</button>`}</div>`;
   };
   el.innerHTML=`${multi?`<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
         <button class="btn btn-sm" onclick="openTcSubject(null)">← ทุกวิชา</button>
@@ -331,13 +340,15 @@ async function _applyTcRoomChange(req,failMsg){
   loadTeach();
 }
 function addTcRoom(){
-  if(!confirm('เพิ่มห้องใหม่ให้ทุกระดับชั้น (ป.1–ป.6)?'))return;
-  _applyTcRoomChange(apiAddClassroom,'เพิ่มห้องไม่สำเร็จ');
+  const room=+document.getElementById('tc-add-room').value;
+  const subject=+document.getElementById('tc-add-subject').value||null;
+  _applyTcRoomChange(()=>apiAddTeacherRoom(room,subject),'เพิ่มห้องไม่สำเร็จ');
 }
-function deleteTcRoom(){
-  const last=Math.max(0,...A.tcClassrooms.map(r=>r.room_no));
-  if(!confirm(`ลบห้องที่ ${last} ของทุกระดับชั้น? (ลบได้เฉพาะห้องที่ไม่มีนักเรียน)`))return;
-  _applyTcRoomChange(apiDeleteClassroom,'ลบห้องไม่สำเร็จ');
+function deleteTcRoom(classroomId,subjectId){
+  const card=(A.tcCards||[]).find(c=>c.classroom_id==classroomId&&c.subject_id==subjectId)||{};
+  if(!confirm(`เลิกสอน ${_tcCardTitle(card)}? (นักเรียนและคะแนนยังอยู่ครบ)`))return;
+  closeTcCard();
+  _applyTcRoomChange(()=>apiRemoveTeacherRoom(classroomId,subjectId),'ลบห้องไม่สำเร็จ');
 }
 async function selectTcStudent(sid){
   A.tcStudent=sid;

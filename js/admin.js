@@ -20,7 +20,7 @@ function _renderAdminTabs(){
   if(!wrap)return;
   wrap.innerHTML=`
     <button class="rec-tab${A.adminTab==='users'?' active':''}"   onclick="switchAdminTab('users')">👥 จัดการผู้ใช้</button>
-    <button class="rec-tab${A.adminTab==='subjects'?' active':''}" onclick="switchAdminTab('subjects')">📚 วิชา</button>
+    <button class="rec-tab${A.adminTab==='subjects'?' active':''}" onclick="switchAdminTab('subjects')">📚 วิชาและห้อง</button>
     <button class="rec-tab${A.adminTab==='reports'?' active':''}" onclick="switchAdminTab('reports')">📊 รายงาน</button>`;
   document.getElementById('adm-users-panel').style.display  =A.adminTab==='users'  ?'block':'none';
   document.getElementById('adm-subject-panel').style.display=A.adminTab==='subjects'?'block':'none';
@@ -31,9 +31,16 @@ function switchAdminTab(t){A.adminTab=t;_renderAdminTabs();loadAdmin();}
 // ════════ 3.0 จัดการวิชา ════════
 async function _loadAdminSubjects(){
   const el=document.getElementById('adm-subject-list');
-  const res=await apiSubjects().catch(()=>({ok:false}));
+  const [res,roomRes]=await Promise.all([apiSubjects().catch(()=>({ok:false})),apiClassrooms().catch(()=>({ok:false}))]);
   if(!res.ok){el.innerHTML='<div style="color:#EF4444">โหลดวิชาไม่สำเร็จ</div>';return;}
+  const lastRoom=Math.max(0,...(roomRes.classrooms||[]).map(r=>+r.room_no));
   el.innerHTML=`
+    <h3>🏫 ห้องเรียน (ป.1–ป.6 มีชั้นละ ${lastRoom} ห้อง)</h3>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      <button class="child-btn" onclick="adminRoomChange(apiAddClassroom,'เพิ่มห้องที่ ${lastRoom+1} ให้ทุกระดับชั้น?')">➕ เพิ่มห้องทุกชั้น</button>
+      <button class="child-btn" onclick="adminRoomChange(apiDeleteClassroom,'ลบห้องที่ ${lastRoom} ของทุกระดับชั้น? (ลบได้เฉพาะห้องที่ไม่มีนักเรียน)')">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
+    </div>
+    <h3>📚 วิชา</h3>
     <div style="display:flex;gap:.4rem;margin-bottom:.75rem">
       <input class="fc" id="adm-new-subject" placeholder="ชื่อวิชาใหม่" maxlength="100" onkeydown="if(event.key==='Enter')adminAddSubject()">
       <button class="btn btn-p" style="white-space:nowrap" onclick="adminAddSubject()">➕ เพิ่มวิชา</button>
@@ -48,6 +55,12 @@ async function adminAddSubject(){
   if(!name)return;
   const res=await apiAddSubject(name).catch(()=>({ok:false}));
   if(!res.ok){alert(res.error||'เพิ่มวิชาไม่สำเร็จ');return;}
+  _loadAdminSubjects();
+}
+async function adminRoomChange(req, question){
+  if(!confirm(question))return;
+  const res=await req().catch(()=>({ok:false}));
+  if(!res.ok){alert(res.error||'แก้ไขห้องไม่สำเร็จ');return;}
   _loadAdminSubjects();
 }
 async function adminDeleteSubject(id, name){
