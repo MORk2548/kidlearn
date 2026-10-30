@@ -66,6 +66,7 @@ function gbListHtml() {
       <div class="gb-card-ico" aria-hidden="true">${_esc(g.icon || type?.icon || '🎮')}</div>
       <div class="gb-card-body">
         <div class="gb-card-name">${_esc(g.name)}</div>
+        ${g.description ? `<div class="gb-card-meta">${_esc(g.description)}</div>` : ''}
         <div class="gb-card-meta">${_esc(type?.label || g.game_type)} · ${_esc(g.subject_name)} · ${_esc(g.grade)} · ${g.question_count} ข้อ</div>
         <div class="gb-card-meta">
           <span class="badge ${published ? 'be' : 'bm'}">${published ? 'เผยแพร่แล้ว' : 'ร่าง'}</span>
@@ -127,7 +128,7 @@ function gbPickType(type) {
   const subjectId = +gbSubjectsAllowed()[0].subject_id;
   const grade = gbGradesFor(subjectId)[0];
   A.gb.draft = {
-    game_id: 0, name: '', game_type: type, subject_id: subjectId, grade, time_limit: 180, status: 'draft',
+    game_id: 0, name: '', description: '', game_type: type, subject_id: subjectId, grade, time_limit: 180, status: 'draft',
     classroom_ids: gbRoomsFor(subjectId, grade).map(r => +r.classroom_id),
     questions: [GAME_TYPES[type].emptyQuestion()],
   };
@@ -140,7 +141,7 @@ async function gbEdit(gameId) {
   if (!res.ok) { alert(res.error || 'โหลดเกมไม่สำเร็จ'); return; }
   const g = res.game;
   A.gb.draft = {
-    game_id: +g.game_id, name: g.name, game_type: g.game_type, subject_id: +g.subject_id, grade: g.grade,
+    game_id: +g.game_id, name: g.name, description: g.description || '', game_type: g.game_type, subject_id: +g.subject_id, grade: g.grade,
     time_limit: +g.time_limit, status: g.status, classroom_ids: g.classroom_ids, questions: g.questions,
   };
   A.gb.view = 'edit';
@@ -161,6 +162,8 @@ function gbEditHtml() {
     </div>
     <div class="fg"><label class="fl" for="gb-name">ชื่อเกม</label>
       <input class="fc" id="gb-name" value="${_esc(d.name)}" maxlength="100" placeholder="เช่น บวกเลขสองหลัก"></div>
+    <div class="fg"><label class="fl" for="gb-desc">คำอธิบายเกม (ไม่บังคับ)</label>
+      <textarea class="fc" id="gb-desc" rows="2" maxlength="500" placeholder="เช่น ฝึกบวกเลขสองหลักแบบมีทด">${_esc(d.description)}</textarea></div>
     <div class="gb-row">
       <div class="fg"><label class="fl" for="gb-subject">วิชา</label>
         <select class="fc" id="gb-subject" onchange="gbSetScope(+this.value, null)">
@@ -210,6 +213,7 @@ function gbSync() {
   const d = A.gb.draft;
   const type = GAME_TYPES[d.game_type];
   d.name = document.getElementById('gb-name').value.trim();
+  d.description = document.getElementById('gb-desc').value.trim();
   d.time_limit = +document.getElementById('gb-time').value;
   d.classroom_ids = [...document.querySelectorAll('.gb-room:checked')].map(el => +el.value);
   d.questions = [...document.querySelectorAll('.gb-q')].map((el, i) => ({ ...type.readEditor(el), images: d.questions[i].images || [] }));

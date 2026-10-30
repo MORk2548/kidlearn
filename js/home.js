@@ -22,7 +22,9 @@ function loadHome(){
   document.getElementById('home-stats').innerHTML=html;
   const gamesEl=document.getElementById('home-games');
   if(gamesEl) gamesEl.innerHTML='';
-  if(r==='student') loadStudentGames();
+  const lessonsEl=document.getElementById('home-lessons');
+  if(lessonsEl) lessonsEl.innerHTML='';
+  if(r==='student'){ loadStudentGames(); loadStudentLessons(); }
   if (r !== 'student' && r !== 'parent') {
     apiAllStudents().then(res => {
       const el = document.getElementById('home-stat-students');
@@ -65,6 +67,7 @@ async function loadStudentGames(){
       <span class="sg-ico" aria-hidden="true">${_esc(g.icon||type?.icon||'🎮')}</span>
       <span class="sg-body">
         <span class="sg-name">${_esc(g.name)}</span>
+        ${g.description?`<span class="sg-meta">${_esc(g.description)}</span>`:''}
         <span class="sg-meta">${_esc(type?.label||'')} · ${g.question_count} ข้อ · ${Math.round(g.time_limit/60)} นาที</span>
         <span class="sg-meta">${best==null?'ยังไม่เคยเล่น':`คะแนนสูงสุด <strong style="color:${scoreColor(best)}">${best}%</strong>`}</span>
       </span>
@@ -76,6 +79,27 @@ async function loadStudentGames(){
       <div class="sg-subject">${_esc(s.icon||'📚')} ${_esc(s.name)}</div>
       <div class="sg-grid">${s.games.map(card).join('')}</div>`).join('')
       ||'<div class="gb-empty">ยังไม่มีเกมจากครู</div>'}
+  </div>`;
+}
+
+// ── บทเรียนที่ครูมอบหมายให้ห้องของนักเรียน ซ่อนทั้งส่วนถ้ายังไม่มี ──
+let _studentLessons=[];
+async function loadStudentLessons(){
+  const el=document.getElementById('home-lessons');
+  if(!el)return;
+  const res=await apiStudentLessons().catch(()=>({ok:false}));
+  _studentLessons=res.ok?res.lessons:[];
+  if(!_studentLessons.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="ts"><h3>📖 บทเรียนจากครู</h3>
+    <div class="sg-grid">${_studentLessons.map((l,i)=>`
+      <button class="sg-card" onclick="openLessonReader(_studentLessons[${i}])">
+        <span class="sg-ico" aria-hidden="true">${_esc(l.subject_icon||'📖')}</span>
+        <span class="sg-body">
+          <span class="sg-name">${_esc(l.title)}</span>
+          <span class="sg-meta">${_esc(l.subject_name)}</span>
+        </span>
+        <span class="sg-play">📖 อ่าน</span>
+      </button>`).join('')}</div>
   </div>`;
 }
 

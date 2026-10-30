@@ -43,6 +43,8 @@ KidLearn เป็นเว็บการเรียนรู้สำหร�
   migration สำหรับฐานข้อมูลเดิม เพิ่มวันแก้ไขบัญชีและเจ้าของเนื้อหา
 - `api/kidlearn_patch_teacher_games.sql`
   migration สำหรับฐานข้อมูลเดิม ให้ครูสร้างเกมเองได้ (ระดับชั้น เจ้าของ สถานะ เกมโยงเส้น ห้องที่มอบหมาย) รันหลัง patch v4
+- `api/kidlearn_patch_lessons.sql`
+  migration สำหรับฐานข้อมูลเดิม เพิ่มคำอธิบายเกม และตารางบทเรียนที่แยกจากเกม (`lessons`, `lesson_classrooms`) รันหลัง patch teacher_games
 
 ### เนื้อหาและไฟล์ช่วยงาน
 
@@ -51,7 +53,7 @@ KidLearn เป็นเว็บการเรียนรู้สำหร�
 - `scripts/db/smoke-test.ps1`
   ทดสอบระบบแบบเร็ว
 
-ฐานข้อมูลเดิมต้องรัน `api/kidlearn_patch_v4.sql` แล้วตามด้วย `api/kidlearn_patch_teacher_games.sql` ก่อนอัปเดตแอป ส่วนการติดตั้งใหม่ใช้ `kidlearn_full.sql` ที่มีคอลัมน์เหล่านี้แล้ว
+ฐานข้อมูลเดิมต้องรัน `api/kidlearn_patch_v4.sql`, `api/kidlearn_patch_teacher_games.sql` แล้วตามด้วย `api/kidlearn_patch_lessons.sql` ก่อนอัปเดตแอป ส่วนการติดตั้งใหม่ใช้ `kidlearn_full.sql` ที่มีคอลัมน์เหล่านี้แล้ว
 
 ## ไฟล์ที่สำคัญมาก
 

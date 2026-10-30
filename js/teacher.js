@@ -464,6 +464,7 @@ function _renderTcTabs(){
   wrap.innerHTML=`
     <button class="rec-tab${A.tcTab==='scores'?' active':''}"  onclick="switchTcTab('scores')">คะแนนนักเรียน</button>
     <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">เกมของฉัน</button>
+    <button class="rec-tab${A.tcTab==='lessons'?' active':''}" onclick="switchTcTab('lessons')">บทเรียนของฉัน</button>
     <button class="rec-tab${A.tcTab==='plans'?' active':''}"   onclick="switchTcTab('plans')">แผนรายสัปดาห์</button>
     <button class="rec-tab${A.tcTab==='students'?' active':''}" onclick="switchTcTab('students')">เพิ่มนักเรียน</button>`;
   const scorePanel=document.getElementById('tc-score-panel');
@@ -471,6 +472,8 @@ function _renderTcTabs(){
   const planPanel=document.getElementById('tc-plan-panel');
   if(scorePanel) scorePanel.style.display=A.tcTab==='scores'?'block':'none';
   if(gamePanel) gamePanel.style.display=A.tcTab==='games'?'block':'none';
+  const lessonPanel=document.getElementById('tc-lesson-panel');
+  if(lessonPanel) lessonPanel.style.display=A.tcTab==='lessons'?'block':'none';
   if(planPanel) planPanel.style.display=A.tcTab==='plans'?'block':'none';
   const studentPanel=document.getElementById('tc-student-panel');
   if(studentPanel) studentPanel.style.display=A.tcTab==='students'?'block':'none';
@@ -480,6 +483,7 @@ function switchTcTab(tab){
   A.tcTab=tab;
   _renderTcTabs();
   if(tab==='games') loadGameBuilder();
+  if(tab==='lessons') loadLessonBuilder();
   if(tab==='plans') renderTcPlanPanel();
   if(tab==='students') loadStudentImport();
 }

@@ -205,7 +205,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
         'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
         'save_teacher_assignments', 'add_teacher_room', 'remove_teacher_room', 'teacher_create_students',
-        'save_teacher_game', 'delete_teacher_game', 'save_score',
+        'save_teacher_game', 'delete_teacher_game', 'save_score', 'save_lesson', 'delete_lesson',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
         DB::fail('Method not allowed', 405);
@@ -873,7 +873,7 @@ function handleTeacherGames(): never {
     ensureTeacherAssignmentSchema();
     $own = myRole() === 'teacher' ? ' AND g.created_by = ' . myId() : '';
     $games = DB::get()->all(
-        "SELECT g.game_id, g.name, g.icon, g.game_type, g.grade, g.status, g.time_limit,
+        "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.grade, g.status, g.time_limit,
                 g.subject_id, sub.name AS subject_name, u.full_name AS creator_name,
                 (SELECT COUNT(*) FROM questions q WHERE q.game_id = g.game_id) AS question_count,
                 COALESCE((SELECT json_agg(gc.classroom_id ORDER BY gc.classroom_id)
@@ -917,6 +917,8 @@ function handleSaveTeacherGame(): never {
     $timeLimit = (int)($body['time_limit'] ?? 60);
     if ($timeLimit < 30 || $timeLimit > 1800) DB::fail('เวลาต้องอยู่ระหว่าง 30-1800 วินาที', 400);
     $icon = mb_substr(trim((string)($body['icon'] ?? '')), 0, 10) ?: '🎮';
+    $description = trim((string)($body['description'] ?? '')) ?: null;
+    if ($description !== null && mb_strlen($description) > 500) DB::fail('คำอธิบายเกม: ยาวเกิน 500 ตัวอักษร', 400);
 
     $rawQuestions = $body['questions'] ?? null;
     if (!is_array($rawQuestions) || !$rawQuestions || count($rawQuestions) > GAME_MAX_QUESTIONS)
@@ -930,17 +932,17 @@ function handleSaveTeacherGame(): never {
     $oldImages = $isUpdate ? gameImagePaths($gameId) : [];
     checkGameImages($questions, $oldImages);
 
-    $gameId = $db->transaction(function (DB $db) use ($gameId, $name, $type, $grade, $subjectId, $status, $timeLimit, $icon, $questions, $rooms) {
+    $gameId = $db->transaction(function (DB $db) use ($gameId, $name, $description, $type, $grade, $subjectId, $status, $timeLimit, $icon, $questions, $rooms) {
         if ($gameId) {
-            $db->run("UPDATE games SET name=?, game_type=?, grade=?, subject_id=?, status=?, time_limit=?, icon=?
-                      WHERE game_id=?", [$name, $type, $grade, $subjectId, $status, $timeLimit, $icon, $gameId]);
+            $db->run("UPDATE games SET name=?, description=?, game_type=?, grade=?, subject_id=?, status=?, time_limit=?, icon=?
+                      WHERE game_id=?", [$name, $description, $type, $grade, $subjectId, $status, $timeLimit, $icon, $gameId]);
             $db->run("DELETE FROM questions WHERE game_id=?", [$gameId]);
             $db->run("DELETE FROM game_classrooms WHERE game_id=?", [$gameId]);
         } else {
             $gameId = (int)$db->one(
-                "INSERT INTO games (name, game_type, grade, subject_id, status, time_limit, icon, created_by)
-                 VALUES (?,?,?,?,?,?,?,?) RETURNING game_id",
-                [$name, $type, $grade, $subjectId, $status, $timeLimit, $icon, myId()])['game_id'];
+                "INSERT INTO games (name, description, game_type, grade, subject_id, status, time_limit, icon, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?) RETURNING game_id",
+                [$name, $description, $type, $grade, $subjectId, $status, $timeLimit, $icon, myId()])['game_id'];
         }
 
         $questionRows = array_map(fn($q, $i) => ['text' => $q['text'], 'explanation' => $q['explanation'],
@@ -994,6 +996,81 @@ function handleDeleteTeacherGame(): never {
     DB::ok(['deleted' => true]);
 }
 
+// ── บทเรียน: แยกจากเกม ครูจัดการได้เฉพาะของตัวเอง แอดมินจัดการได้ทุกบท นักเรียนเห็นบทที่มอบหมายให้ห้องตัวเอง ──
+const LESSON_SELECT_SQL = "SELECT l.lesson_id, l.title, l.body, l.grade, l.subject_id, l.updated_at,
+        sub.name AS subject_name, sub.icon AS subject_icon,
+        COALESCE((SELECT json_agg(lc.classroom_id ORDER BY lc.classroom_id)
+                  FROM lesson_classrooms lc WHERE lc.lesson_id = l.lesson_id), '[]') AS classroom_ids
+    FROM lessons l JOIN subjects sub ON sub.subject_id = l.subject_id";
+
+function lessonRows(array $rows): array {
+    foreach ($rows as &$r) $r['classroom_ids'] = json_decode($r['classroom_ids'], true);
+    return $rows;
+}
+
+function findManagedLesson(int $lessonId): array {
+    $lesson = DB::get()->one("SELECT * FROM lessons WHERE lesson_id=?", [$lessonId], 'i');
+    if (!$lesson || (myRole() === 'teacher' && (int)$lesson['created_by'] !== myId())) DB::fail('ไม่พบบทเรียน', 404);
+    return $lesson;
+}
+
+function handleTeacherLessons(): never {
+    authRole('teacher', 'admin');
+    $own = myRole() === 'teacher' ? ' WHERE l.created_by = ' . myId() : '';
+    DB::ok(['lessons' => lessonRows(DB::get()->all(LESSON_SELECT_SQL . "{$own} ORDER BY l.lesson_id DESC"))]);
+}
+
+function handleSaveLesson(): never {
+    global $body;
+    authRole('teacher', 'admin');
+    ensureTeacherAssignmentSchema();
+    $db = DB::get();
+    $lessonId = (int)($body['lesson_id'] ?? 0);
+    if ($lessonId) findManagedLesson($lessonId);
+
+    $title = gameText($body['title'] ?? '', 200, 'ชื่อบทเรียน');
+    $text = gameText($body['body'] ?? '', 10000, 'เนื้อหาบทเรียน');
+    $grade = (string)($body['grade'] ?? '');
+    if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('กรุณาเลือกระดับชั้น', 400);
+    $subjectId = (int)($body['subject_id'] ?? 0);
+    if (!$db->one("SELECT 1 FROM subjects WHERE subject_id=?", [$subjectId], 'i')) DB::fail('กรุณาเลือกวิชา', 400);
+    $rooms = intArrayLiteral($body['classroom_ids'] ?? []);
+    checkGameScope($grade, $subjectId, $rooms);
+
+    $lessonId = $db->transaction(function (DB $db) use ($lessonId, $title, $text, $grade, $subjectId, $rooms) {
+        if ($lessonId) {
+            $db->run("UPDATE lessons SET title=?, body=?, grade=?, subject_id=?, updated_at=NOW() WHERE lesson_id=?",
+                [$title, $text, $grade, $subjectId, $lessonId]);
+            $db->run("DELETE FROM lesson_classrooms WHERE lesson_id=?", [$lessonId]);
+        } else {
+            $lessonId = (int)$db->one(
+                "INSERT INTO lessons (title, body, grade, subject_id, created_by) VALUES (?,?,?,?,?) RETURNING lesson_id",
+                [$title, $text, $grade, $subjectId, myId()])['lesson_id'];
+        }
+        $db->run("INSERT INTO lesson_classrooms (lesson_id, classroom_id) SELECT ?, unnest(?::int[])", [$lessonId, $rooms]);
+        return $lessonId;
+    });
+    logAudit('save', 'lesson', (string)$lessonId, "บันทึกบทเรียน {$title}", ['grade' => $grade, 'subject_id' => $subjectId]);
+    DB::ok(['lesson_id' => $lessonId]);
+}
+
+function handleDeleteLesson(): never {
+    global $body;
+    authRole('teacher', 'admin');
+    $lesson = findManagedLesson((int)($body['lesson_id'] ?? 0));
+    DB::get()->run("DELETE FROM lessons WHERE lesson_id=?", [(int)$lesson['lesson_id']]);
+    logAudit('delete', 'lesson', (string)$lesson['lesson_id'], "ลบบทเรียน {$lesson['title']}");
+    DB::ok(['deleted' => true]);
+}
+
+function handleStudentLessons(): never {
+    authRole('student');
+    DB::ok(['lessons' => lessonRows(DB::get()->all(LESSON_SELECT_SQL . "
+        WHERE EXISTS (SELECT 1 FROM lesson_classrooms lc JOIN students st ON st.classroom_id = lc.classroom_id
+                      WHERE lc.lesson_id = l.lesson_id AND st.user_id = ?)
+        ORDER BY sub.order_no, l.lesson_id DESC", [myId()]))]);
+}
+
 // ใช้กับ alias g และต้องส่ง user_id ของนักเรียนเป็นพารามิเตอร์
 const STUDENT_PLAYABLE_GAME_SQL = "g.status = 'published' AND g.is_active = TRUE AND EXISTS (
     SELECT 1 FROM game_classrooms gc JOIN students st ON st.classroom_id = gc.classroom_id
@@ -1002,7 +1079,7 @@ const STUDENT_PLAYABLE_GAME_SQL = "g.status = 'published' AND g.is_active = TRUE
 function handleStudentGames(): never {
     authRole('student');
     DB::ok(['games' => DB::get()->all(
-        "SELECT g.game_id, g.name, g.icon, g.game_type, g.time_limit, g.subject_id,
+        "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.time_limit, g.subject_id,
                 sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
                 (SELECT COUNT(*) FROM questions q WHERE q.game_id = g.game_id) AS question_count,
                 (SELECT MAX(sc.score) FROM scores sc JOIN students st ON st.student_id = sc.student_id
@@ -1135,6 +1212,10 @@ match ($action) {
     'teacher_game'             => handleTeacherGame(),
     'save_teacher_game'        => handleSaveTeacherGame(),
     'delete_teacher_game'      => handleDeleteTeacherGame(),
+    'teacher_lessons'          => handleTeacherLessons(),
+    'save_lesson'              => handleSaveLesson(),
+    'delete_lesson'            => handleDeleteLesson(),
+    'student_lessons'          => handleStudentLessons(),
     'student_games'            => handleStudentGames(),
     'game_play'                => handleGamePlay(),
     'save_score'               => handleSaveScore(),

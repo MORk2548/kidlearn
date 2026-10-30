@@ -625,10 +625,12 @@ tbody tr:last-child td {
   gap: .5rem;
   margin-bottom: 1.4rem;
   border-bottom: 2px solid #E5E7EB;
-  padding-bottom: 0
+  padding-bottom: 0;
+  overflow-x: auto
 }
 
 .rec-tab {
+  white-space: nowrap;
   padding: .6rem 1.2rem;
   border: none;
   background: none;
@@ -2071,3 +2073,12 @@ tbody tr:last-child td {
 .frac-num{padding:0 .25em;border-bottom:.1em solid currentColor}
 .frac-den{padding:0 .25em}
 .ge-hint{font-size:.75rem;color:var(--mu);margin:-.5rem 0 1rem}
+
+.lesson-read h2 {
+  margin: 0 0 .8rem
+}
+
+.lesson-body {
+  white-space: pre-wrap;
+  line-height: 1.7
+}

@@ -6,7 +6,7 @@
   <title>KidLearn — เรียนสนุก เล่นสนุก</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=5.9">
+  <link rel="stylesheet" href="style.css?v=5.12">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -48,6 +48,7 @@
     <div id="s-home">
       <div class="pg-title">👋 ยินดีต้อนรับ, <span id="wn">ผู้ใช้</span>!</div>
       <div class="stats" id="home-stats"></div>
+      <div id="home-lessons"></div>
       <div id="home-games"></div>
     </div>
 
@@ -127,6 +128,9 @@
 
       <!-- ── แท็บ 2: เกมของฉัน ── -->
       <div id="tc-game-panel" style="display:none"></div>
+
+      <!-- ── แท็บ 3: บทเรียนของฉัน ── -->
+      <div id="tc-lesson-panel" style="display:none"></div>
 
       <!-- ── แท็บ 4: เพิ่มนักเรียน ── -->
       <div id="tc-student-panel" style="display:none"></div>
@@ -287,20 +291,21 @@
 <!-- ════════════════════════════════════════════════════
      SCRIPTS (order matters)
 ════════════════════════════════════════════════════ -->
-<script src="js/api.js?v=3.21"></script>
+<script src="js/api.js?v=3.22"></script>
 <script src="js/game_types.js?v=1.4"></script>
 <script src="js/data.js?v=4.5"></script>
 <script src="js/state.js?v=3.9"></script>
 <script src="js/router.js?v=3.8"></script>
 <script src="js/auth.js?v=3.13"></script>
-<script src="js/home.js?v=3.16"></script>
+<script src="js/home.js?v=3.18"></script>
 <script src="js/scores.js?v=3.7"></script>
 <script src="js/recommendations.js?v=3.6"></script>
 <script src="js/children.js?v=3.7"></script>
-<script src="js/teacher.js?v=3.22"></script>
+<script src="js/teacher.js?v=3.23"></script>
 <script src="js/student_import.js?v=1.5"></script>
 <script src="js/game_player.js?v=1.2"></script>
-<script src="js/game_builder.js?v=1.1"></script>
+<script src="js/game_builder.js?v=1.3"></script>
+<script src="js/lesson_builder.js?v=1.0"></script>
 <script src="js/officer.js?v=3.12"></script>
 <script src="js/executive.js?v=3.9"></script>
 <script src="js/admin.js?v=3.13"></script>

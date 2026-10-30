@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS games (
                  CONSTRAINT games_created_by_fkey REFERENCES users(user_id) ON DELETE SET NULL,
   status         VARCHAR(20) NOT NULL DEFAULT 'draft'
                  CONSTRAINT games_status_check CHECK (status IN ('draft','published')),
+  description    VARCHAR(500) DEFAULT NULL,
   -- เกมที่ครูสร้างต้องมีระดับชั้น เกมเดิมที่ไม่มีเจ้าของเว้นได้
   CONSTRAINT games_teacher_grade_check CHECK (created_by IS NULL OR grade IS NOT NULL),
   FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE
@@ -141,6 +142,30 @@ CREATE TABLE IF NOT EXISTS game_classrooms (
 
 CREATE INDEX IF NOT EXISTS idx_game_classrooms_classroom ON game_classrooms(classroom_id);
 ALTER TABLE game_classrooms ENABLE ROW LEVEL SECURITY;
+
+-- บทเรียนที่ครูสร้างแยกจากเกม มอบหมายให้ห้องแบบเดียวกับเกม
+CREATE TABLE IF NOT EXISTS lessons (
+  lesson_id   SERIAL PRIMARY KEY,
+  subject_id  INT          NOT NULL REFERENCES subjects(subject_id) ON DELETE CASCADE,
+  grade       VARCHAR(20)  NOT NULL CHECK (grade IN ('ป.1','ป.2','ป.3','ป.4','ป.5','ป.6')),
+  title       VARCHAR(200) NOT NULL,
+  body        TEXT         NOT NULL,
+  created_by  INT          NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lessons_created_by ON lessons(created_by);
+
+CREATE TABLE IF NOT EXISTS lesson_classrooms (
+  lesson_id    INT NOT NULL REFERENCES lessons(lesson_id) ON DELETE CASCADE,
+  classroom_id INT NOT NULL REFERENCES classrooms(classroom_id) ON DELETE CASCADE,
+  PRIMARY KEY (lesson_id, classroom_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_classrooms_classroom ON lesson_classrooms(classroom_id);
+ALTER TABLE lessons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_classrooms ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE IF NOT EXISTS questions (
   question_id   SERIAL PRIMARY KEY,

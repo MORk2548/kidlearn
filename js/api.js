@@ -101,6 +101,12 @@ const apiTeacherGame = (gameId) => _api('teacher_game', { params: { game_id: gam
 const apiSaveTeacherGame = (d) => _api('save_teacher_game', { body: d });
 const apiDeleteTeacherGame = (gameId) => _api('delete_teacher_game', { body: { game_id: gameId } });
 
+// Lessons
+const apiTeacherLessons = () => _api('teacher_lessons');
+const apiSaveLesson = (d) => _api('save_lesson', { body: d });
+const apiDeleteLesson = (lessonId) => _api('delete_lesson', { body: { lesson_id: lessonId } });
+const apiStudentLessons = () => _api('student_lessons');
+
 // Student games
 const apiStudentGames = () => _api('student_games');
 const apiGamePlay = (gameId) => _api('game_play', { params: { game_id: gameId } });
