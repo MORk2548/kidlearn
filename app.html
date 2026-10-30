@@ -6,7 +6,7 @@
   <title>KidLearn — เรียนสนุก เล่นสนุก</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;900&family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=5.13">
+  <link rel="stylesheet" href="style.css?v=5.14">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -28,6 +28,7 @@
       <div class="rb" id="sb-rb">นักเรียน</div>
     </div>
     <button class="sl active" id="sl-home"     onclick="sec('home')">    <span class="ico">🏠</span>หน้าหลัก</button>
+    <button class="sl"        id="sl-lessons"  onclick="sec('lessons')"  style="display:none"><span class="ico">📖</span>บทเรียน</button>
     <button class="sl"        id="sl-scores"   onclick="sec('scores')">  <span class="ico">🏆</span>คะแนน</button>
     <button class="sl"        id="sl-rec"      onclick="sec('rec')"      style="display:none"><span class="ico">💡</span>คำแนะนำ</button>
     <button class="sl"        id="sl-children" onclick="sec('children')" style="display:none"><span class="ico">👨‍👩‍👧</span>จัดการบุตรหลาน</button>
@@ -35,7 +36,6 @@
     <button class="sl"        id="sl-officer"  onclick="sec('officer')"  style="display:none"><span class="ico">👔</span>จัดการผู้ใช้</button>
     <button class="sl"        id="sl-executive" onclick="sec('executive')" style="display:none"><span class="ico">💼</span>แผงบริหาร</button>
     <button class="sl"        id="sl-admin"    onclick="sec('admin')"    style="display:none"><span class="ico">🛠️</span>ผู้ดูแลระบบ</button>
-    <div id="sb-lessons"></div>
     <button class="sl"        id="sl-profile"  onclick="sec('profile')"> <span class="ico">⚙️</span>แก้ไขโปรไฟล์</button>
     <button class="sl sl-out"                  onclick="doLogout()">   <span class="ico">🚪</span>ออกจากระบบ</button>
   </aside>
@@ -49,8 +49,13 @@
     <div id="s-home">
       <div class="pg-title">👋 ยินดีต้อนรับ, <span id="wn">ผู้ใช้</span>!</div>
       <div class="stats" id="home-stats"></div>
-      <div id="home-lessons"></div>
       <div id="home-games"></div>
+    </div>
+
+    <!-- ── LESSONS (student) ── -->
+    <div id="s-lessons" style="display:none">
+      <div class="pg-title">📖 บทเรียน</div>
+      <div id="lessons-list"></div>
     </div>
 
     <!-- ── SCORES ── -->
@@ -265,6 +270,9 @@
   <button class="bn-item active" id="bn-home"     onclick="sec('home')">
     <i class="fa-solid fa-house"></i><span>หน้าหลัก</span>
   </button>
+  <button class="bn-item" id="bn-lessons"  onclick="sec('lessons')"  style="display:none">
+    <i class="fa-solid fa-book-open"></i><span>บทเรียน</span>
+  </button>
   <button class="bn-item" id="bn-scores"   onclick="sec('scores')">
     <i class="fa-solid fa-trophy"></i><span>คะแนน</span>
   </button>
@@ -296,9 +304,9 @@
 <script src="js/game_types.js?v=1.4"></script>
 <script src="js/data.js?v=4.5"></script>
 <script src="js/state.js?v=3.9"></script>
-<script src="js/router.js?v=3.8"></script>
+<script src="js/router.js?v=3.9"></script>
 <script src="js/auth.js?v=3.13"></script>
-<script src="js/home.js?v=3.19"></script>
+<script src="js/home.js?v=3.21"></script>
 <script src="js/scores.js?v=3.7"></script>
 <script src="js/recommendations.js?v=3.6"></script>
 <script src="js/children.js?v=3.7"></script>

@@ -1741,60 +1741,6 @@ tbody tr:last-child td {
   }
 }
 
-/* STUDENT LESSONS IN SIDEBAR (home.js) */
-.sb-head {
-  font-size: .75rem;
-  font-weight: 700;
-  color: var(--mu);
-  margin: .8rem .9rem .3rem
-}
-
-.sb-subj summary {
-  display: flex;
-  align-items: center;
-  gap: .65rem;
-  padding: .55rem .9rem;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: .85rem;
-  cursor: pointer
-}
-
-.sb-subj summary:hover {
-  background: #F3F4F6
-}
-
-.sb-subj summary .ico {
-  font-size: 1.1rem;
-  min-width: 22px;
-  text-align: center
-}
-
-.sb-cnt {
-  margin-left: auto;
-  font-size: .7rem;
-  color: var(--mu);
-  background: #F3F4F6;
-  border-radius: 999px;
-  padding: .05rem .5rem
-}
-
-.sb-lesson {
-  padding: .45rem .9rem .45rem 2.7rem;
-  font-size: .8rem
-}
-
-/* บนจอใหญ่บทเรียนอยู่ใน sidebar แล้ว */
-#home-lessons {
-  display: none
-}
-
-@media(max-width:900px) {
-  #home-lessons {
-    display: block
-  }
-}
-
 /* STUDENT GAMES (home.js) */
 .sg-subject {
   font-weight: 700;

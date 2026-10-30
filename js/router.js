@@ -29,7 +29,7 @@ window.addEventListener('popstate', e => {
 function sec(name, state = { sec: name }) {
   navPush(state);
   // ซ่อนทุก section รวมถึง s-lessons และ s-content
-  ['home','scores','rec','children','teach','officer','executive','admin','profile'].forEach(s => {
+  ['home','lessons','scores','rec','children','teach','officer','executive','admin','profile'].forEach(s => {
     const e = document.getElementById('s-' + s);
     if (e) e.style.display = 'none';
   });
@@ -45,6 +45,7 @@ function sec(name, state = { sec: name }) {
   });
 
   if (name === 'home')     loadHome();
+  if (name === 'lessons')  loadStudentLessons();
   if (name === 'scores')   loadScores();
   if (name === 'rec')      loadRec();
   if (name === 'children') loadChildren();
@@ -71,8 +72,11 @@ function applyRoleUI() {
   const isOf = u.role === 'officer';
   const isEx = u.role === 'executive';
   const isAd = u.role === 'admin';
+  const isSt = u.role === 'student';
 
   // Sidebar
+  document.getElementById('sl-lessons').style.display   = isSt ? 'flex'  : 'none';
+  document.getElementById('bn-lessons').style.display   = isSt ? 'flex'  : 'none';
   document.getElementById('sl-rec').style.display       = isPa ? 'flex'  : 'none';
   document.getElementById('sl-children').style.display  = isPa ? 'flex'  : 'none';
   document.getElementById('sl-teach').style.display     = isTc ? 'flex'  : 'none';

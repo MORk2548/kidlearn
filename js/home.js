@@ -22,9 +22,7 @@ function loadHome(){
   document.getElementById('home-stats').innerHTML=html;
   const gamesEl=document.getElementById('home-games');
   if(gamesEl) gamesEl.innerHTML='';
-  const lessonsEl=document.getElementById('home-lessons');
-  if(lessonsEl) lessonsEl.innerHTML='';
-  if(r==='student'){ loadStudentGames(); loadStudentLessons(); }
+  if(r==='student') loadStudentGames();
   if (r !== 'student' && r !== 'parent') {
     apiAllStudents().then(res => {
       const el = document.getElementById('home-stat-students');
@@ -82,23 +80,19 @@ async function loadStudentGames(){
   </div>`;
 }
 
-// ── บทเรียนที่ครูมอบหมายให้ห้องของนักเรียน แยกตามวิชา อยู่ใน sidebar (จอเล็กแสดงในหน้าหลักแทน) ซ่อนถ้ายังไม่มี ──
+// ── หน้าบทเรียน: บทเรียนที่ครูมอบหมายให้ห้องของนักเรียน แยกตามวิชา ──
 let _studentLessons=[];
 async function loadStudentLessons(){
-  const sb=document.getElementById('sb-lessons');
-  const home=document.getElementById('home-lessons');
+  const el=document.getElementById('lessons-list');
+  el.innerHTML='<div class="ts" style="color:var(--mu)">⏳ กำลังโหลดบทเรียน...</div>';
   const res=await apiStudentLessons().catch(()=>({ok:false}));
-  _studentLessons=res.ok?res.lessons:[];
-  if(!_studentLessons.length){sb.innerHTML='';home.innerHTML='';return;}
+  if(!res.ok){el.innerHTML=`<div class="ts" style="color:#EF4444">${_esc(res.error||'โหลดบทเรียนไม่สำเร็จ')}</div>`;return;}
+  _studentLessons=res.lessons;
+  if(!_studentLessons.length){el.innerHTML='<div class="ts"><div class="gb-empty">ยังไม่มีบทเรียนจากครู</div></div>';return;}
   const bySubject={};
   _studentLessons.forEach((l,i)=>(bySubject[l.subject_name] ||= {icon:l.subject_icon,items:[]}).items.push([l,i]));
   const subjects=Object.entries(bySubject);
-  sb.innerHTML=`<div class="sb-head">📖 บทเรียนจากครู</div>
-    ${subjects.map(([name,s])=>`<details class="sb-subj" open>
-      <summary><span class="ico">${_esc(s.icon||'📚')}</span>${_esc(name)}<span class="sb-cnt">${s.items.length}</span></summary>
-      ${s.items.map(([l,i])=>`<button class="sl sb-lesson" onclick="openLessonReader(_studentLessons[${i}])">${_esc(l.title)}</button>`).join('')}
-    </details>`).join('')}`;
-  home.innerHTML=`<div class="ts"><h3>📖 บทเรียนจากครู</h3>
+  el.innerHTML=`<div class="ts">
     ${subjects.map(([name,s])=>`
       <div class="sg-subject">${_esc(s.icon||'📚')} ${_esc(name)}</div>
       <div class="sg-grid">${s.items.map(([l,i])=>`
