@@ -1660,6 +1660,32 @@ tbody tr:last-child td {
   margin-bottom: .6rem
 }
 
+.gb-q-img {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin-bottom: .6rem
+}
+
+.gb-q-img img {
+  max-width: 100%;
+  max-height: 160px;
+  border-radius: 10px
+}
+
+.gb-q-img label {
+  cursor: pointer
+}
+
+.gp-img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  margin: 0 auto .8rem;
+  border-radius: 12px
+}
+
 .gb-actions {
   display: flex;
   gap: .5rem;

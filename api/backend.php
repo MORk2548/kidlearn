@@ -540,6 +540,10 @@ function intArrayLiteral(mixed $values): string {
     return '{' . implode(',', array_unique($ints)) . '}';
 }
 
+function textArrayLiteral(array $values): string {
+    return '{' . implode(',', array_map(fn($v) => '"' . addcslashes((string)$v, '"\\') . '"', $values)) . '}';
+}
+
 function handleTeacherAssignments(): never {
     authRole('teacher', 'admin', 'officer');
     ensureTeacherAssignmentSchema();
@@ -762,12 +766,12 @@ function parseGameQuestion(string $type, mixed $q, int $no): array {
             break;
     }
     return ['text' => $text, 'explanation' => mb_substr(trim((string)($q['explanation'] ?? '')), 0, 1000) ?: null,
-            'answers' => $answers];
+            'image' => trim((string)($q['image'] ?? '')) ?: null, 'answers' => $answers];
 }
 
 // แถวของ questions/answers → คำถามรูปแบบเดียวกับที่หน้าสร้างเกมส่งมา
 function gameQuestionOut(string $type, array $q, array $answers): array {
-    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? ''];
+    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? '', 'image' => $q['question_img'] ?? ''];
     switch ($type) {
         case 'mcq':
             $out['choices'] = array_column($answers, 'answer_text');
@@ -790,7 +794,7 @@ function gameQuestionOut(string $type, array $q, array $answers): array {
 
 function loadGameQuestions(int $gameId, string $type): array {
     $db = DB::get();
-    $questions = $db->all("SELECT question_id, question_text, explanation FROM questions
+    $questions = $db->all("SELECT question_id, question_text, explanation, question_img FROM questions
                            WHERE game_id=? ORDER BY order_no, question_id", [$gameId], 'i');
     $byQuestion = [];
     foreach ($db->all(
@@ -830,6 +834,31 @@ function checkGameScope(string $grade, int $subjectId, string $rooms): void {
     $allowed = (int)$db->one("SELECT COUNT(DISTINCT classroom_id) AS c FROM ({$taught}) t WHERE classroom_id = ANY(?::int[])",
         [myId(), $grade, $subjectId, $rooms], 'isis')['c'];
     if ($allowed !== $roomCount) DB::fail('มีห้องที่คุณไม่ได้สอนวิชานี้', 400);
+}
+
+// รูปของเกมเก็บเป็น URL สาธารณะใน questions.question_img คืน path ใน bucket ของรูปที่เกมนี้ใช้อยู่
+function gameImagePaths(int $gameId): array {
+    $prefix = storagePublicPrefix();
+    $urls = array_column(DB::get()->all("SELECT question_img FROM questions WHERE game_id=? AND question_img IS NOT NULL",
+        [$gameId], 'i'), 'question_img');
+    return array_values(array_unique(array_map(fn($u) => substr($u, strlen($prefix)),
+        array_filter($urls, fn($u) => str_starts_with($u, $prefix)))));
+}
+
+// รูปใหม่ต้องเป็นรูปเกมที่ผู้ใช้คนนี้อัปโหลดเอง กันไม่ให้อ้างรูปของคนอื่นแล้วรูปนั้นถูกลบตอนลบเกม
+function checkGameImages(array $questions, array $currentPaths): void {
+    $prefix = storagePublicPrefix();
+    $paths = [];
+    foreach ($questions as $i => $q) {
+        if (!$q['image']) continue;
+        $path = str_starts_with($q['image'], $prefix) ? substr($q['image'], strlen($prefix)) : '';
+        if (!preg_match('#^game/\d+/[0-9a-f]{32}\.\w+$#', $path)) DB::fail('ข้อ ' . ($i + 1) . ': รูปภาพไม่ถูกต้อง', 400);
+        if (!in_array($path, $currentPaths, true)) $paths[$path] = $path;
+    }
+    if (!$paths) return;
+    $owned = (int)DB::get()->one("SELECT COUNT(*) AS c FROM image_assets WHERE storage_path = ANY(?::text[]) AND uploaded_by=?",
+        [textArrayLiteral($paths), myId()], 'si')['c'];
+    if ($owned !== count($paths)) DB::fail('มีรูปภาพที่ไม่ได้อัปโหลดจากบัญชีนี้', 400);
 }
 
 function handleTeacherGames(): never {
@@ -891,6 +920,8 @@ function handleSaveTeacherGame(): never {
     $rooms = intArrayLiteral($body['classroom_ids'] ?? []);
     if ($status === 'published' && $rooms === '{}') DB::fail('เลือกห้องที่จะให้เล่นเกมนี้อย่างน้อย 1 ห้อง', 400);
     checkGameScope($grade, $subjectId, $rooms);
+    $oldImages = $isUpdate ? gameImagePaths($gameId) : [];
+    checkGameImages($questions, $oldImages);
 
     $gameId = $db->transaction(function (DB $db) use ($gameId, $name, $type, $grade, $subjectId, $status, $timeLimit, $icon, $questions, $rooms) {
         if ($gameId) {
@@ -905,12 +936,12 @@ function handleSaveTeacherGame(): never {
                 [$name, $type, $grade, $subjectId, $status, $timeLimit, $icon, myId()])['game_id'];
         }
 
-        $questionRows = array_map(fn($q, $i) => ['text' => $q['text'], 'explanation' => $q['explanation'], 'ord' => $i + 1],
-            $questions, array_keys($questions));
+        $questionRows = array_map(fn($q, $i) => ['text' => $q['text'], 'explanation' => $q['explanation'],
+            'image' => $q['image'], 'ord' => $i + 1], $questions, array_keys($questions));
         $idByOrder = array_column($db->all(
-            "INSERT INTO questions (game_id, question_text, explanation, order_no, created_by, updated_by)
-             SELECT ?, q.text, q.explanation, q.ord, ?, ? FROM jsonb_to_recordset(?::jsonb)
-                    AS q(text TEXT, explanation TEXT, ord INT)
+            "INSERT INTO questions (game_id, question_text, explanation, question_img, order_no, created_by, updated_by)
+             SELECT ?, q.text, q.explanation, q.image, q.ord, ?, ? FROM jsonb_to_recordset(?::jsonb)
+                    AS q(text TEXT, explanation TEXT, image TEXT, ord INT)
              RETURNING question_id, order_no",
             [$gameId, myId(), myId(), jsonEncodeSafe($questionRows)]), 'question_id', 'order_no');
 
@@ -927,6 +958,7 @@ function handleSaveTeacherGame(): never {
         $db->run("INSERT INTO game_classrooms (game_id, classroom_id) SELECT ?, unnest(?::int[])", [$gameId, $rooms]);
         return $gameId;
     });
+    storageDeleteImages(array_diff($oldImages, gameImagePaths($gameId)));
 
     logAudit($isUpdate ? 'update' : 'create', 'game', (string)$gameId, "บันทึกเกม {$name}",
         ['game_type' => $type, 'grade' => $grade, 'status' => $status, 'question_count' => count($questions)]);
@@ -940,14 +972,17 @@ function handleDeleteTeacherGame(): never {
     $game = findManagedGame((int)($body['game_id'] ?? 0));
     $gameId = (int)$game['game_id'];
     $db = DB::get();
+    $images = gameImagePaths($gameId);
     if ($db->one("SELECT 1 FROM scores WHERE game_id=? LIMIT 1", [$gameId], 'i')) {
         $db->transaction(function (DB $db) use ($gameId) {
             $db->run("UPDATE games SET is_active=FALSE, status='draft' WHERE game_id=?", [$gameId]);
             $db->run("DELETE FROM game_classrooms WHERE game_id=?", [$gameId]);
+            $db->run("UPDATE questions SET question_img=NULL WHERE game_id=?", [$gameId]);
         });
     } else {
         $db->run("DELETE FROM games WHERE game_id=?", [$gameId]);
     }
+    storageDeleteImages($images);
     logAudit('delete', 'game', (string)$gameId, "ลบเกม {$game['name']}");
     DB::ok(['deleted' => true]);
 }
@@ -1408,6 +1443,35 @@ function handleMe(): never {
     DB::ok($user);
 }
 
+function storagePublicPrefix(): string {
+    return rtrim((string)envValue('SUPABASE_URL', ''), '/') . '/storage/v1/object/public/' . IMAGE_BUCKET . '/';
+}
+
+// ลบไฟล์ใน bucket แล้วลบแถวใน image_assets ถ้าลบไฟล์ไม่สำเร็จจะเก็บแถวไว้ ไฟล์ที่ค้างจึงยังตามหาได้
+function storageDeleteImages(array $paths): void {
+    $paths = array_values($paths);
+    $base = rtrim((string)envValue('SUPABASE_URL', ''), '/');
+    $key  = (string)envValue('SUPABASE_SERVICE_ROLE_KEY', '');
+    if (!$paths || $base === '' || $key === '') return;
+
+    $ch = curl_init("{$base}/storage/v1/object/" . IMAGE_BUCKET);
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST  => 'DELETE',
+        CURLOPT_POSTFIELDS     => jsonEncodeSafe(['prefixes' => $paths]),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_HTTPHEADER     => ["apikey: {$key}", "Authorization: Bearer {$key}", 'Content-Type: application/json'],
+    ]);
+    $response = curl_exec($ch);
+    $status   = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    if ($response === false || $status >= 300) {
+        error_log("[KidLearn] storage delete failed ({$status}): " . (is_string($response) ? $response : ''));
+        return;
+    }
+    DB::get()->run("DELETE FROM image_assets WHERE storage_path = ANY(?::text[])", [textArrayLiteral($paths)]);
+}
+
 function storageUploadImage(string $path, string $bytes, string $mime): string {
     $base = rtrim((string)envValue('SUPABASE_URL', ''), '/');
     $key  = (string)envValue('SUPABASE_SERVICE_ROLE_KEY', '');
@@ -1441,7 +1505,8 @@ function storageUploadImage(string $path, string $bytes, string $mime): string {
 function handleUploadImage(): never {
     global $body;
     auth();
-    $purpose = 'avatar';
+    $purpose = ($body['purpose'] ?? '') === 'game' ? 'game' : 'avatar';
+    if ($purpose === 'game') authRole('teacher', 'admin');
 
     if (!preg_match('#^data:image/[\w.+-]+;base64,(.+)$#s', (string)($body['data_url'] ?? ''), $m)) {
         DB::fail('ไฟล์รูปภาพไม่ถูกต้อง', 400);
@@ -1464,8 +1529,10 @@ function handleUploadImage(): never {
          VALUES (?,?,?,?,?,?) RETURNING image_id",
         [IMAGE_BUCKET, $path, mb_substr((string)($body['filename'] ?? ''), 0, 255), $mime, strlen($bytes), $id]
     );
-    $db->run("UPDATE users SET avatar_url=? WHERE user_id=?", [$url, $id], 'si');
-    $_SESSION['user']['avatar_url'] = $url;
+    if ($purpose === 'avatar') {
+        $db->run("UPDATE users SET avatar_url=? WHERE user_id=?", [$url, $id], 'si');
+        $_SESSION['user']['avatar_url'] = $url;
+    }
     DB::ok(['url' => $url, 'image_id' => $asset['image_id'] ?? null]);
 }
 

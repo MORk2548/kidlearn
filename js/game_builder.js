@@ -183,6 +183,12 @@ function gbEditHtml() {
         <div class="gb-q" data-i="${i}">
           <div class="gb-q-head"><strong>ข้อ ${i + 1}</strong>
             ${d.questions.length > 1 ? `<button class="btn btn-sm" onclick="gbRemoveQuestion(${i})" aria-label="ลบข้อ ${i + 1}">🗑️ ลบข้อนี้</button>` : ''}</div>
+          <div class="gb-q-img">
+            ${q.image ? `<img src="${_esc(q.image)}" alt="รูปประกอบข้อ ${i + 1}">
+              <button class="btn btn-sm" onclick="gbRemoveImage(${i})" aria-label="ลบรูปข้อ ${i + 1}">🗑️ ลบรูป</button>`
+            : `<label class="btn btn-sm btn-s">🖼️ เพิ่มรูป (ไม่บังคับ)
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="gbUploadImage(${i}, this)"></label>`}
+          </div>
           ${type.editorHtml(q)}
         </div>`).join('')}
     </div>
@@ -203,7 +209,25 @@ function gbSync() {
   d.name = document.getElementById('gb-name').value.trim();
   d.time_limit = +document.getElementById('gb-time').value;
   d.classroom_ids = [...document.querySelectorAll('.gb-room:checked')].map(el => +el.value);
-  d.questions = [...document.querySelectorAll('.gb-q')].map(el => type.readEditor(el));
+  d.questions = [...document.querySelectorAll('.gb-q')].map((el, i) => ({ ...type.readEditor(el), image: d.questions[i].image || '' }));
+}
+
+// รูปขึ้น Supabase ทันทีที่เลือก แต่ผูกกับเกมตอนบันทึก รูปที่ลบออกจากข้อจะถูกลบจากที่เก็บตอนบันทึกเกม
+async function gbUploadImage(i, input) {
+  const file = input.files[0];
+  if (!file) return;
+  gbSync();
+  input.closest('label').textContent = '⏳ กำลังอัปโหลด...';
+  const res = await apiUploadImage(file, 'game').catch(() => ({ ok: false }));
+  if (res.ok) A.gb.draft.questions[i].image = res.url;
+  gbRender();
+  if (!res.ok) showAl('gb-err', res.error || 'อัปโหลดรูปไม่สำเร็จ');
+}
+
+function gbRemoveImage(i) {
+  gbSync();
+  A.gb.draft.questions[i].image = '';
+  gbRender();
 }
 
 function gbSetScope(subjectId, grade) {
@@ -265,7 +289,7 @@ async function gbPreviewSaved(gameId) {
 
 async function gbDelete(gameId) {
   const g = A.gb.games.find(x => x.game_id == gameId);
-  if (!confirm(`ลบเกม "${g?.name || ''}"? นักเรียนจะเล่นเกมนี้ไม่ได้อีก แต่คะแนนที่เล่นไปแล้วยังอยู่`)) return;
+  if (!confirm(`ลบเกม "${g?.name || ''}"? นักเรียนจะเล่นเกมนี้ไม่ได้อีกและรูปในเกมจะถูกลบ แต่คะแนนที่เล่นไปแล้วยังอยู่`)) return;
   const res = await apiDeleteTeacherGame(gameId).catch(() => ({ ok: false }));
   if (!res.ok) { alert(res.error || 'ลบไม่สำเร็จ'); return; }
   await loadGameBuilder();

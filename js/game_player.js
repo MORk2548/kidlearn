@@ -36,6 +36,7 @@ function startGamePlayer(root, game, { onFinish = () => {}, onClose = () => {} }
     const q = game.questions[index];
     body.innerHTML = `
       <div class="gp-count">ข้อ ${index + 1} / ${game.questions.length}</div>
+      ${q.image ? `<img class="gp-img" src="${_gtEsc(q.image)}" alt="รูปประกอบข้อ ${index + 1}">` : ''}
       <div class="gp-q"></div>
       <div class="gp-feedback" aria-live="polite" hidden></div>
       <button type="button" class="btn btn-p gp-next" hidden>${index + 1 < game.questions.length ? 'ข้อถัดไป ➜' : 'ดูคะแนน 🏁'}</button>`;
