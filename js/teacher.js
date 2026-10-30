@@ -253,7 +253,7 @@ async function openTcCard(classroomId, subjectId){
       </div>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
-      <input class="fc" style="flex:1;min-width:150px" placeholder="🔍 ค้นหาชื่อนักเรียน" value="${_esc(A.tcBookView.search)}"
+      <input class="fc" style="flex:1;min-width:150px" placeholder="🔍 ค้นหาชื่อหรือเลขที่" value="${_esc(A.tcBookView.search)}"
         oninput="A.tcBookView.search=this.value;_renderTcBookRows()">
       <select class="fc" style="width:auto" onchange="A.tcBookView.sort=this.value;_renderTcBookRows()">
         ${[['no','เรียงตามเลขที่'],['name','เรียงตามชื่อ'],['avg_asc','คะแนนน้อย → มาก'],['avg_desc','คะแนนมาก → น้อย'],['recent','เล่นล่าสุด']]
@@ -283,7 +283,9 @@ function _tcBookVisibleRows(){
   const byName=(a,b)=>a.full_name.localeCompare(b.full_name,'th');
   const sorters={no:(a,b)=>(a.student_no??999)-(b.student_no??999)||byName(a,b), name:byName, avg_asc:(a,b)=>avg(a)-avg(b),
     avg_desc:(a,b)=>avg(b)-avg(a), recent:(a,b)=>new Date(b.last_played||0)-new Date(a.last_played||0)};
-  return students.filter(s=>(!q||s.full_name.toLowerCase().includes(q))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
+  // พิมพ์ตัวเลขล้วน = หาเลขที่ตรงตัว ไม่งั้น "1" จะไปเจอเลขที่ 10-19 ด้วย
+  const match=s=>/^\d+$/.test(q)?s.student_no==q:s.full_name.toLowerCase().includes(q);
+  return students.filter(s=>(!q||match(s))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
 }
 
 function exportTcBookCsv(){

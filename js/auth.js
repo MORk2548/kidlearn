@@ -115,6 +115,11 @@ async function doRegister() {
       showAl('reg-err', 'กรุณาเลือกห้องเรียน');
       return;
     }
+    d.student_no = document.getElementById('r-sno').value.trim();
+    if (!/^\d{1,2}$/.test(d.student_no) || +d.student_no < 1) {
+      showAl('reg-err', 'กรุณากรอกเลขที่เป็นตัวเลข 1-99');
+      return;
+    }
     const pp = document.getElementById('r-pphone').value.trim().replace(/\D/g, '');
     if (!pp || pp.length < 9) {
       showAl('reg-err', 'กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง');

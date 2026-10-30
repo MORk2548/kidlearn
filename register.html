@@ -91,6 +91,10 @@
           </select>
         </div>
         <div class="fg">
+          <label class="fl">🔢 เลขที่</label>
+          <input id="r-sno" type="text" class="fc" inputmode="numeric" placeholder="เลขที่ในห้อง เช่น 12" maxlength="2">
+        </div>
+        <div class="fg">
           <label class="fl">📱 เบอร์โทรผู้ปกครอง</label>
           <input id="r-pphone" type="tel" class="fc" placeholder="เช่น 0812345678" maxlength="10">
           <div style="font-size:.72rem;color:var(--mu);margin-top:.3rem">
@@ -137,7 +141,7 @@
 <script src="js/api.js?v=3.16"></script>
 <script src="js/data.js?v=4.5"></script>
 <script src="js/state.js?v=3.8"></script>
-<script src="js/auth.js?v=3.11"></script>
+<script src="js/auth.js?v=3.13"></script>
 <script>
 fillClassroomSelect(document.getElementById('rg'));
 let _emailValid = false;

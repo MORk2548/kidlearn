@@ -1296,7 +1296,11 @@ function handleRegister(): never {
             $room = findClassroom($body['classroom_id'] ?? 0);
             $pp = normalizePhone($body['parent_phone'] ?? '');
             if (!$pp || strlen($pp) < 9) DB::fail('กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง', 400);
-            insertStudent($db, $uid, $room, $pp);
+            $no = parseStudentNo($body['student_no'] ?? null);
+            if (!$no) DB::fail('กรุณากรอกเลขที่เป็นตัวเลข 1-99', 400);
+            if ($db->one("SELECT 1 FROM students WHERE classroom_id=? AND student_no=?", [$room['classroom_id'], $no], 'ii'))
+                DB::fail("เลขที่ $no ในห้องนี้มีคนใช้แล้ว ถ้าเป็นเลขที่ของคุณจริงให้แจ้งครู", 409);
+            insertStudent($db, $uid, $room, $pp, $no);
         }
 
         if ($role === 'parent') {
