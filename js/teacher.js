@@ -18,7 +18,11 @@ function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
   const subjIds=new Set(taught.map(a=>+a.subject_id));
   const roomIds=new Set(taught.map(a=>+a.classroom_id));
   const grades=[...new Set(classrooms.map(r=>r.grade))];
-  const box=(name,val,label,checked)=>`<label class="child-btn" style="cursor:pointer"><input type="checkbox" name="${name}" value="${val}"${checked?' checked':''}> ${label}</label>`;
+  const box=(name,val,label,checked)=>`<label style="cursor:pointer;display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem"><input type="checkbox" name="${name}" value="${val}"${checked?' checked':''}> ${label}</label>`;
+  const dropdown=(placeholder,count,body)=>`<details class="asg-dd" data-ph="${placeholder}" onchange="const n=this.querySelectorAll('input:checked').length;this.querySelector('summary').textContent=n?'เลือกแล้ว '+n+' รายการ':this.dataset.ph">
+    <summary class="fc" style="cursor:pointer">${count?`เลือกแล้ว ${count} รายการ`:placeholder}</summary>
+    <div style="border:1px solid var(--bd,#ddd);border-radius:10px;padding:.4rem .6rem;margin-top:.3rem;max-height:260px;overflow-y:auto">${body}</div>
+  </details>`;
   el.innerHTML=`
     <div class="fg">
       <label class="fl">🏠 ครูประจำชั้น (เห็นทุกวิชาของห้องนี้)</label>
@@ -29,13 +33,13 @@ function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
     </div>
     <div class="fg">
       <label class="fl">📚 วิชาที่สอน</label>
-      <div style="display:flex;gap:.4rem;flex-wrap:wrap">${subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${s.name}`,subjIds.has(+s.subject_id))).join('')}</div>
+      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${s.name}`,subjIds.has(+s.subject_id))).join(''))}
     </div>
     <div class="fg">
       <label class="fl">🏫 ห้องที่สอนวิชาเหล่านี้</label>
-      ${grades.map(g=>`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem">
+      ${dropdown('-- เลือกห้อง --',roomIds.size,grades.map(g=>`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:0 .4rem;border-bottom:1px dashed var(--bd,#eee)">
         ${classrooms.filter(r=>r.grade===g).map(r=>box('room',r.classroom_id,classLabel(r),roomIds.has(+r.classroom_id))).join('')}
-      </div>`).join('')}
+      </div>`).join(''))}
     </div>`;
 }
 function readAssignmentForm(el){
