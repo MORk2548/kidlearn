@@ -82,24 +82,31 @@ async function loadStudentGames(){
   </div>`;
 }
 
-// ── บทเรียนที่ครูมอบหมายให้ห้องของนักเรียน ซ่อนทั้งส่วนถ้ายังไม่มี ──
+// ── บทเรียนที่ครูมอบหมายให้ห้องของนักเรียน แยกตามวิชา อยู่ใน sidebar (จอเล็กแสดงในหน้าหลักแทน) ซ่อนถ้ายังไม่มี ──
 let _studentLessons=[];
 async function loadStudentLessons(){
-  const el=document.getElementById('home-lessons');
-  if(!el)return;
+  const sb=document.getElementById('sb-lessons');
+  const home=document.getElementById('home-lessons');
   const res=await apiStudentLessons().catch(()=>({ok:false}));
   _studentLessons=res.ok?res.lessons:[];
-  if(!_studentLessons.length){el.innerHTML='';return;}
-  el.innerHTML=`<div class="ts"><h3>📖 บทเรียนจากครู</h3>
-    <div class="sg-grid">${_studentLessons.map((l,i)=>`
-      <button class="sg-card" onclick="openLessonReader(_studentLessons[${i}])">
-        <span class="sg-ico" aria-hidden="true">${_esc(l.subject_icon||'📖')}</span>
-        <span class="sg-body">
-          <span class="sg-name">${_esc(l.title)}</span>
-          <span class="sg-meta">${_esc(l.subject_name)}</span>
-        </span>
-        <span class="sg-play">📖 อ่าน</span>
-      </button>`).join('')}</div>
+  if(!_studentLessons.length){sb.innerHTML='';home.innerHTML='';return;}
+  const bySubject={};
+  _studentLessons.forEach((l,i)=>(bySubject[l.subject_name] ||= {icon:l.subject_icon,items:[]}).items.push([l,i]));
+  const subjects=Object.entries(bySubject);
+  sb.innerHTML=`<div class="sb-head">📖 บทเรียนจากครู</div>
+    ${subjects.map(([name,s])=>`<details class="sb-subj" open>
+      <summary><span class="ico">${_esc(s.icon||'📚')}</span>${_esc(name)}<span class="sb-cnt">${s.items.length}</span></summary>
+      ${s.items.map(([l,i])=>`<button class="sl sb-lesson" onclick="openLessonReader(_studentLessons[${i}])">${_esc(l.title)}</button>`).join('')}
+    </details>`).join('')}`;
+  home.innerHTML=`<div class="ts"><h3>📖 บทเรียนจากครู</h3>
+    ${subjects.map(([name,s])=>`
+      <div class="sg-subject">${_esc(s.icon||'📚')} ${_esc(name)}</div>
+      <div class="sg-grid">${s.items.map(([l,i])=>`
+        <button class="sg-card" onclick="openLessonReader(_studentLessons[${i}])">
+          <span class="sg-ico" aria-hidden="true">${_esc(l.subject_icon||'📖')}</span>
+          <span class="sg-body"><span class="sg-name">${_esc(l.title)}</span></span>
+          <span class="sg-play">📖 อ่าน</span>
+        </button>`).join('')}</div>`).join('')}
   </div>`;
 }
 
