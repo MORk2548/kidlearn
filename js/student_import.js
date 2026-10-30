@@ -232,15 +232,15 @@ function siRender(){
     ${si.msg ? `<div class="al ae">${_esc(si.msg)}</div>` : ''}
     <div style="overflow-x:auto">
       <table style="border-collapse:collapse;font-size:.82rem;width:100%;min-width:420px">
-        <thead><tr style="background:#F8FAFC">
+        <thead><tr>
           <th style="padding:.4rem;text-align:left;width:2rem">#</th>
           <th style="padding:.4rem;text-align:left">ชื่อ-นามสกุล</th>
           <th style="padding:.4rem;text-align:left;width:9rem">เบอร์ผู้ปกครอง</th>
           <th style="width:2rem"></th>
         </tr></thead>
         <tbody>${si.rows.map((r, i) => `<tr style="border-top:1px solid #F1F5F9${r.err ? ';background:#FEF2F2' : ''}">
-          <td style="padding:.3rem;color:var(--mu)">${i + 1}</td>
-          <td style="padding:.3rem"><input class="fc" style="padding:.3rem .5rem" value="${_esc(r.name)}" oninput="siEdit(${i},'name',this.value)">
+          <td style="padding:.3rem;vertical-align:top;color:var(--mu)">${i + 1}</td>
+          <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" value="${_esc(r.name)}" oninput="siEdit(${i},'name',this.value)">
             ${r.err ? `<div style="color:#B91C1C;font-size:.74rem;margin-top:.15rem">⚠️ ${_esc(r.err)}</div>` : ''}
             ${r.src >= 0 ? `<div style="color:var(--mu);font-size:.7rem">จาก ${_esc(si.sources[r.src]?.label || '')}</div>` : ''}</td>
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" inputmode="tel" value="${_esc(r.phone)}" oninput="siEdit(${i},'phone',this.value)"></td>
@@ -359,7 +359,7 @@ function siRenderAccounts(panel){
     <h3>✅ สร้างบัญชีแล้ว ${si.accounts.length} คน · ${_esc(si.accountRoom)}</h3>
     <div class="al ae">รหัสผ่านแสดงครั้งเดียว กรุณาดาวน์โหลดหรือพิมพ์เก็บไว้ก่อนออกจากหน้านี้</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.85rem;width:100%">
-      <thead><tr style="background:#F8FAFC"><th style="padding:.4rem;text-align:left">ชื่อ</th><th style="padding:.4rem;text-align:left">ชื่อผู้ใช้</th><th style="padding:.4rem;text-align:left">รหัสผ่าน</th></tr></thead>
+      <thead><tr><th style="padding:.4rem;text-align:left">ชื่อ</th><th style="padding:.4rem;text-align:left">ชื่อผู้ใช้</th><th style="padding:.4rem;text-align:left">รหัสผ่าน</th></tr></thead>
       <tbody>${si.accounts.map(a => `<tr style="border-top:1px solid #F1F5F9"><td style="padding:.4rem">${_esc(a.full_name)}</td><td style="padding:.4rem;font-family:monospace">${a.username}</td><td style="padding:.4rem;font-family:monospace">${a.password}</td></tr>`).join('')}</tbody>
     </table></div>
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem">

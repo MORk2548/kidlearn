@@ -11,6 +11,7 @@ async function loadAdmin() {
   if(A.role!=='admin') return;
   _renderAdminTabs();
   if(A.adminTab==='users') await _loadAdminUsers();
+  else if(A.adminTab==='subjects') await _loadAdminSubjects();
   else await _loadReports();
 }
 
@@ -19,11 +20,42 @@ function _renderAdminTabs(){
   if(!wrap)return;
   wrap.innerHTML=`
     <button class="rec-tab${A.adminTab==='users'?' active':''}"   onclick="switchAdminTab('users')">👥 จัดการผู้ใช้</button>
+    <button class="rec-tab${A.adminTab==='subjects'?' active':''}" onclick="switchAdminTab('subjects')">📚 วิชา</button>
     <button class="rec-tab${A.adminTab==='reports'?' active':''}" onclick="switchAdminTab('reports')">📊 รายงาน</button>`;
   document.getElementById('adm-users-panel').style.display  =A.adminTab==='users'  ?'block':'none';
+  document.getElementById('adm-subject-panel').style.display=A.adminTab==='subjects'?'block':'none';
   document.getElementById('adm-report-panel').style.display =A.adminTab==='reports'?'block':'none';
 }
 function switchAdminTab(t){A.adminTab=t;_renderAdminTabs();loadAdmin();}
+
+// ════════ 3.0 จัดการวิชา ════════
+async function _loadAdminSubjects(){
+  const el=document.getElementById('adm-subject-list');
+  const res=await apiSubjects().catch(()=>({ok:false}));
+  if(!res.ok){el.innerHTML='<div style="color:#EF4444">โหลดวิชาไม่สำเร็จ</div>';return;}
+  el.innerHTML=`
+    <div style="display:flex;gap:.4rem;margin-bottom:.75rem">
+      <input class="fc" id="adm-new-subject" placeholder="ชื่อวิชาใหม่" maxlength="100" onkeydown="if(event.key==='Enter')adminAddSubject()">
+      <button class="btn btn-p" style="white-space:nowrap" onclick="adminAddSubject()">➕ เพิ่มวิชา</button>
+    </div>
+    ${(res.subjects||[]).map(s=>`<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .25rem;border-bottom:1px solid #F1F5F9">
+      <span>${s.icon||'📚'} ${_esc(s.name)}</span>
+      <button class="btn" style="margin-left:auto" onclick="adminDeleteSubject(${s.subject_id},this.previousElementSibling.textContent)">🗑️ ลบ</button>
+    </div>`).join('')}`;
+}
+async function adminAddSubject(){
+  const name=document.getElementById('adm-new-subject').value.trim();
+  if(!name)return;
+  const res=await apiAddSubject(name).catch(()=>({ok:false}));
+  if(!res.ok){alert(res.error||'เพิ่มวิชาไม่สำเร็จ');return;}
+  _loadAdminSubjects();
+}
+async function adminDeleteSubject(id, name){
+  if(!confirm(`ยืนยันลบวิชา "${name}"?`))return;
+  const res=await apiDeleteSubject(id).catch(()=>({ok:false}));
+  if(!res.ok){alert(res.error||'ลบวิชาไม่สำเร็จ');return;}
+  _loadAdminSubjects();
+}
 
 // ════════ 2.0 จัดการผู้ใช้ ════════
 async function _loadAdminUsers(){

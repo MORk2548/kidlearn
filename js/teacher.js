@@ -33,7 +33,7 @@ function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
     </div>
     <div class="fg">
       <label class="fl">📚 วิชาที่สอน</label>
-      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${s.name}`,subjIds.has(+s.subject_id))).join('')+(A.role!=='teacher'?'':`
+      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${_esc(s.name)}${s.created_by==A.user.id?subjectDelBtn(s.subject_id):''}`,subjIds.has(+s.subject_id))).join('')+(A.role!=='teacher'?'':`
         <div style="display:flex;gap:.4rem;margin-top:.4rem;border-top:1px dashed var(--bd,#eee);padding-top:.5rem">
           <input class="fc" name="new-subject" placeholder="ไม่มีวิชาที่สอน? พิมพ์ชื่อวิชาใหม่" maxlength="100" onkeydown="if(event.key==='Enter'){event.preventDefault();addTcSubject(this)}">
           <button type="button" class="btn btn-p" style="white-space:nowrap" onclick="addTcSubject(this.previousElementSibling)">➕ เพิ่มวิชา</button>
@@ -54,12 +54,21 @@ async function addTcSubject(input){
   const row=input.parentElement;
   let cb=row.parentElement.querySelector(`input[name="subject"][value="${res.subject_id}"]`);
   if(!cb){
-    row.insertAdjacentHTML('beforebegin',`<label style="cursor:pointer;display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem"><input type="checkbox" name="subject" value="${res.subject_id}"> 📚 ${_esc(name)}</label>`);
+    row.insertAdjacentHTML('beforebegin',`<label style="cursor:pointer;display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem"><input type="checkbox" name="subject" value="${res.subject_id}"> 📚 ${_esc(name)}${subjectDelBtn(res.subject_id)}</label>`);
     cb=row.previousElementSibling.querySelector('input');
   }
   cb.checked=true;
   cb.dispatchEvent(new Event('change',{bubbles:true}));
   input.value='';
+}
+const subjectDelBtn=id=>`<button type="button" title="ลบวิชา" style="margin-left:auto;background:none;border:0;cursor:pointer" onclick="event.preventDefault();delTcSubject(this,${id})">🗑️</button>`;
+async function delTcSubject(btn,id){
+  if(!confirm('ลบวิชานี้?')) return;
+  const res=await apiDeleteSubject(id).catch(()=>({ok:false}));
+  if(!res.ok){ alert(res.error||'ลบวิชาไม่สำเร็จ'); return; }
+  const details=btn.closest('details');
+  btn.closest('label').remove();
+  details.dispatchEvent(new Event('change'));
 }
 function readAssignmentForm(el){
   const checked=name=>[...el.querySelectorAll(`input[name="${name}"]:checked`)].map(i=>+i.value);

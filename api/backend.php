@@ -39,6 +39,7 @@ define('DB_NAME', $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'postgres');
 const IMAGE_BUCKET = 'kidlearn-images';
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_EXTENSIONS = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+const STUDENT_IMPORT_MAX = 200;
 
 header('Content-Type: application/json; charset=utf-8');
 // รองรับทั้ง localhost และ 127.0.0.1
@@ -199,11 +200,11 @@ function enforceRequestPolicy(string $action, array $body): void {
         'auto_link', 'unlink_child', 'mark_notif_read',
         'create_plan',
         'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
-        'save_subject', 'toggle_subject',
+        'save_subject', 'toggle_subject', 'delete_subject',
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
         'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
-        'save_teacher_assignments', 'teacher_create_students',
+        'save_teacher_assignments', 'add_teacher_room', 'remove_teacher_room', 'teacher_create_students',
         'save_teacher_game', 'delete_teacher_game', 'save_score',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
@@ -441,7 +442,7 @@ function listClassrooms(): array {
 
 // ทุกชั้นมีจำนวนห้องเท่ากัน: เติมทุกชั้นให้ถึงห้องถัดไปของชั้นที่มีห้องน้อยที่สุด
 function handleAddClassroom(): never {
-    authRole('teacher', 'admin', 'officer');
+    authRole('admin');
     ensureClassroomSchema();
     $db = DB::get();
     $maxByGrade = array_column(
@@ -456,7 +457,7 @@ function handleAddClassroom(): never {
 }
 
 function handleDeleteClassroom(): never {
-    authRole('teacher', 'admin', 'officer');
+    authRole('admin');
     ensureClassroomSchema();
     $db = DB::get();
     $roomNo = (int)($db->one("SELECT MAX(room_no) AS m FROM classrooms")['m'] ?? 0);
@@ -551,6 +552,30 @@ function handleSaveTeacherAssignments(): never {
          SELECT ?::int, classroom_id, NULL::int FROM classrooms WHERE classroom_id=?",
         [$userId, $rooms, $subjects, $userId, $homeroom], 'issii');
     logAudit('update', 'teacher_assignments', (string)$userId, 'กำหนดห้องและวิชาที่สอน');
+    DB::ok(['saved' => true]);
+}
+
+// ครูเพิ่ม/ลบห้องที่ตัวเองสอนทีละห้อง; subject_id ว่าง = ครูประจำชั้น
+function handleTeacherRoom(bool $add): never {
+    global $body;
+    authRole('teacher');
+    ensureTeacherAssignmentSchema();
+    $db = DB::get();
+    $room = findClassroom($body['classroom_id'] ?? 0);
+    $subjectId = (int)($body['subject_id'] ?? 0) ?: null;
+    if ($add) {
+        if ($subjectId && !$db->one("SELECT 1 FROM subjects WHERE subject_id=?", [$subjectId], 'i'))
+            DB::fail('ไม่พบวิชา', 404);
+        $db->run("INSERT INTO teacher_assignments (teacher_user_id, classroom_id, subject_id)
+                  SELECT ?::int, ?::int, ?::int WHERE NOT EXISTS (SELECT 1 FROM teacher_assignments
+                  WHERE teacher_user_id=? AND classroom_id=? AND subject_id IS NOT DISTINCT FROM ?::int)",
+            [myId(), $room['classroom_id'], $subjectId, myId(), $room['classroom_id'], $subjectId], 'iiiiii');
+    } else {
+        $db->run("DELETE FROM teacher_assignments WHERE teacher_user_id=? AND classroom_id=? AND subject_id IS NOT DISTINCT FROM ?::int",
+            [myId(), $room['classroom_id'], $subjectId], 'iii');
+    }
+    logAudit($add ? 'create' : 'delete', 'teacher_assignments', (string)myId(),
+        ($add ? 'เพิ่ม' : 'ลบ') . "ห้องที่สอน {$room['grade']}/{$room['room_no']}");
     DB::ok(['saved' => true]);
 }
 
@@ -1027,6 +1052,8 @@ match ($action) {
     'choose_classroom' => handleChooseClassroom(),
     'teacher_assignments'      => handleTeacherAssignments(),
     'save_teacher_assignments' => handleSaveTeacherAssignments(),
+    'add_teacher_room'         => handleTeacherRoom(true),
+    'remove_teacher_room'      => handleTeacherRoom(false),
     'teacher_create_students'  => handleTeacherCreateStudents(),
     'teacher_class_summary'    => handleTeacherClassSummary(),
     'teacher_gradebook'        => handleTeacherGradebook(),
@@ -1049,6 +1076,7 @@ match ($action) {
     // 3.0 subjects
     'save_subject'       => handleSaveSubject(),
     'toggle_subject'     => handleToggleSubject(),
+    'delete_subject'     => handleDeleteSubject(),
     // 8.0 reports
     'report'             => handleReportV2(),
     // forgot/reset password
@@ -1244,7 +1272,6 @@ function insertStudent(DB $db, int $uid, array $room, string $parentPhone): void
     }
 }
 
-const STUDENT_IMPORT_MAX = 200;
 
 // ครูสร้างบัญชีนักเรียนทีละหลายคน: dry_run ตรวจอย่างเดียว ไม่งั้นสร้างทั้งหมดหรือไม่สร้างเลย
 function handleTeacherCreateStudents(): never {
@@ -2327,22 +2354,38 @@ function handleSaveSubject(): never {
     $color = trim($body['color'] ?? '#4CAF50');
     $order = (int)($body['order_no'] ?? 1);
     if (!$name) DB::fail('ต้องใส่ชื่อวิชา', 400);
-    if (myRole() === 'teacher') {
-        // teachers may only add subjects, never edit shared ones
-        if ($sid) DB::fail('Forbidden', 403);
-        $existing = $db->one("SELECT subject_id FROM subjects WHERE LOWER(name)=LOWER(?)", [$name], 's');
-        if ($existing) DB::ok(['subject_id' => (int)$existing['subject_id']]);
-        $order = (int)($db->one("SELECT COALESCE(MAX(order_no),0)+1 AS n FROM subjects")['n'] ?? 1);
-    }
+    if (preg_match('/[<>"&]/', $name)) DB::fail('ชื่อวิชาห้ามมีเครื่องหมาย < > " &', 400);
+    addColumnIfMissing('subjects', 'created_by', 'INT REFERENCES users(user_id) ON DELETE SET NULL');
+    // teachers may only add subjects, never edit shared ones
+    if ($sid && myRole() === 'teacher') DB::fail('Forbidden', 403);
     if ($sid) {
         $db->run("UPDATE subjects SET name=?,description=?,icon=?,color=?,order_no=? WHERE subject_id=?",
             [$name,$desc,$icon,$color,$order,$sid], 'ssssii');
     } else {
-        $db->run("INSERT INTO subjects (name,description,icon,color,order_no) VALUES (?,?,?,?,?)",
-            [$name,$desc,$icon,$color,$order], 'ssssi');
+        $existing = $db->one("SELECT subject_id FROM subjects WHERE LOWER(name)=LOWER(?)", [$name], 's');
+        if ($existing) DB::ok(['subject_id' => (int)$existing['subject_id']]);
+        if (!isset($body['order_no'])) $order = (int)$db->one("SELECT COALESCE(MAX(order_no),0)+1 AS n FROM subjects")['n'];
+        $db->run("INSERT INTO subjects (name,description,icon,color,order_no,created_by) VALUES (?,?,?,?,?,?)",
+            [$name,$desc,$icon,$color,$order,myId()], 'ssssii');
         $sid = $db->insertId();
     }
     DB::ok(['subject_id' => $sid]);
+}
+
+function handleDeleteSubject(): never {
+    global $body;
+    authRole('admin', 'teacher');
+    $db  = DB::get();
+    $sid = (int)($body['subject_id'] ?? 0);
+    addColumnIfMissing('subjects', 'created_by', 'INT REFERENCES users(user_id) ON DELETE SET NULL');
+    $s = $db->one("SELECT created_by FROM subjects WHERE subject_id=?", [$sid], 'i');
+    if (!$s) DB::fail('ไม่พบวิชา', 404);
+    if (myRole() === 'teacher' && (int)$s['created_by'] !== myId()) DB::fail('ลบได้เฉพาะวิชาที่คุณเพิ่มเอง', 403);
+    // games cascade into student scores, so never delete a subject that has any
+    if ($db->one("SELECT 1 FROM games WHERE subject_id=? LIMIT 1", [$sid], 'i'))
+        DB::fail('ลบไม่ได้ เพราะวิชานี้มีเกมหรือคะแนนนักเรียนแล้ว', 409);
+    $db->run("DELETE FROM subjects WHERE subject_id=?", [$sid], 'i');
+    DB::ok();
 }
 
 function handleToggleSubject(): never {

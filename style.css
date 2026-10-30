@@ -328,6 +328,12 @@ body {
   font-size: .78rem
 }
 
+.btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none
+}
+
 .btn-fw {
   width: 100%;
   margin-top: auto
