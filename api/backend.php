@@ -203,7 +203,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
         'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
-        'save_teacher_assignments',
+        'save_teacher_assignments', 'teacher_create_students',
         'save_teacher_game', 'delete_teacher_game', 'save_score',
     ];
     if (in_array($action, $postActions, true) && $method !== 'POST') {
@@ -1027,6 +1027,7 @@ match ($action) {
     'choose_classroom' => handleChooseClassroom(),
     'teacher_assignments'      => handleTeacherAssignments(),
     'save_teacher_assignments' => handleSaveTeacherAssignments(),
+    'teacher_create_students'  => handleTeacherCreateStudents(),
     'teacher_class_summary'    => handleTeacherClassSummary(),
     'teacher_gradebook'        => handleTeacherGradebook(),
     'teacher_games'            => handleTeacherGames(),
@@ -1190,52 +1191,123 @@ function handleRegister(): never {
 
     $hash = password_hash($pass, PASSWORD_BCRYPT);
 
-    // INSERT users
-    $db->run("INSERT INTO users (username,email,password,role,full_name) VALUES (?,?,?,?,?)",
-        [$uname, $email, $hash, $role, $name], 'sssss');
-    $uid = $db->insertId();
+    // DB::fail ภายในจะ rollback แถว users ที่เพิ่งเพิ่มไปด้วย
+    $uid = $db->transaction(function (DB $db) use ($body, $uname, $email, $hash, $role, $name) {
+        $db->run("INSERT INTO users (username,email,password,role,full_name) VALUES (?,?,?,?,?)",
+            [$uname, $email, $hash, $role, $name], 'sssss');
+        $uid = $db->insertId();
 
-    // INSERT role-specific table
-    if ($role === 'student') {
-        $room = findClassroom($body['classroom_id'] ?? 0);
-        $pp = normalizePhone($body['parent_phone'] ?? '');
-        if (!$pp || strlen($pp) < 9) DB::fail('กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง', 400);
-        $db->run("INSERT INTO students (user_id,grade,classroom_id,parent_phone) VALUES (?,?,?,?)",
-            [$uid, $room['grade'], $room['classroom_id'], $pp], 'isis');
-        $sid = $db->insertId();
-        // auto-link parent
-        $parent = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$pp], 's');
-        if ($parent) {
-            $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
-                [$parent['parent_id'], $sid], 'ii');
+        if ($role === 'student') {
+            $room = findClassroom($body['classroom_id'] ?? 0);
+            $pp = normalizePhone($body['parent_phone'] ?? '');
+            if (!$pp || strlen($pp) < 9) DB::fail('กรุณากรอกเบอร์โทรผู้ปกครองให้ถูกต้อง', 400);
+            insertStudent($db, $uid, $room, $pp);
         }
-    }
 
-    if ($role === 'parent') {
-        $phone = normalizePhone($body['phone'] ?? '');
-        if (!$phone || strlen($phone) < 9) DB::fail('กรุณากรอกเบอร์โทรให้ถูกต้อง', 400);
-        if ($db->one("SELECT 1 FROM parents WHERE phone=?", [$phone], 's'))
-            DB::fail('เบอร์โทรนี้ถูกใช้แล้ว', 409);
-        $db->run("INSERT INTO parents (user_id,phone) VALUES (?,?)", [$uid, $phone], 'is');
-        $pid = $db->insertId();
-        // auto-link existing students — match ทั้ง 10 หลัก และ 9 หลัก
-        $phone9 = ltrim($phone, '0');
-        $students = $db->all(
-            "SELECT student_id FROM students WHERE parent_phone=? OR parent_phone=?",
-            [$phone, $phone9], 'ss'
-        );
-        foreach ($students as $s) {
-            $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
-                [$pid, $s['student_id']], 'ii');
+        if ($role === 'parent') {
+            $phone = normalizePhone($body['phone'] ?? '');
+            if (!$phone || strlen($phone) < 9) DB::fail('กรุณากรอกเบอร์โทรให้ถูกต้อง', 400);
+            if ($db->one("SELECT 1 FROM parents WHERE phone=?", [$phone], 's'))
+                DB::fail('เบอร์โทรนี้ถูกใช้แล้ว', 409);
+            $db->run("INSERT INTO parents (user_id,phone) VALUES (?,?)", [$uid, $phone], 'is');
+            $pid = $db->insertId();
+            // auto-link existing students — match ทั้ง 10 หลัก และ 9 หลัก
+            $phone9 = ltrim($phone, '0');
+            $students = $db->all(
+                "SELECT student_id FROM students WHERE parent_phone=? OR parent_phone=?",
+                [$phone, $phone9], 'ss'
+            );
+            foreach ($students as $s) {
+                $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
+                    [$pid, $s['student_id']], 'ii');
+            }
         }
-    }
 
-    if ($role === 'teacher') {
-        $dept = trim($body['department'] ?? '');
-        $db->run("INSERT INTO teachers (user_id,department) VALUES (?,?)", [$uid, $dept], 'is');
-    }
+        if ($role === 'teacher') {
+            $dept = trim($body['department'] ?? '');
+            $db->run("INSERT INTO teachers (user_id,department) VALUES (?,?)", [$uid, $dept], 'is');
+        }
+        return $uid;
+    });
 
     DB::ok(['user_id' => $uid]);
+}
+
+function insertStudent(DB $db, int $uid, array $room, string $parentPhone): void {
+    $db->run("INSERT INTO students (user_id,grade,classroom_id,parent_phone) VALUES (?,?,?,?)",
+        [$uid, $room['grade'], $room['classroom_id'], $parentPhone], 'isis');
+    $sid = $db->insertId();
+    $parent = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$parentPhone], 's');
+    if ($parent) {
+        $db->run("INSERT INTO parent_student (parent_id,student_id) VALUES (?,?) ON CONFLICT DO NOTHING",
+            [$parent['parent_id'], $sid], 'ii');
+    }
+}
+
+const STUDENT_IMPORT_MAX = 200;
+
+// ครูสร้างบัญชีนักเรียนทีละหลายคน: dry_run ตรวจอย่างเดียว ไม่งั้นสร้างทั้งหมดหรือไม่สร้างเลย
+function handleTeacherCreateStudents(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    $db = DB::get();
+    $room = findClassroom($body['classroom_id'] ?? 0);
+    $classroomId = (int)$room['classroom_id'];
+    if (!$db->one("SELECT 1 WHERE " . teacherScopeSql((string)$classroomId)))
+        DB::fail('คุณไม่ได้สอนห้องนี้', 403);
+
+    $input = $body['students'] ?? null;
+    if (!is_array($input) || !$input) DB::fail('ไม่มีรายชื่อนักเรียน', 400);
+    if (count($input) > STUDENT_IMPORT_MAX) DB::fail('เพิ่มได้ครั้งละไม่เกิน ' . STUDENT_IMPORT_MAX . ' คน', 400);
+
+    $existing = [];
+    foreach ($db->all(
+        "SELECT u.full_name, s.parent_phone FROM students s JOIN users u ON u.user_id = s.user_id
+         WHERE s.classroom_id=?", [$classroomId], 'i') as $r) {
+        $existing[$r['full_name'] . '|' . normalizePhone($r['parent_phone'] ?? '')] = true;
+    }
+
+    $students = [];
+    $errors = [];
+    $seen = [];
+    foreach (array_values($input) as $i => $row) {
+        $name = trim(preg_replace('/\s+/u', ' ', (string)($row['full_name'] ?? '')));
+        $phone = normalizePhone((string)($row['parent_phone'] ?? ''));
+        $key = $name . '|' . $phone;
+        $error = match (true) {
+            $name === ''                       => 'ไม่มีชื่อนักเรียน',
+            mb_strlen($name) > 100             => 'ชื่อยาวเกิน 100 ตัวอักษร',
+            !preg_match('/^0\d{8,9}$/', $phone) => 'เบอร์ผู้ปกครองไม่ถูกต้อง',
+            isset($seen[$key])                 => 'ซ้ำกับแถวที่ ' . ($seen[$key] + 1),
+            isset($existing[$key])             => 'มีนักเรียนคนนี้ในห้องแล้ว',
+            default                            => null,
+        };
+        $seen[$key] ??= $i;
+        $errors[] = $error;
+        $students[] = ['full_name' => $name, 'parent_phone' => $phone];
+    }
+    if (!empty($body['dry_run']) || array_filter($errors)) DB::ok(['errors' => $errors, 'accounts' => []]);
+
+    $accounts = $db->transaction(function (DB $db) use ($students, $room) {
+        // กันครูสองคนนำเข้าพร้อมกันแล้วได้เลข username ซ้ำ
+        $db->run("SELECT pg_advisory_xact_lock(hashtext('student_username_seq'))");
+        $next = (int)$db->one(
+            "SELECT COALESCE(MAX(substring(username FROM 4)::int), 0) AS m FROM users WHERE username ~ '^stu[0-9]+$'"
+        )['m'];
+        $accounts = [];
+        foreach ($students as $s) {
+            $uname = sprintf('stu%05d', ++$next);
+            $pass = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $db->run("INSERT INTO users (username,email,password,role,full_name) VALUES (?,?,?,'student',?)",
+                [$uname, "$uname@student.kidlearn.local", password_hash($pass, PASSWORD_BCRYPT), $s['full_name']], 'ssss');
+            insertStudent($db, $db->insertId(), $room, $s['parent_phone']);
+            $accounts[] = ['full_name' => $s['full_name'], 'username' => $uname, 'password' => $pass];
+        }
+        return $accounts;
+    });
+    logAudit('create', 'student_accounts', (string)$room['classroom_id'],
+        'สร้างบัญชีนักเรียน ' . count($accounts) . ' คน ห้อง ' . $room['grade'] . '/' . $room['room_no']);
+    DB::ok(['errors' => $errors, 'accounts' => $accounts]);
 }
 
 function handleMe(): never {
@@ -2255,6 +2327,13 @@ function handleSaveSubject(): never {
     $color = trim($body['color'] ?? '#4CAF50');
     $order = (int)($body['order_no'] ?? 1);
     if (!$name) DB::fail('ต้องใส่ชื่อวิชา', 400);
+    if (myRole() === 'teacher') {
+        // teachers may only add subjects, never edit shared ones
+        if ($sid) DB::fail('Forbidden', 403);
+        $existing = $db->one("SELECT subject_id FROM subjects WHERE LOWER(name)=LOWER(?)", [$name], 's');
+        if ($existing) DB::ok(['subject_id' => (int)$existing['subject_id']]);
+        $order = (int)($db->one("SELECT COALESCE(MAX(order_no),0)+1 AS n FROM subjects")['n'] ?? 1);
+    }
     if ($sid) {
         $db->run("UPDATE subjects SET name=?,description=?,icon=?,color=?,order_no=? WHERE subject_id=?",
             [$name,$desc,$icon,$color,$order,$sid], 'ssssii');

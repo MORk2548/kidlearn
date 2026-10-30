@@ -33,7 +33,11 @@ function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
     </div>
     <div class="fg">
       <label class="fl">📚 วิชาที่สอน</label>
-      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${s.name}`,subjIds.has(+s.subject_id))).join(''))}
+      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${s.name}`,subjIds.has(+s.subject_id))).join('')+(A.role!=='teacher'?'':`
+        <div style="display:flex;gap:.4rem;margin-top:.4rem;border-top:1px dashed var(--bd,#eee);padding-top:.5rem">
+          <input class="fc" name="new-subject" placeholder="ไม่มีวิชาที่สอน? พิมพ์ชื่อวิชาใหม่" maxlength="100" onkeydown="if(event.key==='Enter'){event.preventDefault();addTcSubject(this)}">
+          <button type="button" class="btn btn-p" style="white-space:nowrap" onclick="addTcSubject(this.previousElementSibling)">➕ เพิ่มวิชา</button>
+        </div>`))}
     </div>
     <div class="fg">
       <label class="fl">🏫 ห้องที่สอนวิชาเหล่านี้</label>
@@ -41,6 +45,21 @@ function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
         ${classrooms.filter(r=>r.grade===g).map(r=>box('room',r.classroom_id,classLabel(r),roomIds.has(+r.classroom_id))).join('')}
       </div>`).join(''))}
     </div>`;
+}
+async function addTcSubject(input){
+  const name=input.value.trim();
+  if(!name) return;
+  const res=await apiAddSubject(name).catch(()=>({ok:false}));
+  if(!res.ok){ alert(res.error||'เพิ่มวิชาไม่สำเร็จ'); return; }
+  const row=input.parentElement;
+  let cb=row.parentElement.querySelector(`input[name="subject"][value="${res.subject_id}"]`);
+  if(!cb){
+    row.insertAdjacentHTML('beforebegin',`<label style="cursor:pointer;display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem"><input type="checkbox" name="subject" value="${res.subject_id}"> 📚 ${_esc(name)}</label>`);
+    cb=row.previousElementSibling.querySelector('input');
+  }
+  cb.checked=true;
+  cb.dispatchEvent(new Event('change',{bubbles:true}));
+  input.value='';
 }
 function readAssignmentForm(el){
   const checked=name=>[...el.querySelectorAll(`input[name="${name}"]:checked`)].map(i=>+i.value);
@@ -411,13 +430,16 @@ function _renderTcTabs(){
   wrap.innerHTML=`
     <button class="rec-tab${A.tcTab==='scores'?' active':''}"  onclick="switchTcTab('scores')">คะแนนนักเรียน</button>
     <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">เกมของฉัน</button>
-    <button class="rec-tab${A.tcTab==='plans'?' active':''}"   onclick="switchTcTab('plans')">แผนรายสัปดาห์</button>`;
+    <button class="rec-tab${A.tcTab==='plans'?' active':''}"   onclick="switchTcTab('plans')">แผนรายสัปดาห์</button>
+    <button class="rec-tab${A.tcTab==='students'?' active':''}" onclick="switchTcTab('students')">เพิ่มนักเรียน</button>`;
   const scorePanel=document.getElementById('tc-score-panel');
   const gamePanel=document.getElementById('tc-game-panel');
   const planPanel=document.getElementById('tc-plan-panel');
   if(scorePanel) scorePanel.style.display=A.tcTab==='scores'?'block':'none';
   if(gamePanel) gamePanel.style.display=A.tcTab==='games'?'block':'none';
   if(planPanel) planPanel.style.display=A.tcTab==='plans'?'block':'none';
+  const studentPanel=document.getElementById('tc-student-panel');
+  if(studentPanel) studentPanel.style.display=A.tcTab==='students'?'block':'none';
 }
 
 function switchTcTab(tab){
@@ -425,6 +447,7 @@ function switchTcTab(tab){
   _renderTcTabs();
   if(tab==='games') loadGameBuilder();
   if(tab==='plans') renderTcPlanPanel();
+  if(tab==='students') loadStudentImport();
 }
 
 function ensureTcPlanPanel(){
