@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS questions (
   question_id   SERIAL PRIMARY KEY,
   game_id       INT  NOT NULL,
   question_text TEXT NOT NULL,
-  question_img  TEXT DEFAULT NULL,
+  question_images TEXT[] NOT NULL DEFAULT '{}',
   question_type VARCHAR(20) NOT NULL DEFAULT 'text',
   difficulty    VARCHAR(10) NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy','medium','hard')),
   explanation   TEXT DEFAULT NULL,

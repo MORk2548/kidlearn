@@ -4,6 +4,7 @@
 if (typeof A.gb === 'undefined') A.gb = { view: 'list', games: [], assignments: [], subjects: [], filter: { grade: '', subject: '' }, draft: null };
 
 const GB_TIME_OPTIONS = [60, 120, 180, 300, 600, 900];
+const GB_MAX_IMAGES = 4; // ตรงกับ GAME_MAX_IMAGES ใน backend.php
 
 async function loadGameBuilder() {
   const panel = document.getElementById('tc-game-panel');
@@ -184,10 +185,12 @@ function gbEditHtml() {
           <div class="gb-q-head"><strong>ข้อ ${i + 1}</strong>
             ${d.questions.length > 1 ? `<button class="btn btn-sm" onclick="gbRemoveQuestion(${i})" aria-label="ลบข้อ ${i + 1}">🗑️ ลบข้อนี้</button>` : ''}</div>
           <div class="gb-q-img">
-            ${q.image ? `<img src="${_esc(q.image)}" alt="รูปประกอบข้อ ${i + 1}">
-              <button class="btn btn-sm" onclick="gbRemoveImage(${i})" aria-label="ลบรูปข้อ ${i + 1}">🗑️ ลบรูป</button>`
-            : `<label class="btn btn-sm btn-s">🖼️ เพิ่มรูป (ไม่บังคับ)
-              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="gbUploadImage(${i}, this)"></label>`}
+            ${(q.images || []).map((url, k) => `<figure>
+              <img src="${_esc(url)}" alt="รูปที่ ${k + 1} ของข้อ ${i + 1}">
+              <button type="button" onclick="gbRemoveImage(${i}, ${k})" aria-label="ลบรูปที่ ${k + 1} ของข้อ ${i + 1}">✕</button>
+            </figure>`).join('')}
+            ${(q.images || []).length < GB_MAX_IMAGES ? `<label class="btn btn-sm btn-s">🖼️ เพิ่มรูป (ไม่บังคับ ไม่เกิน ${GB_MAX_IMAGES} รูป)
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onchange="gbUploadImages(${i}, this)"></label>` : ''}
           </div>
           ${type.editorHtml(q)}
         </div>`).join('')}
@@ -209,24 +212,27 @@ function gbSync() {
   d.name = document.getElementById('gb-name').value.trim();
   d.time_limit = +document.getElementById('gb-time').value;
   d.classroom_ids = [...document.querySelectorAll('.gb-room:checked')].map(el => +el.value);
-  d.questions = [...document.querySelectorAll('.gb-q')].map((el, i) => ({ ...type.readEditor(el), image: d.questions[i].image || '' }));
+  d.questions = [...document.querySelectorAll('.gb-q')].map((el, i) => ({ ...type.readEditor(el), images: d.questions[i].images || [] }));
 }
 
 // รูปขึ้น Supabase ทันทีที่เลือก แต่ผูกกับเกมตอนบันทึก รูปที่ลบออกจากข้อจะถูกลบจากที่เก็บตอนบันทึกเกม
-async function gbUploadImage(i, input) {
-  const file = input.files[0];
-  if (!file) return;
-  gbSync();
+async function gbUploadImages(i, input) {
+  const room = GB_MAX_IMAGES - (A.gb.draft.questions[i].images || []).length;
+  const files = [...input.files].slice(0, room);
+  if (!files.length) return;
   input.closest('label').textContent = '⏳ กำลังอัปโหลด...';
-  const res = await apiUploadImage(file, 'game').catch(() => ({ ok: false }));
-  if (res.ok) A.gb.draft.questions[i].image = res.url;
+  const results = await Promise.all(files.map(f => apiUploadImage(f, 'game').catch(() => ({ ok: false }))));
+  gbSync();
+  A.gb.draft.questions[i].images.push(...results.filter(r => r.ok).map(r => r.url));
   gbRender();
-  if (!res.ok) showAl('gb-err', res.error || 'อัปโหลดรูปไม่สำเร็จ');
+  const failed = results.find(r => !r.ok);
+  if (failed) showAl('gb-err', failed.error || 'อัปโหลดรูปไม่สำเร็จ');
+  else if (input.files.length > room) showAl('gb-err', `ใส่รูปได้ไม่เกิน ${GB_MAX_IMAGES} รูปต่อข้อ`);
 }
 
-function gbRemoveImage(i) {
+function gbRemoveImage(i, k) {
   gbSync();
-  A.gb.draft.questions[i].image = '';
+  A.gb.draft.questions[i].images.splice(k, 1);
   gbRender();
 }
 

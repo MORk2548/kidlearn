@@ -713,6 +713,7 @@ function handleTeacherGradebook(): never {
 
 const GAME_TYPES = ['mcq', 'truefalse', 'matching', 'linematch', 'sequence'];
 const GAME_MAX_QUESTIONS = 50;
+const GAME_MAX_IMAGES = 4;
 
 function gameText(mixed $value, int $max, string $label): string {
     $text = trim((string)($value ?? ''));
@@ -766,12 +767,19 @@ function parseGameQuestion(string $type, mixed $q, int $no): array {
             break;
     }
     return ['text' => $text, 'explanation' => mb_substr(trim((string)($q['explanation'] ?? '')), 0, 1000) ?: null,
-            'image' => trim((string)($q['image'] ?? '')) ?: null, 'answers' => $answers];
+            'images' => gameImageList($q['images'] ?? [], $label), 'answers' => $answers];
+}
+
+function gameImageList(mixed $images, string $label): array {
+    if (!is_array($images)) DB::fail("{$label}: รูปภาพไม่ถูกต้อง", 400);
+    $images = array_values(array_unique(array_filter(array_map(fn($u) => trim((string)$u), $images))));
+    if (count($images) > GAME_MAX_IMAGES) DB::fail("{$label}: ใส่รูปได้ไม่เกิน " . GAME_MAX_IMAGES . ' รูป', 400);
+    return $images;
 }
 
 // แถวของ questions/answers → คำถามรูปแบบเดียวกับที่หน้าสร้างเกมส่งมา
 function gameQuestionOut(string $type, array $q, array $answers): array {
-    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? '', 'image' => $q['question_img'] ?? ''];
+    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? '', 'images' => json_decode($q['images'], true)];
     switch ($type) {
         case 'mcq':
             $out['choices'] = array_column($answers, 'answer_text');
@@ -794,7 +802,7 @@ function gameQuestionOut(string $type, array $q, array $answers): array {
 
 function loadGameQuestions(int $gameId, string $type): array {
     $db = DB::get();
-    $questions = $db->all("SELECT question_id, question_text, explanation, question_img FROM questions
+    $questions = $db->all("SELECT question_id, question_text, explanation, to_json(question_images) AS images FROM questions
                            WHERE game_id=? ORDER BY order_no, question_id", [$gameId], 'i');
     $byQuestion = [];
     foreach ($db->all(
@@ -836,11 +844,11 @@ function checkGameScope(string $grade, int $subjectId, string $rooms): void {
     if ($allowed !== $roomCount) DB::fail('มีห้องที่คุณไม่ได้สอนวิชานี้', 400);
 }
 
-// รูปของเกมเก็บเป็น URL สาธารณะใน questions.question_img คืน path ใน bucket ของรูปที่เกมนี้ใช้อยู่
+// รูปของเกมเก็บเป็น URL สาธารณะใน questions.question_images คืน path ใน bucket ของรูปที่เกมนี้ใช้อยู่
 function gameImagePaths(int $gameId): array {
     $prefix = storagePublicPrefix();
-    $urls = array_column(DB::get()->all("SELECT question_img FROM questions WHERE game_id=? AND question_img IS NOT NULL",
-        [$gameId], 'i'), 'question_img');
+    $urls = array_column(DB::get()->all("SELECT unnest(question_images) AS url FROM questions WHERE game_id=?",
+        [$gameId], 'i'), 'url');
     return array_values(array_unique(array_map(fn($u) => substr($u, strlen($prefix)),
         array_filter($urls, fn($u) => str_starts_with($u, $prefix)))));
 }
@@ -849,9 +857,8 @@ function gameImagePaths(int $gameId): array {
 function checkGameImages(array $questions, array $currentPaths): void {
     $prefix = storagePublicPrefix();
     $paths = [];
-    foreach ($questions as $i => $q) {
-        if (!$q['image']) continue;
-        $path = str_starts_with($q['image'], $prefix) ? substr($q['image'], strlen($prefix)) : '';
+    foreach ($questions as $i => $q) foreach ($q['images'] as $url) {
+        $path = str_starts_with($url, $prefix) ? substr($url, strlen($prefix)) : '';
         if (!preg_match('#^game/\d+/[0-9a-f]{32}\.\w+$#', $path)) DB::fail('ข้อ ' . ($i + 1) . ': รูปภาพไม่ถูกต้อง', 400);
         if (!in_array($path, $currentPaths, true)) $paths[$path] = $path;
     }
@@ -937,11 +944,11 @@ function handleSaveTeacherGame(): never {
         }
 
         $questionRows = array_map(fn($q, $i) => ['text' => $q['text'], 'explanation' => $q['explanation'],
-            'image' => $q['image'], 'ord' => $i + 1], $questions, array_keys($questions));
+            'images' => $q['images'], 'ord' => $i + 1], $questions, array_keys($questions));
         $idByOrder = array_column($db->all(
-            "INSERT INTO questions (game_id, question_text, explanation, question_img, order_no, created_by, updated_by)
-             SELECT ?, q.text, q.explanation, q.image, q.ord, ?, ? FROM jsonb_to_recordset(?::jsonb)
-                    AS q(text TEXT, explanation TEXT, image TEXT, ord INT)
+            "INSERT INTO questions (game_id, question_text, explanation, question_images, order_no, created_by, updated_by)
+             SELECT ?, q.text, q.explanation, ARRAY(SELECT jsonb_array_elements_text(q.images)), q.ord, ?, ?
+             FROM jsonb_to_recordset(?::jsonb) AS q(text TEXT, explanation TEXT, images JSONB, ord INT)
              RETURNING question_id, order_no",
             [$gameId, myId(), myId(), jsonEncodeSafe($questionRows)]), 'question_id', 'order_no');
 
@@ -977,7 +984,7 @@ function handleDeleteTeacherGame(): never {
         $db->transaction(function (DB $db) use ($gameId) {
             $db->run("UPDATE games SET is_active=FALSE, status='draft' WHERE game_id=?", [$gameId]);
             $db->run("DELETE FROM game_classrooms WHERE game_id=?", [$gameId]);
-            $db->run("UPDATE questions SET question_img=NULL WHERE game_id=?", [$gameId]);
+            $db->run("UPDATE questions SET question_images='{}' WHERE game_id=?", [$gameId]);
         });
     } else {
         $db->run("DELETE FROM games WHERE game_id=?", [$gameId]);
