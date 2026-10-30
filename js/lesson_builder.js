@@ -92,9 +92,13 @@ function lbEditHtml() {
         ${rooms.map(r => `<label class="child-btn"><input type="checkbox" class="lb-room" value="${r.classroom_id}"${d.classroom_ids.includes(+r.classroom_id) ? ' checked' : ''}> ${classLabel(r)}</label>`).join('') || '<span style="color:var(--mu)">ไม่มีห้องที่คุณสอนในชั้นนี้</span>'}
       </div></div>
     <div class="fg"><label class="fl" for="lb-body">เนื้อหาบทเรียน</label>
-      <textarea class="fc" id="lb-body" rows="12" maxlength="10000" placeholder="พิมพ์เศษส่วนเป็น 1/4 จะแสดงแบบซ้อนบนล่าง">${_esc(d.body)}</textarea></div>
+      <textarea class="fc" id="lb-body" rows="12" maxlength="10000" placeholder="พิมพ์เศษส่วนเป็น 1/4 จะแสดงแบบซ้อนบนล่าง">${_esc(d.body)}</textarea>
+      <label class="btn btn-sm btn-s" style="margin:.5rem 0 1rem">🖼️ ใส่รูปตรงตำแหน่งเคอร์เซอร์
+        <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onchange="lbUploadImages(this)"></label>
+      <div class="ge-hint">💡 รูปจะแทรกเป็นบรรทัด ![รูป](ลิงก์) นักเรียนจะเห็นเป็นรูปภาพ ลบบรรทัดนั้นเพื่อเอารูปออก</div></div>
     <div id="lb-err" class="al ae" style="display:none;margin-top:1rem"></div>
     <div class="gb-actions">
+      <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name })">👀 ดูตัวอย่าง</button>
       <button class="btn btn-p" onclick="lbSave()">💾 บันทึกบทเรียน</button>
     </div>
   </div>`;
@@ -105,6 +109,37 @@ function lbSync() {
   d.title = document.getElementById('lb-title').value.trim();
   d.body = document.getElementById('lb-body').value.trim();
   d.classroom_ids = [...document.querySelectorAll('.lb-room:checked')].map(el => +el.value);
+}
+
+// รูปขึ้น Supabase ทันทีที่เลือก แต่ผูกกับบทเรียนตอนบันทึก รูปที่ลบบรรทัดออกจะถูกลบจากที่เก็บตอนบันทึก
+async function lbUploadImages(input) {
+  const files = [...input.files];
+  if (!files.length) return;
+  const label = input.closest('label');
+  const labelText = label.firstChild.textContent;
+  label.firstChild.textContent = '⏳ กำลังอัปโหลด... ';
+  const results = await Promise.all(files.map(f => apiUploadImage(f, 'lesson').catch(() => ({ ok: false }))));
+  label.firstChild.textContent = labelText;
+  input.value = '';
+  const ta = document.getElementById('lb-body');
+  const tokens = results.filter(r => r.ok).map(r => `![รูป](${r.url})`).join('\n');
+  if (tokens) {
+    const at = ta.selectionStart;
+    const before = ta.value.slice(0, at), after = ta.value.slice(ta.selectionEnd);
+    const insert = (before && !before.endsWith('\n') ? '\n' : '') + tokens + (after.startsWith('\n') ? '' : '\n');
+    ta.value = before + insert + after;
+    ta.selectionStart = ta.selectionEnd = at + insert.length;
+    ta.focus();
+  }
+  const failed = results.find(r => !r.ok);
+  if (failed) showAl('lb-err', failed.error || 'อัปโหลดรูปไม่สำเร็จ');
+}
+
+// แยกบรรทัด ![รูป](URL) ออกเป็นรูป ส่วนข้อความที่เหลือแสดงแบบเดียวกับข้อความในเกม (เศษส่วนซ้อนบนล่าง)
+function lbBodyHtml(body) {
+  return String(body ?? '').split(/\n?!\[[^\]\n]*\]\(([^)\s]+)\)\n?/).map((part, i) => i % 2
+    ? (/^https?:\/\//.test(part) ? `<img class="lesson-img" src="${_gtEsc(part)}" alt="รูปประกอบบทเรียน" loading="lazy">` : '')
+    : _gtRich(part)).join('');
 }
 
 function lbSetScope(subjectId, grade) {
@@ -154,7 +189,7 @@ function openLessonReader(lesson) {
       </div>
       <div class="gp-body lesson-read">
         <h2>${_gtEsc(lesson.title)}</h2>
-        <div class="lesson-body">${_gtRich(lesson.body)}</div>
+        <div class="lesson-body">${lbBodyHtml(lesson.body)}</div>
       </div>
     </div>`;
   overlay.querySelector('.gp-close').addEventListener('click', () => overlay.remove());

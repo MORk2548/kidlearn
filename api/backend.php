@@ -1014,6 +1014,21 @@ function findManagedLesson(int $lessonId): array {
     return $lesson;
 }
 
+// รูปในบทเรียนอยู่ในเนื้อหาเป็นบรรทัด ![รูป](URL) คืน path ใน bucket ของทุกรูป และปฏิเสธ URL ที่ไม่ใช่รูปบทเรียนของระบบ
+const LESSON_IMAGE_TOKEN = '/!\[[^\]\n]*\]\(([^)\s]+)\)/u';
+
+function lessonImagePaths(string $text): array {
+    preg_match_all(LESSON_IMAGE_TOKEN, $text, $m);
+    $prefix = storagePublicPrefix();
+    $paths = [];
+    foreach ($m[1] as $url) {
+        $path = str_starts_with($url, $prefix) ? substr($url, strlen($prefix)) : '';
+        if (!preg_match('#^lesson/\d+/[0-9a-f]{32}\.\w+$#', $path)) DB::fail('เนื้อหาบทเรียนมีรูปภาพที่ไม่ถูกต้อง', 400);
+        $paths[$path] = $path;
+    }
+    return array_values($paths);
+}
+
 function handleTeacherLessons(): never {
     authRole('teacher', 'admin');
     $own = myRole() === 'teacher' ? ' WHERE l.created_by = ' . myId() : '';
@@ -1026,10 +1041,16 @@ function handleSaveLesson(): never {
     ensureTeacherAssignmentSchema();
     $db = DB::get();
     $lessonId = (int)($body['lesson_id'] ?? 0);
-    if ($lessonId) findManagedLesson($lessonId);
+    $oldImages = $lessonId ? lessonImagePaths(findManagedLesson($lessonId)['body']) : [];
 
     $title = gameText($body['title'] ?? '', 200, 'ชื่อบทเรียน');
     $text = gameText($body['body'] ?? '', 10000, 'เนื้อหาบทเรียน');
+    $images = lessonImagePaths($text);
+    // รูปใหม่ต้องเป็นรูปที่ผู้ใช้คนนี้อัปโหลดเอง กันไม่ให้อ้างรูปของคนอื่นแล้วรูปนั้นถูกลบตอนลบบทเรียน
+    $newImages = array_values(array_diff($images, $oldImages));
+    if ($newImages && (int)$db->one("SELECT COUNT(*) AS c FROM image_assets WHERE storage_path = ANY(?::text[]) AND uploaded_by=?",
+            [textArrayLiteral($newImages), myId()], 'si')['c'] !== count($newImages))
+        DB::fail('มีรูปภาพที่ไม่ได้อัปโหลดจากบัญชีนี้', 400);
     $grade = (string)($body['grade'] ?? '');
     if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('กรุณาเลือกระดับชั้น', 400);
     $subjectId = (int)($body['subject_id'] ?? 0);
@@ -1050,6 +1071,7 @@ function handleSaveLesson(): never {
         $db->run("INSERT INTO lesson_classrooms (lesson_id, classroom_id) SELECT ?, unnest(?::int[])", [$lessonId, $rooms]);
         return $lessonId;
     });
+    storageDeleteImages(array_values(array_diff($oldImages, $images)));
     logAudit('save', 'lesson', (string)$lessonId, "บันทึกบทเรียน {$title}", ['grade' => $grade, 'subject_id' => $subjectId]);
     DB::ok(['lesson_id' => $lessonId]);
 }
@@ -1059,6 +1081,7 @@ function handleDeleteLesson(): never {
     authRole('teacher', 'admin');
     $lesson = findManagedLesson((int)($body['lesson_id'] ?? 0));
     DB::get()->run("DELETE FROM lessons WHERE lesson_id=?", [(int)$lesson['lesson_id']]);
+    storageDeleteImages(lessonImagePaths($lesson['body']));
     logAudit('delete', 'lesson', (string)$lesson['lesson_id'], "ลบบทเรียน {$lesson['title']}");
     DB::ok(['deleted' => true]);
 }
@@ -1597,8 +1620,8 @@ function storageUploadImage(string $path, string $bytes, string $mime): string {
 function handleUploadImage(): never {
     global $body;
     auth();
-    $purpose = ($body['purpose'] ?? '') === 'game' ? 'game' : 'avatar';
-    if ($purpose === 'game') authRole('teacher', 'admin');
+    $purpose = in_array($body['purpose'] ?? '', ['game', 'lesson'], true) ? $body['purpose'] : 'avatar';
+    if ($purpose !== 'avatar') authRole('teacher', 'admin');
 
     if (!preg_match('#^data:image/[\w.+-]+;base64,(.+)$#s', (string)($body['data_url'] ?? ''), $m)) {
         DB::fail('ไฟล์รูปภาพไม่ถูกต้อง', 400);
