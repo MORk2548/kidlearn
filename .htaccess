@@ -18,3 +18,8 @@ RewriteRule ^(scripts|backups|docker|content)(/|$) - [F]
 <FilesMatch "\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
 </FilesMatch>
+
+# หน้า HTML ต้องถามเซิร์ฟเวอร์ทุกครั้ง ไม่อย่างนั้นเบราว์เซอร์ใช้หน้าเก่าที่ยังชี้ไป JS/CSS เวอร์ชันเก่าหลัง deploy
+<FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+</FilesMatch>
