@@ -231,12 +231,12 @@ function siRender(){
       </div></div>`).join('')}
     ${si.msg ? `<div class="al ae">${_esc(si.msg)}</div>` : ''}
     <div style="overflow-x:auto">
-      <table style="border-collapse:collapse;font-size:.82rem;width:100%;min-width:420px">
+      <table style="border-collapse:collapse;font-size:.82rem;width:100%;min-width:0;table-layout:fixed">
         <thead><tr>
-          <th style="padding:.4rem;text-align:left;width:2rem">#</th>
+          <th style="padding:.4rem;text-align:left;width:1.5rem">#</th>
           <th style="padding:.4rem;text-align:left">ชื่อ-นามสกุล</th>
-          <th style="padding:.4rem;text-align:left;width:9rem">เบอร์ผู้ปกครอง</th>
-          <th style="width:2rem"></th>
+          <th style="padding:.4rem;text-align:left;width:7.5rem">เบอร์ผู้ปกครอง</th>
+          <th style="width:2.6rem"></th>
         </tr></thead>
         <tbody>${si.rows.map((r, i) => `<tr style="border-top:1px solid #F1F5F9${r.err ? ';background:#FEF2F2' : ''}">
           <td style="padding:.3rem;vertical-align:top;color:var(--mu)">${i + 1}</td>
@@ -244,7 +244,7 @@ function siRender(){
             ${r.err ? `<div style="color:#B91C1C;font-size:.74rem;margin-top:.15rem">⚠️ ${_esc(r.err)}</div>` : ''}
             ${r.src >= 0 ? `<div style="color:var(--mu);font-size:.7rem">จาก ${_esc(si.sources[r.src]?.label || '')}</div>` : ''}</td>
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" inputmode="tel" value="${_esc(r.phone)}" oninput="siEdit(${i},'phone',this.value)"></td>
-          <td style="vertical-align:top"><button class="btn btn-s btn-sm" title="ลบแถว" onclick="siRemoveRow(${i})">✕</button></td>
+          <td style="padding:.3rem;vertical-align:top"><button class="btn btn-s btn-sm" title="ลบแถว" onclick="siRemoveRow(${i})">✕</button></td>
         </tr>`).join('')}</tbody>
       </table>
     </div>
