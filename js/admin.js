@@ -297,7 +297,7 @@ async function _renderReport(type){
     const rows=(res.students||[]).map(s=>`
       <tr style="border-bottom:1px solid #F1F5F9">
         <td style="padding:.6rem .75rem;font-weight:600">${s.full_name}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${s.grade||'-'}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${classLabel(s)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.total_plays||0}</td>
         <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
         <td style="padding:.6rem .75rem">${s.last_active?new Date(s.last_active).toLocaleDateString('th-TH'):'-'}</td>
@@ -333,7 +333,7 @@ async function _renderReport(type){
     const rows=(res.students||[]).map(s=>`
       <tr style="border-bottom:1px solid #F1F5F9">
         <td style="padding:.6rem .75rem;font-weight:600">${s.full_name}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${s.grade||'-'}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${classLabel(s)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
         <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.weakest_mastery||0)}%</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.inactive_days||0}</td>

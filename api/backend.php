@@ -414,10 +414,41 @@ function findClassroom(mixed $classroomId): array {
     return $room;
 }
 
+// ย้ายห้องแล้วเลขที่เดิมใช้ไม่ได้ ต้องกำหนดใหม่ในห้องใหม่
 function setStudentClassroom(int $userId, mixed $classroomId): void {
     $room = findClassroom($classroomId);
-    DB::get()->run("UPDATE students SET classroom_id=?, grade=? WHERE user_id=?",
-        [$room['classroom_id'], $room['grade'], $userId], 'isi');
+    DB::get()->run("UPDATE students SET student_no = CASE WHEN classroom_id = ? THEN student_no END,
+                    classroom_id=?, grade=? WHERE user_id=?",
+        [$room['classroom_id'], $room['classroom_id'], $room['grade'], $userId], 'iisi');
+}
+
+// เลขที่ว่างได้ (null) คืน false ถ้าไม่ใช่เลข 1-99
+function parseStudentNo(mixed $raw): int|null|false {
+    $raw = trim((string)($raw ?? ''));
+    if ($raw === '') return null;
+    return preg_match('/^\d{1,2}$/', $raw) && (int)$raw >= 1 ? (int)$raw : false;
+}
+
+function setStudentNo(int $studentId, mixed $raw): void {
+    $no = parseStudentNo($raw);
+    if ($no === false) DB::fail('เลขที่ต้องเป็นตัวเลข 1-99', 400);
+    $db = DB::get();
+    $st = $db->one("SELECT classroom_id FROM students WHERE student_id=?", [$studentId], 'i');
+    if (!$st) DB::fail('ไม่พบนักเรียน', 404);
+    if ($no !== null && $db->one("SELECT 1 FROM students WHERE classroom_id=? AND student_no=? AND student_id<>?",
+        [$st['classroom_id'], $no, $studentId], 'iii'))
+        DB::fail("เลขที่ $no มีนักเรียนคนอื่นในห้องนี้ใช้แล้ว", 409);
+    $db->run("UPDATE students SET student_no=? WHERE student_id=?", [$no, $studentId], 'ii');
+}
+
+function handleSetStudentNo(): never {
+    global $body;
+    authRole('teacher', 'admin', 'officer');
+    $studentId = (int)($body['student_id'] ?? 0);
+    if (!teacherCanSeeStudent($studentId)) DB::fail('ไม่มีสิทธิ์แก้ไขนักเรียนคนนี้', 403);
+    setStudentNo($studentId, $body['student_no'] ?? null);
+    logAudit('update', 'student_no', (string)$studentId, 'กำหนดเลขที่นักเรียน');
+    DB::ok(['saved' => true]);
 }
 
 function handleChooseClassroom(): never {
@@ -598,15 +629,15 @@ function teacherCardsSql(): string {
 function cardStudentRows(string $cardsSql, array $params = []): array {
     return DB::get()->all(
         "WITH cards AS ({$cardsSql})
-         SELECT k.classroom_id, k.subject_id, st.student_id, u.full_name,
+         SELECT k.classroom_id, k.subject_id, st.student_id, st.student_no, u.full_name,
                 ROUND(AVG(sc.score), 1) AS avg_score, MAX(sc.played_at) AS last_played
          FROM cards k
          JOIN students st ON st.classroom_id = k.classroom_id
          JOIN users u ON u.user_id = st.user_id AND u.is_active = TRUE
          LEFT JOIN scores sc ON sc.student_id = st.student_id
               AND (k.subject_id IS NULL OR sc.game_id IN (SELECT game_id FROM games WHERE subject_id = k.subject_id))
-         GROUP BY k.classroom_id, k.subject_id, st.student_id, u.full_name
-         ORDER BY u.full_name",
+         GROUP BY k.classroom_id, k.subject_id, st.student_id, st.student_no, u.full_name
+         ORDER BY st.student_no NULLS LAST, u.full_name",
         $params);
 }
 
@@ -1055,6 +1086,7 @@ match ($action) {
     'add_teacher_room'         => handleTeacherRoom(true),
     'remove_teacher_room'      => handleTeacherRoom(false),
     'teacher_create_students'  => handleTeacherCreateStudents(),
+    'set_student_no'           => handleSetStudentNo(),
     'teacher_class_summary'    => handleTeacherClassSummary(),
     'teacher_gradebook'        => handleTeacherGradebook(),
     'teacher_games'            => handleTeacherGames(),
@@ -1110,7 +1142,7 @@ function handleLogin(): never {
     if (!$u || !$pass) DB::fail('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 400);
 
     $user = $db->one(
-        "SELECT u.*, s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no,
+        "SELECT u.*, s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no, s.student_no,
                 p.parent_id, p.phone,
                 t.teacher_id, t.department,
                 o.officer_id, o.permissions as officer_permissions,
@@ -1261,9 +1293,9 @@ function handleRegister(): never {
     DB::ok(['user_id' => $uid]);
 }
 
-function insertStudent(DB $db, int $uid, array $room, string $parentPhone): void {
-    $db->run("INSERT INTO students (user_id,grade,classroom_id,parent_phone) VALUES (?,?,?,?)",
-        [$uid, $room['grade'], $room['classroom_id'], $parentPhone], 'isis');
+function insertStudent(DB $db, int $uid, array $room, string $parentPhone, ?int $studentNo = null): void {
+    $db->run("INSERT INTO students (user_id,grade,classroom_id,parent_phone,student_no) VALUES (?,?,?,?,?)",
+        [$uid, $room['grade'], $room['classroom_id'], $parentPhone, $studentNo], 'isisi');
     $sid = $db->insertId();
     $parent = $db->one("SELECT parent_id FROM parents WHERE phone=?", [$parentPhone], 's');
     if ($parent) {
@@ -1288,30 +1320,38 @@ function handleTeacherCreateStudents(): never {
     if (count($input) > STUDENT_IMPORT_MAX) DB::fail('เพิ่มได้ครั้งละไม่เกิน ' . STUDENT_IMPORT_MAX . ' คน', 400);
 
     $existing = [];
+    $usedNos = [];
     foreach ($db->all(
-        "SELECT u.full_name, s.parent_phone FROM students s JOIN users u ON u.user_id = s.user_id
+        "SELECT u.full_name, s.parent_phone, s.student_no FROM students s JOIN users u ON u.user_id = s.user_id
          WHERE s.classroom_id=?", [$classroomId], 'i') as $r) {
         $existing[$r['full_name'] . '|' . normalizePhone($r['parent_phone'] ?? '')] = true;
+        if ($r['student_no'] !== null) $usedNos[(int)$r['student_no']] = true;
     }
 
     $students = [];
     $errors = [];
     $seen = [];
+    $seenNos = [];
     foreach (array_values($input) as $i => $row) {
         $name = trim(preg_replace('/\s+/u', ' ', (string)($row['full_name'] ?? '')));
         $phone = normalizePhone((string)($row['parent_phone'] ?? ''));
+        $no = parseStudentNo($row['student_no'] ?? null);
         $key = $name . '|' . $phone;
         $error = match (true) {
             $name === ''                       => 'ไม่มีชื่อนักเรียน',
             mb_strlen($name) > 100             => 'ชื่อยาวเกิน 100 ตัวอักษร',
             !preg_match('/^0\d{8,9}$/', $phone) => 'เบอร์ผู้ปกครองไม่ถูกต้อง',
-            isset($seen[$key])                 => 'ซ้ำกับแถวที่ ' . ($seen[$key] + 1),
+            $no === false                      => 'เลขที่ต้องเป็นตัวเลข 1-99',
+            isset($seen[$key])                 => 'ชื่อและเบอร์ซ้ำกับอีกแถวในรายชื่อนี้',
             isset($existing[$key])             => 'มีนักเรียนคนนี้ในห้องแล้ว',
+            $no && isset($seenNos[$no])        => "เลขที่ $no ซ้ำกับอีกแถวในรายชื่อนี้",
+            $no && isset($usedNos[$no])        => "เลขที่ $no มีนักเรียนในห้องนี้ใช้แล้ว",
             default                            => null,
         };
-        $seen[$key] ??= $i;
+        $seen[$key] = true;
+        if ($no) $seenNos[$no] = true;
         $errors[] = $error;
-        $students[] = ['full_name' => $name, 'parent_phone' => $phone];
+        $students[] = ['full_name' => $name, 'parent_phone' => $phone, 'student_no' => $no ?: null];
     }
     if (!empty($body['dry_run']) || array_filter($errors)) DB::ok(['errors' => $errors, 'accounts' => []]);
 
@@ -1327,8 +1367,8 @@ function handleTeacherCreateStudents(): never {
             $pass = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $db->run("INSERT INTO users (username,email,password,role,full_name) VALUES (?,?,?,'student',?)",
                 [$uname, "$uname@student.kidlearn.local", password_hash($pass, PASSWORD_BCRYPT), $s['full_name']], 'ssss');
-            insertStudent($db, $db->insertId(), $room, $s['parent_phone']);
-            $accounts[] = ['full_name' => $s['full_name'], 'username' => $uname, 'password' => $pass];
+            insertStudent($db, $db->insertId(), $room, $s['parent_phone'], $s['student_no']);
+            $accounts[] = ['student_no' => $s['student_no'], 'full_name' => $s['full_name'], 'username' => $uname, 'password' => $pass];
         }
         return $accounts;
     });
@@ -1342,7 +1382,7 @@ function handleMe(): never {
     ensureClassroomSchema();
     $user = DB::get()->one(
         "SELECT u.user_id, u.username, u.email, u.role, u.full_name, u.avatar_url, u.created_at, u.updated_at,
-                s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no,
+                s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no, s.student_no,
                 p.parent_id, p.phone,
                 t.teacher_id, t.department,
                 o.officer_id, o.permissions as officer_permissions,
@@ -1537,7 +1577,7 @@ function handleMyChildren(): never {
     if (!$p) DB::ok(['children' => []]);
 
     $kids = DB::get()->all(
-        "SELECT u.user_id, u.full_name, st.grade, st.student_id, c.room_no,
+        "SELECT u.user_id, u.full_name, st.grade, st.student_id, st.student_no, c.room_no,
                 COALESCE(pr.avg_score, 0)   AS avg_score,
                 COALESCE(pr.total_plays, 0) AS total_plays,
                 (SELECT COUNT(*) FROM scores sc WHERE sc.student_id = st.student_id) AS total_games
@@ -1813,7 +1853,7 @@ function handleAllStudents(): never {
     ensureClassroomSchema();
     $db       = DB::get();
     $students = $db->all(
-        "SELECT u.user_id, st.student_id, u.full_name, st.grade, st.classroom_id, c.room_no,
+        "SELECT u.user_id, st.student_id, st.student_no, u.full_name, st.grade, st.classroom_id, c.room_no,
                 COUNT(DISTINCT sc.score_id)  AS games_played,
                 ROUND(AVG(sc.score), 1)      AS avg_score,
                 MAX(sc.played_at)            AS last_active
@@ -1823,8 +1863,8 @@ function handleAllStudents(): never {
          LEFT JOIN scores sc ON sc.student_id=st.student_id
               AND " . teacherScopeSql('st.classroom_id', '(SELECT g.subject_id FROM games g WHERE g.game_id = sc.game_id)') . "
          WHERE u.is_active=TRUE AND " . teacherScopeSql('st.classroom_id') . "
-         GROUP BY u.user_id, st.student_id, u.full_name, st.grade, st.classroom_id, c.room_no
-         ORDER BY st.grade, c.room_no, u.full_name"
+         GROUP BY u.user_id, st.student_id, st.student_no, u.full_name, st.grade, st.classroom_id, c.room_no
+         ORDER BY st.grade, c.room_no, st.student_no NULLS LAST, u.full_name"
     );
     DB::ok(['students' => $students]);
 }
@@ -2209,16 +2249,17 @@ function handleReportV2(): never {
     if ($type === 'at_risk') {
         $rows = $db->all(
             "SELECT * FROM (
-                SELECT u.full_name, st.grade, st.student_id,
+                SELECT u.full_name, st.grade, st.student_id, st.student_no, c.room_no,
                        ROUND(AVG(sc.score),1) AS avg_score,
                        MAX(sc.played_at) AS last_active,
                        COALESCE(MIN(sm.mastery_score), 0) AS weakest_mastery,
                        COALESCE(DATE_PART('day', NOW() - MAX(sc.played_at)), 999999) AS inactive_days
                 FROM students st
                 JOIN users u ON u.user_id = st.user_id
+                LEFT JOIN classrooms c ON c.classroom_id = st.classroom_id
                 LEFT JOIN scores sc ON sc.student_id = st.student_id
                 LEFT JOIN student_mastery sm ON sm.student_id = st.student_id
-                GROUP BY st.student_id, u.user_id
+                GROUP BY st.student_id, u.user_id, c.classroom_id
              ) risk
              WHERE avg_score < 60 OR inactive_days >= 7 OR weakest_mastery < 60
              ORDER BY inactive_days DESC, weakest_mastery ASC, avg_score ASC NULLS FIRST
@@ -2294,7 +2335,7 @@ function handleAdminUsers(): never {
 
     $users = $db->all("SELECT u.user_id, u.username, u.full_name, u.email, u.role,
             u.is_active, u.created_at, u.updated_at,
-            COALESCE(s.grade,'—') AS grade, c.room_no,
+            COALESCE(s.grade,'—') AS grade, c.room_no, s.student_no,
             COALESCE(p.phone,'—') AS phone,
             COALESCE(t.department,'—') AS department
         FROM users u
@@ -2436,14 +2477,15 @@ function handleReport(): never {
         DB::ok(['subjects' => $rows]);
     }
     if ($type === 'by_student') {
-        $rows = $db->all("SELECT u.user_id, u.full_name, st.grade,
+        $rows = $db->all("SELECT u.user_id, u.full_name, st.grade, st.student_no, c.room_no,
             COUNT(sc.score_id) AS total_plays,
             ROUND(AVG(sc.score),1) AS avg_score,
             MAX(sc.played_at) AS last_active
             FROM students st JOIN users u ON u.user_id=st.user_id
+            LEFT JOIN classrooms c ON c.classroom_id=st.classroom_id
             LEFT JOIN scores sc ON sc.student_id=st.student_id
             WHERE u.is_active=TRUE
-            GROUP BY st.student_id, u.user_id ORDER BY avg_score DESC NULLS LAST LIMIT 100");
+            GROUP BY st.student_id, u.user_id, c.classroom_id ORDER BY avg_score DESC NULLS LAST LIMIT 100");
         DB::ok(['students' => $rows]);
     }
     if ($type === 'daily') {
@@ -2562,7 +2604,7 @@ function handleOfficerUsers(): never {
     // ดึงรายชื่อผู้ใช้ทั้งหมด
     $users = $db->all(
         "SELECT u.user_id, u.username, u.email, u.full_name, u.role, u.is_active, 
-                u.created_at, u.updated_at, s.grade, s.classroom_id, c.room_no, p.phone, t.department
+                u.created_at, u.updated_at, s.grade, s.classroom_id, c.room_no, s.student_no, p.phone, t.department
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
          LEFT JOIN classrooms c ON c.classroom_id = s.classroom_id
@@ -2606,6 +2648,10 @@ function handleOfficerUpdateUser(): never {
     // อัปเดต role-specific tables
     if ($user['role'] === 'student' && !empty($body['classroom_id'])) {
         setStudentClassroom($uid, $body['classroom_id']);
+    }
+    if ($user['role'] === 'student' && array_key_exists('student_no', $body)) {
+        $sid = (int)$db->one("SELECT student_id FROM students WHERE user_id=?", [$uid], 'i')['student_id'];
+        setStudentNo($sid, $body['student_no']);
     }
     if ($user['role'] === 'teacher' && $dept) {
         $db->run("UPDATE teachers SET department=? WHERE user_id=?", [$dept, $uid], 'si');
@@ -2667,9 +2713,10 @@ function handleExecutiveUsers(): never {
     // ดึงข้อมูลผู้ใช้ทั้งหมด (View-only)
     $users = $db->all(
         "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at, u.updated_at,
-                s.grade, p.phone, t.department
+                s.grade, c.room_no, s.student_no, p.phone, t.department
          FROM users u
          LEFT JOIN students s ON s.user_id = u.user_id
+         LEFT JOIN classrooms c ON c.classroom_id = s.classroom_id
          LEFT JOIN parents p ON p.user_id = u.user_id
          LEFT JOIN teachers t ON t.user_id = u.user_id
          WHERE u.is_active = TRUE$dateSql

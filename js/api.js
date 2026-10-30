@@ -83,6 +83,7 @@ const apiSaveTeacherAssignments = (d) => _api('save_teacher_assignments', { body
 const apiAddTeacherRoom = (classroomId, subjectId) => _api('add_teacher_room', { body: { classroom_id: classroomId, subject_id: subjectId } });
 const apiRemoveTeacherRoom = (classroomId, subjectId) => _api('remove_teacher_room', { body: { classroom_id: classroomId, subject_id: subjectId } });
 const apiTeacherCreateStudents = (d) => _api('teacher_create_students', { body: d });
+const apiSetStudentNo = (studentId, studentNo) => _api('set_student_no', { body: { student_id: studentId, student_no: studentNo } });
 const apiTeacherClassSummary = () => _api('teacher_class_summary');
 const apiTeacherGradebook = (classroomId, subjectId) => _api('teacher_gradebook', { params: { classroom_id: classroomId, subject_id: subjectId || null } });
 const apiStudentScores = (sid, subjectId) => {

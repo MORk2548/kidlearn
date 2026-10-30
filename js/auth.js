@@ -196,6 +196,7 @@ function normalizeUser(u) {
     grade: u.grade,
     classroom_id: u.classroom_id,
     room_no: u.room_no,
+    student_no: u.student_no,
     parentPhone: u.parent_phone,
     phone: u.phone,
     department: u.department,

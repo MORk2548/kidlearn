@@ -26,7 +26,8 @@ if(typeof A.tcSubject==='undefined') A.tcSubject = null;
 
 function classLabel(o) {
   if (!o?.grade) return '—';
-  return o.room_no ? `${o.grade}/${o.room_no}` : o.grade;
+  const room = o.room_no ? `${o.grade}/${o.room_no}` : o.grade;
+  return o.student_no ? `${room} เลขที่ ${o.student_no}` : room;
 }
 
 async function fillClassroomSelect(el, selectedId) {

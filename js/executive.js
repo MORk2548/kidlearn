@@ -167,7 +167,7 @@ function _exRenderUsers(data) {
             </thead>
             <tbody>
               ${data.users.map(user => {
-                const extra = user.grade ? `ชั้น ${user.grade}` : user.phone ? user.phone : user.department ? user.department : '-';
+                const extra = user.grade ? `ชั้น ${classLabel(user)}` : user.phone ? user.phone : user.department ? user.department : '-';
                 const tone = user.role === 'student' ? 'green' : user.role === 'teacher' ? 'blue' : user.role === 'parent' ? 'amber' : 'slate';
                 return `
                   <tr>

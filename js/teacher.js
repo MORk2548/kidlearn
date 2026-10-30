@@ -9,7 +9,7 @@ if(typeof A.tcTab      ==='undefined') A.tcTab      = 'scores';
 if(typeof A.tcClassrooms==='undefined') A.tcClassrooms = [];
 if(typeof A.tcBook     ==='undefined') A.tcBook     = null;
 if(typeof A.tcCardSubject==='undefined') A.tcCardSubject = null;
-if(typeof A.tcBookView ==='undefined') A.tcBookView = { search: '', sort: 'name', attentionOnly: false };
+if(typeof A.tcBookView ==='undefined') A.tcBookView = { search: '', sort: 'no', attentionOnly: false };
 
 // ════════════════════════════════════════════════════════
 function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
@@ -256,7 +256,7 @@ async function openTcCard(classroomId, subjectId){
       <input class="fc" style="flex:1;min-width:150px" placeholder="🔍 ค้นหาชื่อนักเรียน" value="${_esc(A.tcBookView.search)}"
         oninput="A.tcBookView.search=this.value;_renderTcBookRows()">
       <select class="fc" style="width:auto" onchange="A.tcBookView.sort=this.value;_renderTcBookRows()">
-        ${[['name','เรียงตามชื่อ'],['avg_asc','คะแนนน้อย → มาก'],['avg_desc','คะแนนมาก → น้อย'],['recent','เล่นล่าสุด']]
+        ${[['no','เรียงตามเลขที่'],['name','เรียงตามชื่อ'],['avg_asc','คะแนนน้อย → มาก'],['avg_desc','คะแนนมาก → น้อย'],['recent','เล่นล่าสุด']]
           .map(([v,l])=>`<option value="${v}"${A.tcBookView.sort===v?' selected':''}>${l}</option>`).join('')}
       </select>
       <label style="font-size:.82rem;cursor:pointer"><input type="checkbox"${A.tcBookView.attentionOnly?' checked':''}
@@ -280,7 +280,8 @@ function _tcBookVisibleRows(){
   const {students}=A.tcBook, v=A.tcBookView;
   const q=v.search.trim().toLowerCase();
   const avg=s=>s.avg_score==null?-1:+s.avg_score;
-  const sorters={name:(a,b)=>a.full_name.localeCompare(b.full_name,'th'), avg_asc:(a,b)=>avg(a)-avg(b),
+  const byName=(a,b)=>a.full_name.localeCompare(b.full_name,'th');
+  const sorters={no:(a,b)=>(a.student_no??999)-(b.student_no??999)||byName(a,b), name:byName, avg_asc:(a,b)=>avg(a)-avg(b),
     avg_desc:(a,b)=>avg(b)-avg(a), recent:(a,b)=>new Date(b.last_played||0)-new Date(a.last_played||0)};
   return students.filter(s=>(!q||s.full_name.toLowerCase().includes(q))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
 }
@@ -290,8 +291,8 @@ function exportTcBookCsv(){
   const {columns,cells}=A.tcBook;
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
   const lines=[
-    ['นักเรียน',...columns.map(c=>c.name),'เฉลี่ย','เล่นล่าสุด','ต้องดูแล'],
-    ..._tcBookVisibleRows().map(s=>[s.full_name,...columns.map(c=>cells[s.student_id]?.[c.id]),
+    ['เลขที่','นักเรียน',...columns.map(c=>c.name),'เฉลี่ย','เล่นล่าสุด','ต้องดูแล'],
+    ..._tcBookVisibleRows().map(s=>[s.student_no??'',s.full_name,...columns.map(c=>cells[s.student_id]?.[c.id]),
       s.avg_score==null?'':Math.round(+s.avg_score),
       s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'',
       s.needs_attention?'ใช่':'']),
@@ -301,6 +302,17 @@ function exportTcBookCsv(){
   a.download=`คะแนน ${A.tcBook.title.replace(/[\\/:*?"<>|]/g,'-')} ${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+async function editTcStudentNo(sid){
+  const s=A.tcBook?.students.find(x=>x.student_id==sid);
+  if(!s)return;
+  const val=prompt(`เลขที่ของ ${s.full_name} (1-99, เว้นว่างเพื่อลบ)`,s.student_no??'');
+  if(val===null)return;
+  const res=await apiSetStudentNo(sid,val.trim()).catch(()=>({ok:false}));
+  if(!res.ok){alert(res.error||'บันทึกเลขที่ไม่สำเร็จ');return;}
+  s.student_no=val.trim()?+val.trim():null;
+  _renderTcBookRows();
 }
 
 function _renderTcBookRows(){
@@ -317,14 +329,14 @@ function _renderTcBookRows(){
     <div style="overflow-x:auto;border:1px solid #E2E8F0;border-radius:10px">
     <table style="border-collapse:collapse;font-size:.8rem;width:100%">
       <thead><tr style="background:#F1F5F9;color:#334155">
-        <th style="${th};${sticky};background:#F1F5F9;color:#334155;text-align:left">นักเรียน</th>
+        <th style="${th};${sticky};background:#F1F5F9;color:#334155;text-align:left">เลขที่ · นักเรียน</th>
         ${columns.map(c=>`<th style="${th};max-width:7rem;overflow:hidden;text-overflow:ellipsis" title="${_esc(c.name)}">${c.icon||''} ${_esc(c.name)}</th>`).join('')}
         <th style="${th}">เฉลี่ย</th><th style="${th}">เล่นล่าสุด</th>
       </tr></thead>
       <tbody>${rows.map(s=>{
         const bg=A.tcStudent==s.student_id?'#EEF2FF':'#fff';
         return `<tr style="border-top:1px solid #F1F5F9;cursor:pointer;background:${bg}" onclick="selectTcStudent(${s.student_id})">
-        <td style="padding:.45rem .6rem;${sticky};background:${bg};white-space:nowrap;font-weight:600">${s.needs_attention?'🔴 ':''}${_esc(s.full_name)}</td>
+        <td style="padding:.45rem .6rem;${sticky};background:${bg};white-space:nowrap;font-weight:600"><span title="กดเพื่อแก้เลขที่" onclick="event.stopPropagation();editTcStudentNo(${s.student_id})" style="display:inline-block;min-width:1.8rem;margin-right:.35rem;padding:.05rem .3rem;border:1px dashed #CBD5E1;border-radius:6px;text-align:center;color:#334155">${s.student_no??'–'}</span>${s.needs_attention?'🔴 ':''}${_esc(s.full_name)}</td>
         ${columns.map(c=>`<td style="padding:.45rem .6rem;text-align:center">${cell(cells[s.student_id]?.[c.id])}</td>`).join('')}
         <td style="padding:.45rem .6rem;text-align:center">${cell(s.avg_score==null?null:Math.round(+s.avg_score))}</td>
         <td style="padding:.45rem .6rem;text-align:center;white-space:nowrap;color:var(--mu)">${s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'ยังไม่เคยเล่น'}</td>

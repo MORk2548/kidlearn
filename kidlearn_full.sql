@@ -41,8 +41,10 @@ CREATE TABLE IF NOT EXISTS students (
   grade        VARCHAR(20) NOT NULL DEFAULT 'ป.1',
   classroom_id INT DEFAULT NULL REFERENCES classrooms(classroom_id),
   parent_phone VARCHAR(20) DEFAULT NULL,
+  student_no   SMALLINT DEFAULT NULL CHECK (student_no BETWEEN 1 AND 99),
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_students_classroom_no ON students (classroom_id, student_no);
 
 CREATE TABLE IF NOT EXISTS parents (
   parent_id SERIAL PRIMARY KEY,

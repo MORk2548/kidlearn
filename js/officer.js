@@ -145,6 +145,10 @@ function ofEditUser(uid) {
           <label style="font-weight: 700; font-size: .82rem; display: block; margin-bottom: .3rem;">ห้องเรียน</label>
           <select id="of-grade" class="fc" style="font-size: .88rem; padding: .6rem .85rem;"></select>
         </div>
+        <div style="margin-bottom: .85rem;">
+          <label style="font-weight: 700; font-size: .82rem; display: block; margin-bottom: .3rem;">เลขที่ (เว้นว่างได้)</label>
+          <input id="of-student-no" class="fc" inputmode="numeric" maxlength="2" value="${user.student_no ?? ''}" style="font-size: .88rem; padding: .6rem .85rem;">
+        </div>
       ` : user.role === 'parent' ? `
         <div style="margin-bottom: .85rem;">
           <label style="font-weight: 700; font-size: .82rem; display: block; margin-bottom: .3rem;">เบอร์โทร</label>
@@ -202,6 +206,8 @@ async function ofSaveUser(uid) {
   
   const payload = { user_id: uid, full_name: name, email };
   if(grade) payload.classroom_id = grade;
+  const studentNo = document.getElementById('of-student-no');
+  if(studentNo) payload.student_no = studentNo.value.trim();
   if(phone) payload.phone = phone;
   if(dept) payload.department = dept;
   

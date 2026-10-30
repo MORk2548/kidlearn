@@ -13,6 +13,7 @@ const SI_PDF_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pd
 const SI_MAX_ROWS = 200;
 const SI_MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SI_FIELDS = [
+  { key: 'no',     label: 'เลขที่', optional: true },
   { key: 'prefix', label: 'คำนำหน้า', optional: true },
   { key: 'name',   label: 'ชื่อ' },
   { key: 'last',   label: 'นามสกุล', optional: true },
@@ -141,7 +142,8 @@ function siDetect(grid){
     // "ชื่อ-นามสกุล" อยู่ในคอลัมน์เดียว ไม่ต้องหาคอลัมน์นามสกุลแยก
     const last = /สกุล|full/i.test(cells[name]) ? -1
       : find(c => /นามสกุล|^สกุล|surname|last ?name/i.test(c), [phone, prefix, name]);
-    return { header: r, prefix, name, last, phone };
+    const no = find(c => /^(เลขที่|ที่|ลำดับ(ที่)?|no\.?|number)$/i.test(c.replace(/\s/g, '')), [phone, prefix, name, last]);
+    return { header: r, no, prefix, name, last, phone };
   }
   const width = Math.max(0, ...grid.map(r => r.length));
   const score = test => [...Array(width).keys()].map(c => grid.filter(r => test(siCell(r, c))).length);
@@ -149,12 +151,15 @@ function siDetect(grid){
   const phone = phoneScore.indexOf(Math.max(...phoneScore));
   const nameScore = score(s => /[a-zก-๙]{2}/i.test(s)).map((v, c) => c === phone ? -1 : v);
   const name = nameScore.indexOf(Math.max(...nameScore));
-  return { header: -1, prefix: -1, name, last: -1, phone: phoneScore[phone] ? phone : -1 };
+  const noScore = score(s => /^\d{1,2}$/.test(s));
+  const no = noScore.findIndex((v, c) => c !== phone && c !== name && v && v >= grid.length / 2);
+  return { header: -1, no, prefix: -1, name, last: -1, phone: phoneScore[phone] ? phone : -1 };
 }
 
 function siRowsFromSource(src, srcIndex){
   const m = src.map;
   return src.grid.slice(m.header + 1).map(r => ({
+    no: siCell(r, m.no),
     name: (siCell(r, m.prefix) + siCell(r, m.name) + (siCell(r, m.last) ? ' ' + siCell(r, m.last) : '')).trim(),
     phone: siCell(r, m.phone),
     src: srcIndex, err: null,
@@ -177,7 +182,7 @@ async function loadStudentImport(){
 }
 
 function siAddRows(n, render = true){
-  for (let i = 0; i < n; i++) A.si.rows.push({ name: '', phone: '', src: -1, err: null });
+  for (let i = 0; i < n; i++) A.si.rows.push({ no: '', name: '', phone: '', src: -1, err: null });
   if (render) siRender();
 }
 
@@ -233,13 +238,13 @@ function siRender(){
     <div style="overflow-x:auto">
       <table style="border-collapse:collapse;font-size:.82rem;width:100%;min-width:0;table-layout:fixed">
         <thead><tr>
-          <th style="padding:.4rem;text-align:left;width:1.5rem">#</th>
+          <th style="padding:.4rem;text-align:left;width:3.4rem">เลขที่</th>
           <th style="padding:.4rem;text-align:left">ชื่อ-นามสกุล</th>
-          <th style="padding:.4rem;text-align:left;width:7.5rem">เบอร์ผู้ปกครอง</th>
+          <th style="padding:.4rem;text-align:left;width:7rem">เบอร์ผู้ปกครอง</th>
           <th style="width:2.6rem"></th>
         </tr></thead>
         <tbody>${si.rows.map((r, i) => `<tr style="border-top:1px solid #F1F5F9${r.err ? ';background:#FEF2F2' : ''}">
-          <td style="padding:.3rem;vertical-align:top;color:var(--mu)">${i + 1}</td>
+          <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .4rem;text-align:center" inputmode="numeric" maxlength="2" value="${_esc(r.no)}" oninput="siEdit(${i},'no',this.value)"></td>
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" value="${_esc(r.name)}" oninput="siEdit(${i},'name',this.value)">
             ${r.err ? `<div style="color:#B91C1C;font-size:.74rem;margin-top:.15rem">⚠️ ${_esc(r.err)}</div>` : ''}
             ${r.src >= 0 ? `<div style="color:var(--mu);font-size:.7rem">จาก ${_esc(si.sources[r.src]?.label || '')}</div>` : ''}</td>
@@ -324,7 +329,7 @@ function siRequest(dryRun){
   if (rows.length > SI_MAX_ROWS) return Promise.resolve({ ok: false, error: `เพิ่มได้ครั้งละไม่เกิน ${SI_MAX_ROWS} คน` });
   return apiTeacherCreateStudents({
     classroom_id: +A.si.classroomId, dry_run: dryRun,
-    students: rows.map(r => ({ full_name: r.name, parent_phone: r.phone })),
+    students: rows.map(r => ({ student_no: r.no, full_name: r.name, parent_phone: r.phone })),
   }).then(res => {
     if (res.ok) rows.forEach((r, i) => { r.err = res.errors[i] || null; });
     return res;
@@ -359,8 +364,8 @@ function siRenderAccounts(panel){
     <h3>✅ สร้างบัญชีแล้ว ${si.accounts.length} คน · ${_esc(si.accountRoom)}</h3>
     <div class="al ae">รหัสผ่านแสดงครั้งเดียว กรุณาดาวน์โหลดหรือพิมพ์เก็บไว้ก่อนออกจากหน้านี้</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.85rem;width:100%">
-      <thead><tr><th style="padding:.4rem;text-align:left">ชื่อ</th><th style="padding:.4rem;text-align:left">ชื่อผู้ใช้</th><th style="padding:.4rem;text-align:left">รหัสผ่าน</th></tr></thead>
-      <tbody>${si.accounts.map(a => `<tr style="border-top:1px solid #F1F5F9"><td style="padding:.4rem">${_esc(a.full_name)}</td><td style="padding:.4rem;font-family:monospace">${a.username}</td><td style="padding:.4rem;font-family:monospace">${a.password}</td></tr>`).join('')}</tbody>
+      <thead><tr><th style="padding:.4rem;text-align:center">เลขที่</th><th style="padding:.4rem;text-align:left">ชื่อ</th><th style="padding:.4rem;text-align:left">ชื่อผู้ใช้</th><th style="padding:.4rem;text-align:left">รหัสผ่าน</th></tr></thead>
+      <tbody>${si.accounts.map(a => `<tr style="border-top:1px solid #F1F5F9"><td style="padding:.4rem;text-align:center">${a.student_no || '–'}</td><td style="padding:.4rem">${_esc(a.full_name)}</td><td style="padding:.4rem;font-family:monospace">${a.username}</td><td style="padding:.4rem;font-family:monospace">${a.password}</td></tr>`).join('')}</tbody>
     </table></div>
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem">
       <button class="btn btn-p" onclick="siDownloadAccounts()">⬇️ ดาวน์โหลด CSV</button>
@@ -382,7 +387,7 @@ function siDownloadCsv(filename, rows){
 function siDownloadAccounts(){
   const si = A.si;
   siDownloadCsv(`บัญชีนักเรียน ${si.accountRoom.replace(/[\\/:*?"<>|]/g, '-')}.csv`,
-    [['ชื่อ', 'ชื่อผู้ใช้', 'รหัสผ่าน'], ...si.accounts.map(a => [a.full_name, a.username, a.password])]);
+    [['เลขที่', 'ชื่อ', 'ชื่อผู้ใช้', 'รหัสผ่าน'], ...si.accounts.map(a => [a.student_no ?? '', a.full_name, a.username, a.password])]);
 }
 
 function siPrintAccounts(){
@@ -392,7 +397,7 @@ function siPrintAccounts(){
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>บัญชีนักเรียน ${_esc(si.accountRoom)}</title>
     <style>body{font-family:sans-serif;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px}
     .c{border:1px dashed #999;border-radius:8px;padding:10px;break-inside:avoid}.c b{font-size:1.05rem}.k{font-family:monospace;font-size:1.1rem}</style></head><body>
-    ${si.accounts.map(a => `<div class="c"><b>${_esc(a.full_name)}</b> · ${_esc(si.accountRoom)}<br>KidLearn<br>ชื่อผู้ใช้: <span class="k">${a.username}</span><br>รหัสผ่าน: <span class="k">${a.password}</span></div>`).join('')}
+    ${si.accounts.map(a => `<div class="c"><b>${_esc(a.full_name)}</b> · ${_esc(si.accountRoom)}${a.student_no ? ` เลขที่ ${a.student_no}` : ''}<br>KidLearn<br>ชื่อผู้ใช้: <span class="k">${a.username}</span><br>รหัสผ่าน: <span class="k">${a.password}</span></div>`).join('')}
     </body></html>`);
   w.document.close();
   w.print();
