@@ -214,7 +214,7 @@ function siRender(){
         <input type="file" multiple accept=".xlsx,.xls,.ods,.csv,.tsv,.txt,.docx,.pdf" style="display:none" onchange="siPickFiles(this)">
       </label>
       <button class="btn btn-s btn-sm" onclick="document.getElementById('si-paste').style.display='block'">📋 วางจาก Excel / Sheets</button>
-      <button class="btn btn-s btn-sm" onclick="siDownloadTemplate()">⬇️ ไฟล์ตัวอย่าง</button>
+      <a class="btn btn-s btn-sm" href="files/student-list-template.pdf" download="ตัวอย่างรายชื่อนักเรียน.pdf">⬇️ ไฟล์ตัวอย่าง (PDF)</a>
     </div>
     <div style="font-size:.78rem;color:var(--mu);margin-bottom:.75rem">รองรับ Excel (.xlsx .xls) · .ods · .csv · Word (.docx ที่มีตาราง) · PDF ที่เลือกข้อความได้ · ไฟล์ต้องมีชื่อนักเรียนและเบอร์ผู้ปกครอง</div>
     <div id="si-paste" style="display:none;margin-bottom:.75rem">
@@ -377,10 +377,6 @@ function siDownloadCsv(filename, rows){
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
-}
-
-function siDownloadTemplate(){
-  siDownloadCsv('ตัวอย่างรายชื่อนักเรียน.csv', [['ชื่อ-นามสกุล', 'เบอร์ผู้ปกครอง'], ['ด.ช.สมชาย ใจดี', '0812345678']]);
 }
 
 function siDownloadAccounts(){

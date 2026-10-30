@@ -2,7 +2,7 @@
 Options -Indexes
 RewriteEngine On
 
-# Docker serves the whole repo; only the pages, js/, images/ and api/backend.php are meant to be public.
+# Docker serves the whole repo; only the pages, js/, images/, files/ and api/backend.php are meant to be public.
 RewriteRule (^|/)\. - [F]
 RewriteRule ^(scripts|backups|docker|content)(/|$) - [F]
 <FilesMatch "\.(sql|md|py|ps1|bat|sh|ya?ml|log)$">
