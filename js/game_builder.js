@@ -297,7 +297,7 @@ async function gbPreviewSaved(gameId) {
 
 async function gbDelete(gameId) {
   const g = A.gb.games.find(x => x.game_id == gameId);
-  if (!confirm(`ลบเกม "${g?.name || ''}"? นักเรียนจะเล่นเกมนี้ไม่ได้อีกและรูปในเกมจะถูกลบ แต่คะแนนที่เล่นไปแล้วยังอยู่`)) return;
+  if (!confirm(`ลบเกม "${g?.name || ''}"? นักเรียนจะเล่นเกมนี้ไม่ได้อีก รูปในเกมและคะแนนที่นักเรียนเล่นไปแล้วจะถูกลบทั้งหมด`)) return;
   const res = await apiDeleteTeacherGame(gameId).catch(() => ({ ok: false }));
   if (!res.ok) { alert(res.error || 'ลบไม่สำเร็จ'); return; }
   await loadGameBuilder();

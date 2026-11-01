@@ -980,15 +980,8 @@ function handleDeleteTeacherGame(): never {
     $gameId = (int)$game['game_id'];
     $db = DB::get();
     $images = gameImagePaths($gameId);
-    if ($db->one("SELECT 1 FROM scores WHERE game_id=? LIMIT 1", [$gameId], 'i')) {
-        $db->transaction(function (DB $db) use ($gameId) {
-            $db->run("UPDATE games SET is_active=FALSE, status='draft' WHERE game_id=?", [$gameId]);
-            $db->run("DELETE FROM game_classrooms WHERE game_id=?", [$gameId]);
-            $db->run("UPDATE questions SET question_images='{}' WHERE game_id=?", [$gameId]);
-        });
-    } else {
-        $db->run("DELETE FROM games WHERE game_id=?", [$gameId]);
-    }
+    // FK ทุกตัวที่ชี้มาที่ games เป็น ON DELETE CASCADE: คะแนน คำถาม และห้องที่มอบหมายถูกลบตามไปด้วย
+    $db->run("DELETE FROM games WHERE game_id=?", [$gameId]);
     storageDeleteImages($images);
     logAudit('delete', 'game', (string)$gameId, "ลบเกม {$game['name']}");
     DB::ok(['deleted' => true]);
@@ -1113,6 +1106,8 @@ function pruneOldScores(): void {
     $stamp = sys_get_temp_dir() . '/kidlearn_prune_scores.stamp';
     if (is_file($stamp) && filemtime($stamp) > time() - 3600) return;
     touch($stamp);
+    // เกมที่เคยลบแบบซ่อนไว้ (is_active=FALSE) ก่อนเปลี่ยนมาลบจริง: ลบทิ้งพร้อมคะแนน
+    DB::get()->run("DELETE FROM games WHERE is_active = FALSE");
     DB::get()->run(
         "DELETE FROM scores s USING (
              SELECT score_id, ROW_NUMBER() OVER (PARTITION BY student_id, game_id ORDER BY score DESC, played_at DESC) AS rn
