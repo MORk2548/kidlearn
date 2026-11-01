@@ -25,22 +25,22 @@ function renderAssignmentForm(el, classrooms, subjects, assignments=[]){
   </details>`;
   el.innerHTML=`
     <div class="fg">
-      <label class="fl">🏠 ครูประจำชั้น (เห็นทุกวิชาของห้องนี้)</label>
+      <label class="fl">ครูประจำชั้น (เห็นทุกวิชาของห้องนี้)</label>
       <select class="fc" name="homeroom">
         <option value="">ไม่ได้เป็นครูประจำชั้น</option>
         ${classrooms.map(r=>`<option value="${r.classroom_id}"${r.classroom_id==homeroom?' selected':''}>${classLabel(r)}</option>`).join('')}
       </select>
     </div>
     <div class="fg">
-      <label class="fl">📚 วิชาที่สอน</label>
-      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${s.icon||'📚'} ${_esc(s.name)}${s.created_by==A.user.id?subjectDelBtn(s.subject_id):''}`,subjIds.has(+s.subject_id))).join('')+(A.role!=='teacher'?'':`
+      <label class="fl">วิชาที่สอน</label>
+      ${dropdown('-- เลือกวิชา --',subjIds.size,subjects.map(s=>box('subject',s.subject_id,`${_esc(s.name)}${s.created_by==A.user.id?subjectDelBtn(s.subject_id):''}`,subjIds.has(+s.subject_id))).join('')+(A.role!=='teacher'?'':`
         <div style="display:flex;gap:.4rem;margin-top:.4rem;border-top:1px dashed var(--bd,#eee);padding-top:.5rem">
           <input class="fc" name="new-subject" placeholder="ไม่มีวิชาที่สอน? พิมพ์ชื่อวิชาใหม่" maxlength="100" onkeydown="if(event.key==='Enter'){event.preventDefault();addTcSubject(this)}">
-          <button type="button" class="btn btn-p" style="white-space:nowrap" onclick="addTcSubject(this.previousElementSibling)">➕ เพิ่มวิชา</button>
+          <button type="button" class="btn btn-p" style="white-space:nowrap" onclick="addTcSubject(this.previousElementSibling)">เพิ่มวิชา</button>
         </div>`))}
     </div>
     <div class="fg">
-      <label class="fl">🏫 ห้องที่สอนวิชาเหล่านี้</label>
+      <label class="fl">ห้องที่สอนวิชาเหล่านี้</label>
       ${dropdown('-- เลือกห้อง --',roomIds.size,grades.map(g=>`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:0 .4rem;border-bottom:1px dashed var(--bd,#eee)">
         ${classrooms.filter(r=>r.grade===g).map(r=>box('room',r.classroom_id,classLabel(r),roomIds.has(+r.classroom_id))).join('')}
       </div>`).join(''))}
@@ -54,14 +54,14 @@ async function addTcSubject(input){
   const row=input.parentElement;
   let cb=row.parentElement.querySelector(`input[name="subject"][value="${res.subject_id}"]`);
   if(!cb){
-    row.insertAdjacentHTML('beforebegin',`<label style="cursor:pointer;display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem"><input type="checkbox" name="subject" value="${res.subject_id}"> 📚 ${_esc(name)}${subjectDelBtn(res.subject_id)}</label>`);
+    row.insertAdjacentHTML('beforebegin',`<label style="cursor:pointer;display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem"><input type="checkbox" name="subject" value="${res.subject_id}"> ${_esc(name)}${subjectDelBtn(res.subject_id)}</label>`);
     cb=row.previousElementSibling.querySelector('input');
   }
   cb.checked=true;
   cb.dispatchEvent(new Event('change',{bubbles:true}));
   input.value='';
 }
-const subjectDelBtn=id=>`<button type="button" title="ลบวิชา" style="margin-left:auto;background:none;border:0;cursor:pointer" onclick="event.preventDefault();delTcSubject(this,${id})">🗑️</button>`;
+const subjectDelBtn=id=>`<button type="button" title="ลบวิชา" style="margin-left:auto;background:none;border:0;cursor:pointer" onclick="event.preventDefault();delTcSubject(this,${id})"></button>`;
 async function delTcSubject(btn,id){
   if(!confirm('ลบวิชานี้?')) return;
   const res=await apiDeleteSubject(id).catch(()=>({ok:false}));
@@ -81,9 +81,9 @@ function readAssignmentForm(el){
 function assignmentSummary(assignments){
   const homeroom=assignments.filter(a=>a.subject_id==null).map(classLabel);
   const bySubject={};
-  assignments.filter(a=>a.subject_id!=null).forEach(a=>(bySubject[`${a.icon||'📚'} ${a.subject_name}`] ||= []).push(classLabel(a)));
+  assignments.filter(a=>a.subject_id!=null).forEach(a=>(bySubject[`${a.subject_name}`] ||= []).push(classLabel(a)));
   return [
-    ...homeroom.map(r=>`🏠 ครูประจำชั้น ${r}`),
+    ...homeroom.map(r=>`ครูประจำชั้น ${r}`),
     ...Object.entries(bySubject).map(([s,rooms])=>`${s}: ${rooms.join(', ')}`),
   ].join(' · ');
 }
@@ -91,11 +91,11 @@ async function _renderTcSetup(){
   const setup=document.getElementById('tc-setup');
   const [roomRes,subRes]=await Promise.all([apiClassrooms(),apiSubjects()]);
   setup.innerHTML=`<div class="ts">
-    <h3>👋 ยินดีต้อนรับ! เลือกห้องและวิชาที่คุณสอน</h3>
+    <h3>ยินดีต้อนรับ! เลือกห้องและวิชาที่คุณสอน</h3>
     <div style="font-size:.82rem;color:var(--mu);margin-bottom:.75rem">เพิ่มหรือลบห้องที่สอนได้ภายหลังในแท็บคะแนนนักเรียน</div>
     <div id="tc-setup-form"></div>
     <div id="tc-setup-err" class="al ae" style="display:none"></div>
-    <button class="btn btn-p btn-fw" onclick="saveTcSetup()">💾 บันทึกห้องและวิชาที่สอน</button>
+    <button class="btn btn-p btn-fw" onclick="saveTcSetup()">บันทึกห้องและวิชาที่สอน</button>
   </div>`;
   renderAssignmentForm(document.getElementById('tc-setup-form'),roomRes.classrooms||[],subRes.subjects||[]);
 }
@@ -144,7 +144,7 @@ async function loadTeach() {
 }
 
 function scoreColor(v){ return v>=80?'#10B981':v>=50?'#F59E0B':'#EF4444'; }
-function _tcCardTitle(c){ return `${classLabel(c)} · ${c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา'}`; }
+function _tcCardTitle(c){ return `${classLabel(c)} · ${c.subject_id?`${c.subject_name}`:'ทุกวิชา'}`; }
 
 function renderTcCards(cards){
   A.tcCards=cards;
@@ -153,7 +153,7 @@ function renderTcCards(cards){
   const bySubject={};
   cards.forEach(c=>{
     const key=String(c.subject_id??'all');
-    const s=(bySubject[key] ||= {key, title:c.subject_id?`${c.icon||'📚'} ${c.subject_name}`:'🏠 ทุกวิชา', grades:{}, cards:[]});
+    const s=(bySubject[key] ||= {key, title:c.subject_id?`${c.subject_name}`:'ทุกวิชา', grades:{}, cards:[]});
     (s.grades[c.grade||'—'] ||= []).push(c);
     s.cards.push(c);
   });
@@ -162,28 +162,24 @@ function renderTcCards(cards){
   if(!bySubject[A.tcCardSubject]) A.tcCardSubject=null;
   const roomButtons=A.role!=='teacher'?'':`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">
       <select class="fc" id="tc-add-subject" style="width:auto">
-        <option value="">🏠 ครูประจำชั้น (ทุกวิชา)</option>
-        ${(A.tcAllSubjects||[]).map(s=>`<option value="${s.subject_id}"${String(s.subject_id)===A.tcCardSubject?' selected':''}>${s.icon||'📚'} ${_esc(s.name)}</option>`).join('')}
+        <option value="">ครูประจำชั้น (ทุกวิชา)</option>
+        ${(A.tcAllSubjects||[]).map(s=>`<option value="${s.subject_id}"${String(s.subject_id)===A.tcCardSubject?' selected':''}>${_esc(s.name)}</option>`).join('')}
       </select>
       <select class="fc" id="tc-add-room" style="width:auto">
         ${A.tcClassrooms.map(r=>`<option value="${r.classroom_id}">${classLabel(r)}</option>`).join('')}
       </select>
-      <button class="child-btn" onclick="addTcRoom()">➕ เพิ่มห้องที่สอน</button>
+      <button class="child-btn" onclick="addTcRoom()">เพิ่มห้องที่สอน</button>
     </div>`;
   if(multi&&!A.tcCardSubject){
-    el.innerHTML=`<h3>📚 เลือกวิชาที่ต้องการดูคะแนน</h3>
+    el.innerHTML=`<h3>เลือกวิชาที่ต้องการดูคะแนน</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.6rem">
-        ${all.map(s=>{
-          const scored=s.cards.filter(c=>c.avg_score!=null);
-          const avg=scored.length?Math.round(scored.reduce((t,c)=>t+(+c.avg_score),0)/scored.length):null;
-          return `<button onclick="openTcSubject('${s.key}')"
-            style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
-            <div style="font-weight:800;font-size:1rem">${s.title}</div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:.4rem">
-              <span style="font-size:.78rem;color:var(--mu)">🏫 ${s.cards.length} ห้อง · 👦 ${s.cards.reduce((t,c)=>t+(+c.student_count||0),0)} คน</span>
-              <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
+        ${all.map(s=>`<button onclick="openTcSubject('${s.key}')"
+            style="text-align:left;background:var(--cb);border:2px solid var(--bd);border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;font-size:1rem">
+              <span style="font-weight:800">${s.title}</span>
+              <span style="color:var(--mu);white-space:nowrap">${s.cards.length} ห้อง</span>
             </div>
-          </button>`;}).join('')}
+          </button>`).join('')}
       </div>${roomButtons}`;
     return;
   }
@@ -191,19 +187,19 @@ function renderTcCards(cards){
   const card=c=>{
     const avg=c.avg_score==null?null:Math.round(+c.avg_score);
     return `<div style="position:relative;display:grid"><button onclick="openTcCard(${c.classroom_id},${c.subject_id??'null'})"
-      style="text-align:left;background:#fff;border:2px solid #E2E8F0;border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
+      style="text-align:left;background:var(--cb);border:2px solid var(--bd);border-radius:14px;padding:.85rem;cursor:pointer;font:inherit">
       <div style="font-weight:800;font-size:.95rem;padding-right:1.5rem">${multi?classLabel(c):_tcCardTitle(c)}</div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin:.4rem 0">
-        <span style="font-size:.78rem;color:var(--mu)">👦 ${c.student_count} คน</span>
-        <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg+'%'}</span>
+        <span style="font-size:.78rem;color:var(--mu)">${c.student_count} คน</span>
+        <span style="font-size:1.3rem;font-weight:900;color:${avg==null?'var(--mu)':scoreColor(avg)}">${avg==null?'–':avg}</span>
       </div>
     </button>${A.role!=='teacher'?'':`<button title="เลิกสอนห้องนี้" aria-label="เลิกสอนห้องนี้" onclick="deleteTcRoom(${c.classroom_id},${c.subject_id??'null'})"
-      style="position:absolute;top:.4rem;right:.4rem;background:none;border:0;cursor:pointer">🗑️</button>`}</div>`;
+      style="position:absolute;top:.4rem;right:.4rem;background:none;border:0;cursor:pointer"></button>`}</div>`;
   };
   el.innerHTML=`${multi?`<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
         <button class="btn btn-sm" onclick="openTcSubject(null)">← ทุกวิชา</button>
         <h3 style="margin:0">${subjects[0].title}</h3>
-      </div>`:'<h3>🏫 ห้องที่ฉันสอน</h3>'}
+      </div>`:'<h3>ห้องที่ฉันสอน</h3>'}
     ${subjects.map(s=>`
       ${Object.entries(s.grades).map(([grade,list])=>`
         <div style="font-size:.82rem;font-weight:700;color:var(--mu);margin:.6rem 0 .35rem">${grade}</div>
@@ -223,7 +219,7 @@ async function openTcCard(classroomId, subjectId){
   const book=document.getElementById('tc-gradebook');
   document.getElementById('tc-history').style.display='none';
   book.style.display='block';
-  book.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลดสมุดคะแนน...</div>';
+  book.innerHTML='<div style="color:var(--mu)">กำลังโหลดสมุดคะแนน...</div>';
   const res=await apiTeacherGradebook(classroomId, subjectId).catch(()=>({ok:false}));
   if(!res.ok){book.innerHTML=`<div style="color:#EF4444">${res.error||'โหลดสมุดคะแนนไม่สำเร็จ'}</div>`;return;}
   const cells={};
@@ -232,17 +228,17 @@ async function openTcCard(classroomId, subjectId){
   const subject=subjectId?A.tcSubjects.find(s=>s.subject_id==subjectId):null;
   A.tcSubject=subjectId;
   A.tcBook={...res, cells, classroom_id:classroomId, subject_id:subjectId,
-    title:_tcCardTitle({...room, subject_id:subjectId, subject_name:subject?.subject_name, icon:subject?.icon})};
+    title:_tcCardTitle({...room, subject_id:subjectId, subject_name:subject?.subject_name})};
   book.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
-      <h3 style="margin:0">📒 สมุดคะแนน ${A.tcBook.title}</h3>
+      <h3 style="margin:0">สมุดคะแนน ${A.tcBook.title}</h3>
       <div style="display:flex;gap:.4rem">
-        <button class="btn btn-sm" onclick="exportTcBookCsv()">⬇️ ส่งออก CSV</button>
+        <button class="btn btn-sm" onclick="exportTcBookCsv()">ส่งออก CSV</button>
         <button class="btn btn-sm" onclick="closeTcCard()">✕ ปิด</button>
       </div>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
-      <input class="fc" style="flex:1;min-width:150px" placeholder="🔍 ค้นหาชื่อหรือเลขที่" value="${_esc(A.tcBookView.search)}"
+      <input class="fc" style="flex:1;min-width:150px" placeholder="ค้นหาชื่อหรือเลขที่" value="${_esc(A.tcBookView.search)}"
         oninput="A.tcBookView.search=this.value;_renderTcBookRows()">
       <select class="fc" style="width:auto" onchange="A.tcBookView.sort=this.value;_renderTcBookRows()">
         ${[['no','เรียงตามเลขที่'],['name','เรียงตามชื่อ'],['avg_asc','คะแนนน้อย → มาก'],['avg_desc','คะแนนมาก → น้อย'],['recent','เล่นล่าสุด']]
@@ -251,7 +247,7 @@ async function openTcCard(classroomId, subjectId){
       <label style="font-size:.82rem;cursor:pointer"><input type="checkbox"${A.tcBookView.attentionOnly?' checked':''}
         onchange="A.tcBookView.attentionOnly=this.checked;_renderTcBookRows()"> เฉพาะคนที่ต้องดูแล</label>
     </div>
-    <div style="font-size:.72rem;color:var(--mu);margin-bottom:.5rem">🔴 ต้องดูแล = คะแนนเฉลี่ยต่ำกว่า ${res.attention_rule.min_score}% หรือไม่ได้เล่นเกิน ${res.attention_rule.inactive_days} วัน ·
+    <div style="font-size:.72rem;color:var(--mu);margin-bottom:.5rem"><span class="att-dot"></span>ต้องดูแล = คะแนนเฉลี่ยต่ำกว่า ${res.attention_rule.min_score} หรือไม่ได้เล่นเกิน ${res.attention_rule.inactive_days} วัน ·
       ช่องในตาราง = ${subjectId?'คะแนนดีที่สุดของแต่ละเกม':'คะแนนเฉลี่ยของแต่ละวิชา'} · กดชื่อเพื่อดูประวัติ</div>
     <div id="tc-book-rows"></div>`;
   _renderTcBookRows();
@@ -311,23 +307,23 @@ function _renderTcBookRows(){
   if(!el||!A.tcBook)return;
   const {columns,cells,students}=A.tcBook;
   const rows=_tcBookVisibleRows();
-  const cell=val=>val==null?'<span style="color:#CBD5E1">–</span>'
+  const cell=val=>val==null?'<span style="color:var(--bd)">–</span>'
     :`<span style="display:inline-block;min-width:2.4rem;padding:.15rem .35rem;border-radius:6px;font-weight:700;color:#fff;background:${scoreColor(val)}">${val}</span>`;
   const th='padding:.5rem .6rem;white-space:nowrap;font-weight:700';
   const sticky='position:sticky;left:0;z-index:1';
   el.innerHTML=`<div style="font-size:.78rem;color:var(--mu);margin-bottom:.35rem">แสดง ${rows.length} จาก ${students.length} คน ·
       ต้องดูแล ${students.filter(s=>s.needs_attention).length} คน</div>
-    <div style="overflow-x:auto;border:1px solid #E2E8F0;border-radius:10px">
+    <div style="overflow-x:auto;border:1px solid var(--bd);border-radius:10px">
     <table style="border-collapse:collapse;font-size:.8rem;width:100%">
-      <thead><tr style="background:#F1F5F9;color:#334155">
-        <th style="${th};${sticky};background:#F1F5F9;color:#334155;text-align:left">เลขที่ · นักเรียน</th>
-        ${columns.map(c=>`<th style="${th};max-width:7rem;overflow:hidden;text-overflow:ellipsis" title="${_esc(c.name)}">${c.icon||''} ${_esc(c.name)}</th>`).join('')}
+      <thead><tr style="background:var(--sf);color:var(--tx)">
+        <th style="${th};${sticky};background:var(--sf);color:var(--tx);text-align:left">เลขที่ · นักเรียน</th>
+        ${columns.map(c=>`<th style="${th};max-width:7rem;overflow:hidden;text-overflow:ellipsis" title="${_esc(c.name)}">${_esc(c.name)}</th>`).join('')}
         <th style="${th}">เฉลี่ย</th><th style="${th}">เล่นล่าสุด</th>
       </tr></thead>
       <tbody>${rows.map(s=>{
-        const bg=A.tcStudent==s.student_id?'#EEF2FF':'#fff';
-        return `<tr style="border-top:1px solid #F1F5F9;cursor:pointer;background:${bg}" onclick="selectTcStudent(${s.student_id})">
-        <td style="padding:.45rem .6rem;${sticky};background:${bg};white-space:nowrap;font-weight:600"><span title="กดเพื่อแก้เลขที่" onclick="event.stopPropagation();editTcStudentNo(${s.student_id})" style="display:inline-block;min-width:1.8rem;margin-right:.35rem;padding:.05rem .3rem;border:1px dashed #CBD5E1;border-radius:6px;text-align:center;color:#334155">${s.student_no??'–'}</span>${s.needs_attention?'🔴 ':''}${_esc(s.full_name)}</td>
+        const bg=A.tcStudent==s.student_id?'var(--tint)':'#fff';
+        return `<tr style="border-top:1px solid var(--sf);cursor:pointer;background:${bg}" onclick="selectTcStudent(${s.student_id})">
+        <td style="padding:.45rem .6rem;${sticky};background:${bg};white-space:nowrap;font-weight:600"><span title="กดเพื่อแก้เลขที่" onclick="event.stopPropagation();editTcStudentNo(${s.student_id})" style="display:inline-block;min-width:1.8rem;margin-right:.35rem;padding:.05rem .3rem;border:1px dashed var(--bd);border-radius:6px;text-align:center;color:var(--tx)">${s.student_no??'–'}</span>${s.needs_attention?'<span class="att-dot" title="ต้องดูแล"></span>':''}${_esc(s.full_name)}</td>
         ${columns.map(c=>`<td style="padding:.45rem .6rem;text-align:center">${cell(cells[s.student_id]?.[c.id])}</td>`).join('')}
         <td style="padding:.45rem .6rem;text-align:center">${cell(s.avg_score==null?null:Math.round(+s.avg_score))}</td>
         <td style="padding:.45rem .6rem;text-align:center;white-space:nowrap;color:var(--mu)">${s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'ยังไม่เคยเล่น'}</td>
@@ -360,7 +356,7 @@ async function selectTcStudent(sid){
   if(!hist)return;
   hist.style.display='block';
 
-  hist.innerHTML='<div style="color:var(--mu);padding:.5rem">⏳ กำลังโหลด...</div>';
+  hist.innerHTML='<div style="color:var(--mu);padding:.5rem">กำลังโหลด...</div>';
   // ส่ง student_id (จาก students table) ไป API
   const res=await apiStudentScores(sid,A.tcSubject||null).catch(()=>({ok:false,scores:[]}));
   const sc=res.ok?(res.scores||[]):[];
@@ -368,7 +364,6 @@ async function selectTcStudent(sid){
 
   if(!sc.length){
     hist.innerHTML=`<div style="text-align:center;padding:1.5rem;color:var(--mu)">
-      <div style="font-size:2rem;margin-bottom:.4rem">🎮</div>
       <div style="font-weight:600">${stu?.full_name||'นักเรียน'} ยังไม่มีคะแนน${A.tcSubject?' ในวิชานี้':''}</div>
     </div>`;
     return;
@@ -384,8 +379,8 @@ async function selectTcStudent(sid){
   const sumHtml=Object.entries(bySub).map(([n,d])=>{
     const avg=d.totalMax?Math.round(d.total/d.totalMax*100):0,c=avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
     return `<div style="display:flex;align-items:center;gap:.6rem;padding:.3rem 0">
-      <div style="font-size:.8rem;color:#374151;min-width:100px">${n}</div>
-      <div style="flex:1;height:7px;background:#E2E8F0;border-radius:4px">
+      <div style="font-size:.8rem;color:var(--tx);min-width:100px">${n}</div>
+      <div style="flex:1;height:7px;background:var(--bd);border-radius:4px">
         <div style="width:${avg}%;height:100%;background:${c};border-radius:4px"></div>
       </div>
       <div style="font-weight:700;color:${c};font-size:.82rem;min-width:40px;text-align:right">${avg}%</div>
@@ -405,20 +400,19 @@ async function selectTcStudent(sid){
     groups[k].rows.push(s);
   });
   const tableRows=Object.values(groups).map(g=>({...g,avg:g.totalMax?Math.round(g.totalScore/g.totalMax*100):0})).map(group=>{
-    const header=`<tr><td colspan="4" style="background:#F8FAFC;padding:.75rem 1rem;border-bottom:1px solid #E2E8F0">
+    const header=`<tr><td colspan="4" style="background:var(--sf);padding:.75rem 1rem;border-bottom:1px solid var(--bd)">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
         <div><strong style="font-size:.88rem">${group.name}</strong>
-          <div style="font-size:.73rem;color:var(--mu)">เล่น ${group.plays} ครั้ง • เฉลี่ย ${group.avg}% • Best ${group.best}%</div>
+          <div style="font-size:.73rem;color:var(--mu)">เล่น ${group.plays} ครั้ง • เฉลี่ย ${group.avg} • Best ${group.best}/100</div>
         </div>
-        <div style="font-size:.76rem;color:#475569">${Math.round(group.time/60)} นาที</div>
+        <div style="font-size:.76rem;color:var(--mu)">${Math.round(group.time/60)} นาที</div>
       </div></td></tr>`;
     const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
       const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
-      return `<tr style="border-bottom:1px solid #F1F5F9">
+      return `<tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.5rem .75rem">${s.game_name||'—'}<br><span style="font-size:.7rem;color:var(--mu)">${GAME_TYPES[s.game_type]?.label||''}</span></td>
         <td style="padding:.5rem .75rem;text-align:center">
-          <strong style="color:${c}">${pct}%</strong><span style="color:#9CA3AF"> (${s.score}/${s.max_score||100})</span>
-          ${pct>=80?' ⭐⭐⭐':pct>=50?' ⭐⭐':pct>0?' ⭐':''}
+          <strong style="color:${c}">${s.score}/${s.max_score||100}</strong>
         </td>
         <td style="padding:.5rem .75rem;text-align:center;color:var(--mu)">${s.time_spent?s.time_spent+'วิ':'—'}</td>
         <td style="padding:.5rem .75rem">${s.played_at?new Date(s.played_at).toLocaleDateString('th-TH'):'—'}</td>
@@ -503,10 +497,10 @@ async function renderTcPlanPanel(){
     <div class="ts">
       <h3>แผนที่มอบหมายแล้ว</h3>
       ${planList.length?planList.map(plan=>`
-        <div style="padding:.8rem 0;border-bottom:1px solid #F1F5F9">
+        <div style="padding:.8rem 0;border-bottom:1px solid var(--sf)">
           <strong>${plan.title}</strong>
-          <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${plan.student_name||'นักเรียน'} • สัปดาห์ ${plan.week_start||'-'} ${plan.due_at?`• ครบกำหนด ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
-          <div style="font-size:.78rem;color:#475569;margin-top:.35rem">${plan.description||''}</div>
+          <div style="font-size:.76rem;color:var(--mu);margin-top:.2rem">${plan.student_name||'นักเรียน'} • สัปดาห์ ${plan.week_start||'-'} ${plan.due_at?`• ครบกำหนด ${new Date(plan.due_at).toLocaleDateString('th-TH')}`:''}</div>
+          <div style="font-size:.78rem;color:var(--mu);margin-top:.35rem">${plan.description||''}</div>
         </div>`).join(''):'<div style="color:var(--mu)">ยังไม่มีแผนที่มอบหมาย</div>'}
     </div>`;
 }

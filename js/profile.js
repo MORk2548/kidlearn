@@ -1,5 +1,14 @@
 // Profile page helpers.
 
+const ROLE_LABEL = {
+  student: 'นักเรียน',
+  parent: 'ผู้ปกครอง',
+  teacher: 'ครู',
+  officer: 'เจ้าหน้าที่',
+  executive: 'ผู้บริหาร',
+  admin: 'ผู้ดูแลระบบ',
+};
+
 function applyAvatar(el, fallbackChar) {
   if (!el) return;
   const saved = A.user?.avatar_url;
@@ -28,7 +37,6 @@ async function handleAvatarUpload(event) {
   }
   A.user.avatar_url = res.url;
   applyAvatar(document.getElementById('pf-av'), A.user?.name?.charAt(0));
-  applyAvatar(document.getElementById('sb-av'), A.user?.name?.charAt(0));
 }
 
 function loadProfile() {
@@ -46,14 +54,7 @@ function loadProfile() {
   const rd = document.getElementById('pf-rb-display');
   if (nd) nd.textContent = u.name || '';
   if (rd) {
-    rd.textContent = {
-      student: 'นักเรียน',
-      parent: 'ผู้ปกครอง',
-      teacher: 'ครู',
-      officer: 'เจ้าหน้าที่',
-      executive: 'ผู้บริหาร',
-      admin: 'ผู้ดูแลระบบ',
-    }[u.role] || u.role;
+    rd.textContent = ROLE_LABEL[u.role] || u.role;
     rd.className = 'rb ' + u.role;
   }
 
@@ -122,7 +123,6 @@ async function saveProfile() {
   A.user.updated_at = res.updated_at || A.user.updated_at;
   const updatedAt = document.getElementById('pf-updated-at');
   if (updatedAt) updatedAt.textContent = formatDateTimeTH(A.user.updated_at);
-  document.getElementById('sb-nm').textContent = name;
   const nd = document.getElementById('pf-nm-display');
   if (nd) nd.textContent = name;
   showAl('pf-ok', 'บันทึกข้อมูลโปรไฟล์สำเร็จ');

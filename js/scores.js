@@ -56,7 +56,7 @@ async function loadScores() {
 
   childWrap.style.display = 'none';
   renderScoreInsights(null);
-  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">ครูดูคะแนนรวมได้ที่เมนูแผงครู</td></tr>';
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">ครูดูคะแนนรวมได้ที่เมนูแผงควบคุม</td></tr>';
 }
 
 function ensureScoreInsightsHost() {
@@ -154,11 +154,11 @@ function renderScoreInsights(data){
           <h3 style="margin:0 0 .25rem">${SCORE_UI_TEXT.scoreOverview}</h3>
           <div style="font-size:.78rem;color:var(--mu)">${SCORE_UI_TEXT.subjectView}</div>
         </div>
-        <button class="btn btn-sm" onclick="sec && sec('recommendations')" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE">${SCORE_UI_TEXT.openAdvice}</button>
+        <button class="btn btn-sm" onclick="sec && sec('recommendations')" style="background:var(--tint);color:var(--s);border:1px solid #C7D2FE">${SCORE_UI_TEXT.openAdvice}</button>
       </div>
       <div class="stats" style="margin:1rem 0 0">
         <div class="stat"><div class="sv">${overview.total_plays||0}</div><div class="sl2">${SCORE_UI_TEXT.attempts}</div></div>
-        <div class="stat"><div class="sv">${Math.round(overview.avg_score||0)}%</div><div class="sl2">${SCORE_UI_TEXT.avgScore}</div></div>
+        <div class="stat"><div class="sv">${Math.round(overview.avg_score||0)}</div><div class="sl2">${SCORE_UI_TEXT.avgScore}</div></div>
         <div class="stat"><div class="sv">${Math.round((overview.total_time||0)/60)}</div><div class="sl2">${SCORE_UI_TEXT.timeMinutes}</div></div>
       </div>
     </div>
@@ -166,30 +166,30 @@ function renderScoreInsights(data){
       <div class="ts" style="margin:0">
         <h3>${SCORE_UI_TEXT.mastery}</h3>
         ${subjectCards.length?subjectCards.map(subject=>`
-          <div style="padding:.5rem 0;border-bottom:1px solid #F1F5F9">
-            <div style="display:flex;justify-content:space-between;gap:.75rem;font-size:.82rem"><strong>${subject.name}</strong><span>${subject.avg}%</span></div>
+          <div style="padding:.5rem 0;border-bottom:1px solid var(--sf)">
+            <div style="display:flex;justify-content:space-between;gap:.75rem;font-size:.82rem"><strong>${subject.name}</strong><span>${subject.avg}</span></div>
             <div style="font-size:.73rem;color:var(--mu)">${subject.count} skill${subject.count>1?'s':''} • ${subject.weak||0} \u0e08\u0e38\u0e14\u0e17\u0e35\u0e48\u0e22\u0e31\u0e07\u0e2d\u0e48\u0e2d\u0e19</div>
-            <div style="height:7px;background:#E2E8F0;border-radius:999px;margin-top:.3rem"><div style="width:${Math.max(0,Math.min(100,subject.avg))}%;height:100%;background:${subject.avg>=80?'#10B981':subject.avg>=60?'#F59E0B':'#EF4444'};border-radius:999px"></div></div>
+            <div style="height:7px;background:var(--bd);border-radius:999px;margin-top:.3rem"><div style="width:${Math.max(0,Math.min(100,subject.avg))}%;height:100%;background:${subject.avg>=80?'#10B981':subject.avg>=60?'#F59E0B':'#EF4444'};border-radius:999px"></div></div>
           </div>`).join(''):'<div style="color:var(--mu)">'+SCORE_UI_TEXT.noScores+'</div>'}
       </div>
       <div class="ts" style="margin:0">
         <h3>${SCORE_UI_TEXT.weakSkills}</h3>
         ${review.length?review.map(item=>`
-          <div style="padding:.55rem 0;border-bottom:1px solid #F1F5F9">
+          <div style="padding:.55rem 0;border-bottom:1px solid var(--sf)">
             <div style="font-size:.82rem;font-weight:700">${item.skill_name||SCORE_UI_TEXT.student}</div>
             <div style="font-size:.74rem;color:#B45309">${item.subject_name||''}</div>
-            <div style="font-size:.76rem;color:#475569;margin-top:.2rem">${item.prompt_text||''}</div>
+            <div style="font-size:.76rem;color:var(--mu);margin-top:.2rem">${item.prompt_text||''}</div>
             <div style="font-size:.72rem;color:var(--mu)">พลาด ${item.miss_count||0} ครั้ง</div>
           </div>`).join(''):`<div style="color:var(--mu)">${SCORE_UI_TEXT.noWeakSkills}</div>`}
       </div>
       <div class="ts" style="margin:0">
         <h3>${SCORE_UI_TEXT.activePlans}</h3>
         ${plans.length?plans.map(plan=>`
-          <div style="padding:.55rem 0;border-bottom:1px solid #F1F5F9">
-            <div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.82rem">${plan.title}</strong><span class="badge" style="background:#EEF2FF;color:var(--s)">${plan.completed_items||0}/${plan.total_items||0}</span></div>
+          <div style="padding:.55rem 0;border-bottom:1px solid var(--sf)">
+            <div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.82rem">${plan.title}</strong><span class="badge" style="background:var(--tint);color:var(--s)">${plan.completed_items||0}/${plan.total_items||0}</span></div>
             <div style="font-size:.72rem;color:var(--mu)">${SCORE_UI_TEXT.due} ${plan.due_at ? new Date(plan.due_at).toLocaleDateString('th-TH') : (plan.week_start||'-')}</div>
           </div>`).join(''):`<div style="color:var(--mu)">${SCORE_UI_TEXT.noPlans}</div>`}
-        <div style="margin-top:.85rem;border-top:1px solid #F1F5F9;padding-top:.75rem">
+        <div style="margin-top:.85rem;border-top:1px solid var(--sf);padding-top:.75rem">
           <div style="font-size:.78rem;font-weight:700;margin-bottom:.4rem">${SCORE_UI_TEXT.alerts}</div>
           ${alerts.length?alerts.map(msg=>`<div style="font-size:.75rem;color:#92400E;margin-bottom:.28rem">• ${msg}</div>`).join(''):`<div style="font-size:.75rem;color:var(--mu)">${SCORE_UI_TEXT.noAlerts}</div>`}
         </div>
@@ -211,7 +211,7 @@ function renderScoreTable(sc){
   }
 
   tb.innerHTML=groups.map(group=>{
-    const header=`<tr><td colspan="6" style="background:#F8FAFC;padding:.85rem 1rem;border-bottom:1px solid #E2E8F0"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><strong style="font-size:.88rem">${group.name}</strong><div style="font-size:.74rem;color:var(--mu)">${SCORE_UI_TEXT.plays} ${group.plays} ${SCORE_UI_TEXT.attempts} • ${SCORE_UI_TEXT.avgScore} ${group.avg}% • Best ${group.best}%</div></div><div style="font-size:.76rem;color:#475569">${Math.round(group.time/60)} ${SCORE_UI_TEXT.timeMinutes}</div></div></td></tr>`;
+    const header=`<tr><td colspan="6" style="background:var(--sf);padding:.85rem 1rem;border-bottom:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><strong style="font-size:.88rem">${group.name}</strong><div style="font-size:.74rem;color:var(--mu)">${SCORE_UI_TEXT.plays} ${group.plays} ${SCORE_UI_TEXT.attempts} • ${SCORE_UI_TEXT.avgScore} ${group.avg} • Best ${group.best}/100</div></div><div style="font-size:.76rem;color:var(--mu)">${Math.round(group.time/60)} ${SCORE_UI_TEXT.timeMinutes}</div></div></td></tr>`;
     const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
       const score=+s.score||0;
       const max=+s.max_score||100;
@@ -223,7 +223,7 @@ function renderScoreTable(sc){
         <td>${s.subject_name||s.sub||'-'}</td>
         <td>${s.game_name||s.game||'-'}</td>
         <td>${GAME_TYPES[s.game_type]?.label || s.game_type || '-'}</td>
-        <td><strong style="color:${c}">${pct}%</strong><span style="color:#9CA3AF"> (${score}/${max})</span></td>
+        <td><strong style="color:${c}">${score}/${max}</strong></td>
         <td>${time}</td>
         <td>${date}</td>
       </tr>`;

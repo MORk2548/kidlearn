@@ -916,7 +916,7 @@ function handleSaveTeacherGame(): never {
     if (!in_array($status, ['draft', 'published'], true)) DB::fail('สถานะเกมไม่ถูกต้อง', 400);
     $timeLimit = (int)($body['time_limit'] ?? 60);
     if ($timeLimit < 30 || $timeLimit > 1800) DB::fail('เวลาต้องอยู่ระหว่าง 30-1800 วินาที', 400);
-    $icon = mb_substr(trim((string)($body['icon'] ?? '')), 0, 10) ?: '🎮';
+    $icon = mb_substr(trim((string)($body['icon'] ?? '')), 0, 10) ?: '';
     $description = trim((string)($body['description'] ?? '')) ?: null;
     if ($description !== null && mb_strlen($description) > 500) DB::fail('คำอธิบายเกม: ยาวเกิน 500 ตัวอักษร', 400);
 
@@ -1172,7 +1172,7 @@ function logAudit(string $actionType, string $entityType, string $entityId = '',
     );
 }
 
-function createParentNotification(int $studentId, string $title, string $message, string $type = 'info', string $icon = '🔔', string $eventKey = ''): void {
+function createParentNotification(int $studentId, string $title, string $message, string $type = 'info', string $icon = '', string $eventKey = ''): void {
     $db = DB::get();
     $parents = $db->all(
         "SELECT p.parent_id
@@ -1854,16 +1854,16 @@ function generateRecommendations(int $studentId, int $userId): void {
         if ($lowSubs) {
             $db->run(
                 "INSERT INTO parent_notifications (parent_id,student_id,ico,title,message,notif_type)
-                 VALUES (?,?,'⚠️','ต้องการความช่วยเหลือ',?,'warn')",
+                 VALUES (?,?,'','ต้องการความช่วยเหลือ',?,'warn')",
                 [$par['parent_id'], $studentId,
-                 "$sName มีวิชาที่คะแนนต่ำกว่า 50% ลองช่วยทบทวนบทเรียนร่วมกันที่บ้านดูครับ"],
+                 "$sName มีวิชาที่คะแนนต่ำกว่า 50 ลองช่วยทบทวนบทเรียนร่วมกันที่บ้านดูครับ"],
                 'iis'
             );
         }
         if ($highSubs) {
             $db->run(
                 "INSERT INTO parent_notifications (parent_id,student_id,ico,title,message,notif_type)
-                 VALUES (?,?,'⭐','ผลการเรียนดีเยี่ยม!',?,'praise')",
+                 VALUES (?,?,'','ผลการเรียนดีเยี่ยม!',?,'praise')",
                 [$par['parent_id'], $studentId,
                  "$sName ทำคะแนนได้ยอดเยี่ยม! ให้กำลังใจกันด้วยนะครับ"],
                 'iis'
@@ -1948,7 +1948,7 @@ function generateRecommendationsV2(int $studentId, int $userId): void {
             'มีหัวข้อที่ควรทบทวน',
             $studentName . ' ยังอ่อนในเรื่อง "' . $weakest['skill_name'] . '" ลองเปิดฝึกเฉพาะจุดหรือมอบหมายแผนรายสัปดาห์เพิ่ม',
             'warn',
-            '⚠️',
+            '',
             'weak_skill_' . $weakest['skill_key']
         );
     }
@@ -2218,14 +2218,14 @@ function handleCreatePlan(): never {
         );
     }
 
-    createParentNotification($studentId, 'มีแผนการเรียนใหม่', 'ครูได้มอบหมายแผนรายสัปดาห์ใหม่ให้แล้ว', 'info', '📘', 'plan_' . $planId);
+    createParentNotification($studentId, 'มีแผนการเรียนใหม่', 'ครูได้มอบหมายแผนรายสัปดาห์ใหม่ให้แล้ว', 'info', '', 'plan_' . $planId);
     logAudit('plan_created', 'learning_plan', (string)$planId, $title, ['student_id' => $studentId, 'item_count' => count($items)]);
     try { refreshStudentNotifications($studentId); } catch (Exception $e) {}
 
     DB::ok(['plan_id' => $planId]);
 }
 
-function createParentNotificationUnique(int $studentId, string $title, string $message, string $type = 'info', string $icon = '🔔', string $eventKey = ''): void {
+function createParentNotificationUnique(int $studentId, string $title, string $message, string $type = 'info', string $icon = '', string $eventKey = ''): void {
     $db = DB::get();
     $parents = $db->all(
         "SELECT p.parent_id
@@ -2279,7 +2279,7 @@ function refreshStudentNotifications(int $studentId): void {
                 'คะแนนมีแนวโน้มลดลง',
                 'ผลเล่นล่าสุดลดลงจากช่วงก่อนหน้าอย่างเห็นได้ชัด ควรช่วยทบทวนเป็นพิเศษ',
                 'warn',
-                '📉',
+                '',
                 'score_drop'
             );
         }
@@ -2309,7 +2309,7 @@ function refreshStudentNotifications(int $studentId): void {
             'ทำเป้าหมายครบแล้ว',
             'นักเรียนทำแผน "' . $activePlan['title'] . '" ครบแล้ว',
             'praise',
-            '🎯',
+            '',
             'plan_complete_' . $activePlan['plan_id']
         );
         $db->run("UPDATE learning_plans SET status='completed' WHERE plan_id=?", [$activePlan['plan_id']], 'i');
@@ -2387,7 +2387,7 @@ function handleCreatePlanV2(): never {
         'มีแผนการเรียนใหม่',
         'ครูได้มอบหมายแผน "' . $title . '" ให้กับ ' . $student['full_name'],
         'info',
-        '📘',
+        '',
         'plan_' . $planId
     );
     logAudit('plan_created', 'learning_plan', (string)$planId, $title, ['student_id' => $studentId, 'item_count' => count($items)]);
@@ -2573,7 +2573,7 @@ function handleSaveSubject(): never {
     $sid  = (int)($body['subject_id'] ?? 0);
     $name = trim($body['name'] ?? '');
     $desc = trim($body['description'] ?? '');
-    $icon = trim($body['icon'] ?? '📚');
+    $icon = trim($body['icon'] ?? '');
     $color = trim($body['color'] ?? '#4CAF50');
     $order = (int)($body['order_no'] ?? 1);
     if (!$name) DB::fail('ต้องใส่ชื่อวิชา', 400);

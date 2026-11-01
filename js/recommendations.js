@@ -5,7 +5,7 @@ async function loadRec() {
   if (A.role !== 'parent') return;
   const cont = document.getElementById('rec-cont');
   if (!cont) return;
-  cont.innerHTML = '<div style="color:var(--mu);padding:1rem">⏳ กำลังโหลด...</div>';
+  cont.innerHTML = '<div style="color:var(--mu);padding:1rem">กำลังโหลด...</div>';
 
   // ดึงบุตรหลาน
   const cres = await apiMyChildren().catch(()=>({ok:false,children:[]}));
@@ -23,7 +23,6 @@ async function loadRec() {
     const myPhone = A.user?.phone || A.user?.parentPhone || '';
     const displayPhone = myPhone ? formatPhone(myPhone) : '(ยังไม่ได้ลงทะเบียนเบอร์)';
     cont.innerHTML = `<div style="text-align:center;padding:2.5rem 1rem;color:var(--mu)">
-      <div style="font-size:3rem;margin-bottom:.75rem">👨‍👩‍👧</div>
       <div style="font-weight:700;font-size:1rem;color:var(--tx);margin-bottom:.5rem">ยังไม่มีบุตรหลานที่เชื่อมบัญชี</div>
       <div style="font-size:.88rem;line-height:1.8;margin-bottom:1.25rem">
         ให้บุตรหลานกรอกเบอร์โทรของคุณ<br>
@@ -31,9 +30,9 @@ async function loadRec() {
         ตอนสมัครสมาชิก หรือกรอกในหน้าแก้ไขโปรไฟล์
       </div>
       <div style="display:flex;flex-direction:column;gap:.5rem;align-items:center">
-        <button class="btn btn-s btn-sm" onclick="syncChildrenRec()">🔄 ค้นหาบุตรหลานอัตโนมัติ</button>
-        <button class="btn btn-sm" style="background:#EEF2FF;color:var(--s)" onclick="sec('children')">
-          ➕ จัดการบุตรหลาน
+        <button class="btn btn-s btn-sm" onclick="syncChildrenRec()">ค้นหาบุตรหลานอัตโนมัติ</button>
+        <button class="btn btn-sm" style="background:var(--tint);color:var(--s)" onclick="sec('children')">
+          จัดการบุตรหลาน
         </button>
       </div>
     </div>`;
@@ -49,7 +48,7 @@ async function loadRec() {
   kids.forEach(k => {
     html += `<button class="child-btn${A.selChild==k.student_id?' active':''}"
       onclick="A.selChild=${k.student_id};loadRec()">
-      👦 ${k.full_name||k.full_name}
+      ${k.full_name||k.full_name}
     </button>`;
   });
   html += '</div>';
@@ -67,21 +66,20 @@ async function loadRec() {
   let recCards = '';
   if (recs.length) {
     const TYPE_STYLE = {
-      praise    : { bg:'#ECFDF5', border:'#10B981', icon:'⭐', label:'ยอดเยี่ยม!' },
-      improve   : { bg:'#FFF7ED', border:'#F59E0B', icon:'📈', label:'กำลังพัฒนา' },
-      low_score : { bg:'#FFF1F2', border:'#EF4444', icon:'⚠️', label:'ต้องพัฒนา' },
+      praise    : { bg:'#ECFDF5', border:'#10B981', label:'ยอดเยี่ยม!' },
+      improve   : { bg:'#FFF7ED', border:'#F59E0B', label:'กำลังพัฒนา' },
+      low_score : { bg:'#FFF1F2', border:'#EF4444', label:'ต้องพัฒนา' },
     };
     recCards = recs.map(r => {
       const st = TYPE_STYLE[r.rec_type] || TYPE_STYLE.improve;
       return `<div style="background:${st.bg};border:1.5px solid ${st.border};
         border-radius:14px;padding:1rem 1.2rem;margin-bottom:.75rem">
         <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
-          <span style="font-size:1.2rem">${r.icon||st.icon}</span>
           <strong style="font-size:.9rem">${r.subject_name||''}</strong>
           <span style="margin-left:auto;font-size:.72rem;background:${st.border};
             color:#fff;padding:.1rem .5rem;border-radius:99px">${st.label}</span>
         </div>
-        <div style="font-size:.85rem;color:#374151">${r.message}</div>
+        <div style="font-size:.85rem;color:var(--tx)">${r.message}</div>
       </div>`;
     }).join('');
   } else if (scores.length) {
@@ -98,23 +96,21 @@ async function loadRec() {
       const good = avg >= 80, ok = avg >= 50;
       const bg     = good ? '#ECFDF5' : ok ? '#FFF7ED' : '#FFF1F2';
       const border = good ? '#10B981' : ok ? '#F59E0B' : '#EF4444';
-      const icon   = good ? '⭐' : ok ? '📈' : '⚠️';
       const label  = good ? 'ยอดเยี่ยม!' : ok ? 'กำลังพัฒนา' : 'ต้องพัฒนา';
-      const msg    = good ? `บุตรหลานทำได้ดีมากในวิชา${sub.name} คะแนนเฉลี่ย ${avg}% 🎉`
-                   : ok   ? `บุตรหลานมีความก้าวหน้าในวิชา${sub.name} คะแนนเฉลี่ย ${avg}% ควรฝึกเพิ่มเติม`
-                           : `บุตรหลานต้องการความช่วยเหลือในวิชา${sub.name} คะแนนเฉลี่ย ${avg}% ควรทบทวน`;
+      const msg    = good ? `บุตรหลานทำได้ดีมากในวิชา${sub.name} คะแนนเฉลี่ย ${avg}`
+                   : ok   ? `บุตรหลานมีความก้าวหน้าในวิชา${sub.name} คะแนนเฉลี่ย ${avg} ควรฝึกเพิ่มเติม`
+                           : `บุตรหลานต้องการความช่วยเหลือในวิชา${sub.name} คะแนนเฉลี่ย ${avg} ควรทบทวน`;
       return `<div style="background:${bg};border:1.5px solid ${border};
         border-radius:14px;padding:1rem 1.2rem;margin-bottom:.75rem">
         <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
-          <span style="font-size:1.2rem">${icon}</span>
           <strong style="font-size:.9rem">${sub.name}</strong>
-          <span style="font-size:.82rem;color:#6B7280;margin-left:.25rem">เล่น ${sub.scores.length} ครั้ง</span>
+          <span style="font-size:.82rem;color:var(--mu);margin-left:.25rem">เล่น ${sub.scores.length} ครั้ง</span>
           <span style="margin-left:auto;font-size:.72rem;background:${border};
             color:#fff;padding:.1rem .5rem;border-radius:99px">${label}</span>
         </div>
-        <div style="font-size:.85rem;color:#374151">${msg}</div>
+        <div style="font-size:.85rem;color:var(--tx)">${msg}</div>
         <div style="margin-top:.5rem">
-          <div style="height:6px;background:#E2E8F0;border-radius:3px">
+          <div style="height:6px;background:var(--bd);border-radius:3px">
             <div style="width:${avg}%;height:100%;background:${border};border-radius:3px"></div>
           </div>
         </div>
@@ -122,7 +118,6 @@ async function loadRec() {
     }).join('');
   } else {
     recCards = `<div style="color:var(--mu);font-size:.88rem;padding:1rem 0;text-align:center">
-      <div style="font-size:2rem;margin-bottom:.5rem">🎮</div>
       ยังไม่มีคำแนะนำ — ให้บุตรหลานเล่นเกมก่อนนะครับ
     </div>`;
   }
@@ -137,14 +132,14 @@ async function loadRec() {
   });
   const summaryHtml = Object.entries(bySubScore).length ? `
     <div style="margin-top:1.5rem">
-      <div style="font-weight:700;margin-bottom:.75rem;font-size:.9rem">📊 สรุปผลการเรียนรายวิชา</div>
+      <div style="font-weight:700;margin-bottom:.75rem;font-size:.9rem">สรุปผลการเรียนรายวิชา</div>
       ${Object.entries(bySubScore).map(([name,d])=>{
         const avg = Math.round(d.total/d.plays);
         const c = avg>=80?'#10B981':avg>=50?'#F59E0B':'#EF4444';
         return `<div style="display:flex;align-items:center;gap:.75rem;
-          padding:.6rem 0;border-bottom:1px solid #F1F5F9">
-          <div style="width:90px;font-size:.82rem;color:#374151;font-weight:600">${name}</div>
-          <div style="flex:1;height:8px;background:#E2E8F0;border-radius:4px">
+          padding:.6rem 0;border-bottom:1px solid var(--sf)">
+          <div style="width:90px;font-size:.82rem;color:var(--tx);font-weight:600">${name}</div>
+          <div style="flex:1;height:8px;background:var(--bd);border-radius:4px">
             <div style="width:${avg}%;height:100%;background:${c};border-radius:4px"></div>
           </div>
           <div style="font-weight:700;color:${c};font-size:.85rem;width:48px;text-align:right">${avg}%</div>
@@ -188,15 +183,15 @@ async function renderRecNotifications(){
   block.innerHTML = `
     <h3>การแจ้งเตือนล่าสุด ${res.summary?.unread ? `<span class="badge" style="background:#FEE2E2;color:#B91C1C">${res.summary.unread} ใหม่</span>` : ''}</h3>
     ${list.map(item => `
-      <div style="padding:.6rem 0;border-bottom:1px solid #F1F5F9">
+      <div style="padding:.6rem 0;border-bottom:1px solid var(--sf)">
         <div style="display:flex;justify-content:space-between;gap:.75rem">
           <strong style="font-size:.82rem">${item.title}</strong>
           <span style="font-size:.72rem;color:var(--mu)">${item.student_name || ''}</span>
         </div>
-        <div style="font-size:.78rem;color:#475569">${item.message || ''}</div>
+        <div style="font-size:.78rem;color:var(--mu)">${item.message || ''}</div>
       </div>`).join('')}
     <div style="margin-top:.6rem;display:flex;justify-content:flex-end">
-      <button class="btn btn-sm" onclick="apiMarkNotifRead().then(()=>loadRec())" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE">ทำเครื่องหมายว่าอ่านแล้ว</button>
+      <button class="btn btn-sm" onclick="apiMarkNotifRead().then(()=>loadRec())" style="background:var(--tint);color:var(--s);border:1px solid #C7D2FE">ทำเครื่องหมายว่าอ่านแล้ว</button>
     </div>`;
   cont.appendChild(block);
 }
@@ -317,7 +312,7 @@ loadRec = async function(){
   const cres=await apiMyChildren().catch(()=>({ok:false,children:[]}));
   const kids=cres.ok ? (cres.children||[]) : [];
   if(!kids.length){
-    cont.innerHTML=`<div style="text-align:center;padding:2.5rem 1rem;color:var(--mu)"><div style="font-size:2.5rem;margin-bottom:.75rem">👨‍👩‍👧</div><div style="font-weight:700;color:var(--tx);margin-bottom:.5rem">${REC_UI_TEXT.noChildren}</div></div>`;
+    cont.innerHTML=`<div style="text-align:center;padding:2.5rem 1rem;color:var(--mu)"><div style="font-weight:700;color:var(--tx);margin-bottom:.5rem">${REC_UI_TEXT.noChildren}</div></div>`;
     return;
   }
 
@@ -355,18 +350,18 @@ loadRec = async function(){
   const plans=(analytics?.plans||[]).filter(p=>(p.total_items||0) > (p.completed_items||0));
   const reviewItems=(analytics?.review_items||[]).slice(0,3);
   const priorityItems=[];
-  if(weakSubject) priorityItems.push({title:REC_UI_TEXT.needsHelp, body:`${weakSubject.name} • ${REC_UI_TEXT.avgScore} ${weakSubject.avg}%`, tone:'#F97316'});
+  if(weakSubject) priorityItems.push({title:REC_UI_TEXT.needsHelp, body:`${weakSubject.name} • ${REC_UI_TEXT.avgScore} ${weakSubject.avg}`, tone:'#F97316'});
   if(reviewItems[0]) priorityItems.push({title:REC_UI_TEXT.reviewSoon, body:`${reviewItems[0].skill_name || ''} • พลาด ${reviewItems[0].miss_count || 0} ครั้ง`, tone:'#DC2626'});
   if(plans[0]) priorityItems.push({title:REC_UI_TEXT.totalPlans, body:`${plans[0].title} • ${plans[0].completed_items||0}/${plans[0].total_items||0}`, tone:'#2563EB'});
-  if(strongSubject) priorityItems.push({title:REC_UI_TEXT.strongArea, body:`${strongSubject.name} • ${REC_UI_TEXT.avgScore} ${strongSubject.avg}%`, tone:'#16A34A'});
+  if(strongSubject) priorityItems.push({title:REC_UI_TEXT.strongArea, body:`${strongSubject.name} • ${REC_UI_TEXT.avgScore} ${strongSubject.avg}`, tone:'#16A34A'});
 
   const recCards=recs.length ? recs.slice(0,5).map(r=>{
     const subject = recSafeText(r.subject_name) || 'วิชานี้';
-    return `<div style="padding:.75rem;border:1px solid #E5E7EB;border-radius:14px;background:#fff"><div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.85rem">${subject}</strong><span style="font-size:.75rem;color:var(--mu)">${recTypeLabel(r.rec_type)}</span></div><div style="font-size:.82rem;color:#475569;margin-top:.3rem">${recBuildRecommendationMessage(r)}</div></div>`;
+    return `<div style="padding:.75rem;border:1px solid var(--bd);border-radius:14px;background:var(--cb)"><div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.85rem">${subject}</strong><span style="font-size:.75rem;color:var(--mu)">${recTypeLabel(r.rec_type)}</span></div><div style="font-size:.82rem;color:var(--mu);margin-top:.3rem">${recBuildRecommendationMessage(r)}</div></div>`;
   }).join('') : `<div style="color:var(--mu)">${REC_UI_TEXT.noItems}</div>`;
   const notifCards=notifications.length ? notifications.slice(0,5).map(n=>{
     const display = recBuildNotification(n);
-    return `<div style="padding:.75rem;border-bottom:1px solid #F1F5F9"><div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.84rem">${display.title}</strong><span style="font-size:.74rem;color:var(--mu)">${recSafeText(n.student_name) || ''}</span></div><div style="font-size:.8rem;color:#475569;margin-top:.25rem">${display.message}</div></div>`;
+    return `<div style="padding:.75rem;border-bottom:1px solid var(--sf)"><div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.84rem">${display.title}</strong><span style="font-size:.74rem;color:var(--mu)">${recSafeText(n.student_name) || ''}</span></div><div style="font-size:.8rem;color:var(--mu);margin-top:.25rem">${display.message}</div></div>`;
   }).join('') : `<div style="color:var(--mu)">${REC_UI_TEXT.noItems}</div>`;
 
   cont.innerHTML=`
@@ -378,19 +373,19 @@ loadRec = async function(){
           <div style="font-size:.78rem;color:var(--mu)">${selectedChild.full_name||''}</div>
         </div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <button class="btn btn-sm" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE" onclick="recOpenScores()">${REC_UI_TEXT.openScores}</button>
+          <button class="btn btn-sm" style="background:var(--tint);color:var(--s);border:1px solid #C7D2FE" onclick="recOpenScores()">${REC_UI_TEXT.openScores}</button>
         </div>
       </div>
       <div class="stats" style="margin-top:1rem">
         <div class="stat"><div class="sv">${scores.length}</div><div class="sl2">${REC_UI_TEXT.playCount}</div></div>
-        <div class="stat"><div class="sv">${subjectSummary.length?Math.round(subjectSummary.reduce((sum,s)=>sum+s.avg,0)/subjectSummary.length):0}%</div><div class="sl2">${REC_UI_TEXT.avgScore}</div></div>
+        <div class="stat"><div class="sv">${subjectSummary.length?Math.round(subjectSummary.reduce((sum,s)=>sum+s.avg,0)/subjectSummary.length):0}</div><div class="sl2">${REC_UI_TEXT.avgScore}</div></div>
         <div class="stat"><div class="sv">${plans.length}</div><div class="sl2">${REC_UI_TEXT.totalPlans}</div></div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1rem">
       <div class="ts" style="margin:0">
         <h3>${REC_UI_TEXT.priority}</h3>
-        ${priorityItems.length?priorityItems.map(item=>`<div style="padding:.7rem 0;border-bottom:1px solid #F1F5F9"><div style="font-size:.78rem;font-weight:800;color:${item.tone}">${item.title}</div><div style="font-size:.82rem;color:#475569;margin-top:.25rem">${item.body}</div></div>`).join(''):`<div style="color:var(--mu)">${REC_UI_TEXT.noData}</div>`}
+        ${priorityItems.length?priorityItems.map(item=>`<div style="padding:.7rem 0;border-bottom:1px solid var(--sf)"><div style="font-size:.78rem;font-weight:800;color:${item.tone}">${item.title}</div><div style="font-size:.82rem;color:var(--mu);margin-top:.25rem">${item.body}</div></div>`).join(''):`<div style="color:var(--mu)">${REC_UI_TEXT.noData}</div>`}
       </div>
       <div class="ts" style="margin:0">
         <h3>${REC_UI_TEXT.recommendations}</h3>

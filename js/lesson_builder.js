@@ -6,7 +6,7 @@ if (typeof A.lb === 'undefined') A.lb = { view: 'list', lessons: [], draft: null
 async function loadLessonBuilder() {
   const panel = document.getElementById('tc-lesson-panel');
   if (!panel) return;
-  panel.innerHTML = '<div class="ts" style="color:var(--mu)">⏳ กำลังโหลดบทเรียน...</div>';
+  panel.innerHTML = '<div class="ts" style="color:var(--mu)">กำลังโหลดบทเรียน...</div>';
   const [lessonRes, asgRes, subRes] = await Promise.all([
     apiTeacherLessons().catch(() => ({ ok: false })),
     apiTeacherAssignments().catch(() => ({ ok: false })),
@@ -27,22 +27,21 @@ function lbRender() {
 
 function lbListHtml() {
   const card = l => `<div class="gb-card">
-      <div class="gb-card-ico" aria-hidden="true">📖</div>
       <div class="gb-card-body">
         <div class="gb-card-name">${_esc(l.title)}</div>
         <div class="gb-card-meta">${_esc(l.subject_name)} · ${_esc(l.grade)}</div>
         <div class="gb-card-meta">${l.classroom_ids.length ? `ห้อง ${l.classroom_ids.map(gbRoomLabel).join(', ')}` : 'ยังไม่ได้เลือกห้อง นักเรียนยังไม่เห็น'}</div>
       </div>
       <div class="gb-card-actions">
-        <button class="btn btn-sm btn-s" onclick="lbEdit(${l.lesson_id})">✏️ แก้ไข</button>
-        <button class="btn btn-sm btn-g" onclick="openLessonReader(A.lb.lessons.find(x => x.lesson_id == ${l.lesson_id}))">👀 ดูตัวอย่าง</button>
-        <button class="btn btn-sm" onclick="lbDelete(${l.lesson_id})" aria-label="ลบบทเรียน ${_esc(l.title)}">🗑️</button>
+        <button class="btn btn-sm btn-s" onclick="lbEdit(${l.lesson_id})">แก้ไข</button>
+        <button class="btn btn-sm btn-g" onclick="openLessonReader(A.lb.lessons.find(x => x.lesson_id == ${l.lesson_id}))">ดูตัวอย่าง</button>
+        <button class="btn btn-sm" onclick="lbDelete(${l.lesson_id})" aria-label="ลบบทเรียน ${_esc(l.title)}"></button>
       </div>
     </div>`;
   return `<div class="ts">
     <div class="gb-head">
-      <h3 style="margin:0">📖 บทเรียนของฉัน</h3>
-      <button class="btn btn-p" onclick="lbNew()">➕ สร้างบทเรียนใหม่</button>
+      <h3 style="margin:0">บทเรียนของฉัน</h3>
+      <button class="btn btn-p" onclick="lbNew()">สร้างบทเรียนใหม่</button>
     </div>
     <div id="lb-list-msg" class="al ao" style="display:none"></div>
     ${A.lb.lessons.map(card).join('') || '<div class="gb-empty">ยังไม่มีบทเรียน กด "สร้างบทเรียนใหม่" เพื่อเริ่ม</div>'}
@@ -72,7 +71,7 @@ function lbEditHtml() {
   const rooms = gbRoomsFor(d.subject_id, d.grade);
   return `<div class="ts">
     <div class="gb-head">
-      <h3 style="margin:0">📖 ${d.lesson_id ? 'แก้ไขบทเรียน' : 'สร้างบทเรียน'}</h3>
+      <h3 style="margin:0">${d.lesson_id ? 'แก้ไขบทเรียน' : 'สร้างบทเรียน'}</h3>
       <button class="btn btn-sm" onclick="lbCancel()">✕ ยกเลิก</button>
     </div>
     <div class="fg"><label class="fl" for="lb-title">ชื่อบทเรียน</label>
@@ -80,7 +79,7 @@ function lbEditHtml() {
     <div class="gb-row">
       <div class="fg"><label class="fl" for="lb-subject">วิชา</label>
         <select class="fc" id="lb-subject" onchange="lbSetScope(+this.value, null)">
-          ${gbSubjectsAllowed().map(s => `<option value="${s.subject_id}"${s.subject_id == d.subject_id ? ' selected' : ''}>${s.icon || '📚'} ${_esc(s.name)}</option>`).join('')}
+          ${gbSubjectsAllowed().map(s => `<option value="${s.subject_id}"${s.subject_id == d.subject_id ? ' selected' : ''}>${_esc(s.name)}</option>`).join('')}
         </select></div>
       <div class="fg"><label class="fl" for="lb-grade">ระดับชั้น</label>
         <select class="fc" id="lb-grade" onchange="lbSetScope(${d.subject_id}, this.value)">
@@ -93,13 +92,13 @@ function lbEditHtml() {
       </div></div>
     <div class="fg"><label class="fl" for="lb-body">เนื้อหาบทเรียน</label>
       <textarea class="fc" id="lb-body" rows="12" maxlength="10000" placeholder="พิมพ์เศษส่วนเป็น 1/4 จะแสดงแบบซ้อนบนล่าง">${_esc(d.body)}</textarea>
-      <label class="btn btn-sm btn-s" style="margin:.5rem 0 1rem">🖼️ ใส่รูปตรงตำแหน่งเคอร์เซอร์
+      <label class="btn btn-sm btn-s" style="margin:.5rem 0 1rem">ใส่รูปตรงตำแหน่งเคอร์เซอร์
         <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onchange="lbUploadImages(this)"></label>
-      <div class="ge-hint">💡 รูปจะแทรกเป็นบรรทัด ![รูป](ลิงก์) นักเรียนจะเห็นเป็นรูปภาพ ลบบรรทัดนั้นเพื่อเอารูปออก</div></div>
+      <div class="ge-hint">รูปจะแทรกเป็นบรรทัด ![รูป](ลิงก์) นักเรียนจะเห็นเป็นรูปภาพ ลบบรรทัดนั้นเพื่อเอารูปออก</div></div>
     <div id="lb-err" class="al ae" style="display:none;margin-top:1rem"></div>
     <div class="gb-actions">
-      <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name })">👀 ดูตัวอย่าง</button>
-      <button class="btn btn-p" onclick="lbSave()">💾 บันทึกบทเรียน</button>
+      <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name })">ดูตัวอย่าง</button>
+      <button class="btn btn-p" onclick="lbSave()">บันทึกบทเรียน</button>
     </div>
   </div>`;
 }
@@ -117,7 +116,7 @@ async function lbUploadImages(input) {
   if (!files.length) return;
   const label = input.closest('label');
   const labelText = label.firstChild.textContent;
-  label.firstChild.textContent = '⏳ กำลังอัปโหลด... ';
+  label.firstChild.textContent = 'กำลังอัปโหลด... ';
   const results = await Promise.all(files.map(f => apiUploadImage(f, 'lesson').catch(() => ({ ok: false }))));
   label.firstChild.textContent = labelText;
   input.value = '';
@@ -163,7 +162,7 @@ async function lbSave() {
   const res = await apiSaveLesson(A.lb.draft).catch(() => ({ ok: false }));
   if (!res.ok) { showAl('lb-err', res.error || 'บันทึกไม่สำเร็จ'); return; }
   await loadLessonBuilder();
-  showAl('lb-list-msg', '💾 บันทึกบทเรียนแล้ว');
+  showAl('lb-list-msg', 'บันทึกบทเรียนแล้ว');
 }
 
 async function lbDelete(lessonId) {
@@ -172,7 +171,7 @@ async function lbDelete(lessonId) {
   const res = await apiDeleteLesson(lessonId).catch(() => ({ ok: false }));
   if (!res.ok) { alert(res.error || 'ลบไม่สำเร็จ'); return; }
   await loadLessonBuilder();
-  showAl('lb-list-msg', '🗑️ ลบบทเรียนแล้ว');
+  showAl('lb-list-msg', 'ลบบทเรียนแล้ว');
 }
 
 // เปิดบทเรียนเต็มจอ ใช้กรอบเดียวกับตัวเล่นเกม
@@ -184,7 +183,7 @@ function openLessonReader(lesson) {
   overlay.innerHTML = `
     <div class="gp">
       <div class="gp-top">
-        <div class="gp-title"><span aria-hidden="true">📖</span> ${_gtEsc(lesson.subject_name)} · ${_gtEsc(lesson.grade)}</div>
+        <div class="gp-title">${_gtEsc(lesson.subject_name)} · ${_gtEsc(lesson.grade)}</div>
         <button type="button" class="gp-close" aria-label="ปิดบทเรียน">✕</button>
       </div>
       <div class="gp-body lesson-read">

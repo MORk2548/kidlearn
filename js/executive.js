@@ -44,7 +44,7 @@ function _exBadgeStyle(tone) {
     green: 'background:#DCFCE7;color:#15803D',
     amber: 'background:#FEF3C7;color:#B45309',
     rose: 'background:#FFE4E6;color:#BE123C',
-    slate: 'background:#E2E8F0;color:#334155'
+    slate: 'background:var(--bd);color:var(--tx)'
   };
   return styles[tone] || styles.slate;
 }
@@ -81,29 +81,24 @@ function _exTopSummary(data) {
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.25rem">
       <div class="ex-stat-card">
-        <div class="ex-stat-icon" style="background:#DBEAFE;color:#1D4ED8">👦</div>
         <div class="ex-stat-value">${data.dashboard.total_students || 0}</div>
         <div class="ex-stat-label">นักเรียนใหม่ที่ใช้งาน</div>
       </div>
       <div class="ex-stat-card">
-        <div class="ex-stat-icon" style="background:#DCFCE7;color:#15803D">👩‍🏫</div>
         <div class="ex-stat-value">${data.dashboard.total_teachers || 0}</div>
         <div class="ex-stat-label">ครูใหม่ที่ใช้งาน</div>
       </div>
       <div class="ex-stat-card">
-        <div class="ex-stat-icon" style="background:#EDE9FE;color:#6D28D9">🎮</div>
         <div class="ex-stat-value">${data.dashboard.total_plays || 0}</div>
         <div class="ex-stat-label">ครั้งที่เล่นในช่วงที่เลือก</div>
       </div>
       <div class="ex-stat-card">
-        <div class="ex-stat-icon" style="background:#FEF3C7;color:#B45309">🏆</div>
-        <div class="ex-stat-value">${data.dashboard.avg_score || 0}%</div>
+        <div class="ex-stat-value">${data.dashboard.avg_score || 0}</div>
         <div class="ex-stat-label">คะแนนเฉลี่ยในช่วงที่เลือก</div>
       </div>
       <div class="ex-stat-card">
-        <div class="ex-stat-icon" style="background:#FFE4E6;color:#BE123C">📌</div>
         <div class="ex-stat-value">${lowScores}</div>
-        <div class="ex-stat-label">คะแนนต่ำกว่า 60%</div>
+        <div class="ex-stat-label">คะแนนต่ำกว่า 60</div>
       </div>
     </div>
   `;
@@ -133,10 +128,10 @@ function _exRenderDashboard(data) {
                 <div class="ex-list-item">
                   <div>
                     <div class="ex-item-title">${item.student_name || '-'}</div>
-                    <div class="ex-item-sub">${item.subject_icon || '📚'} ${item.subject_name || '-'} · ${item.game_name || '-'}</div>
+                    <div class="ex-item-sub">${item.subject_name || '-'} · ${item.game_name || '-'}</div>
                   </div>
                   <div style="text-align:right">
-                    <div style="font-weight:800;color:${_exScoreColor(pct)}">${pct}%</div>
+                    <div style="font-weight:800;color:${_exScoreColor(pct)}">${+item.score || 0}/${maxScore}</div>
                     <div class="ex-note">${item.score}/${maxScore}</div>
                   </div>
                 </div>
@@ -211,11 +206,11 @@ function _exRenderScores(data) {
                   <tr>
                     <td>${score.student_name || '-'}</td>
                     <td>
-                      <div>${score.subject_icon || '📚'} ${score.subject_name || '-'}</div>
+                      <div>${score.subject_name || '-'}</div>
                       <div class="ex-note">${score.game_name || '-'}</div>
                     </td>
                     <td style="text-align:center">
-                      <div style="font-weight:800;color:${_exScoreColor(pct)}">${pct}%</div>
+                      <div style="font-weight:800;color:${_exScoreColor(pct)}">${+score.score || 0}/${maxScore}</div>
                       <div class="ex-note">${score.score}/${maxScore}</div>
                     </td>
                     <td style="text-align:center">${score.time_spent || 0} วิ</td>
@@ -246,7 +241,7 @@ function _renderExecutivePanel() {
       .ex-shell { display:grid; gap:1rem; }
       .ex-hero {
         display:flex; align-items:center; gap:1rem; padding:1.2rem 1.35rem;
-        background:linear-gradient(135deg,#F8FBFF 0%, #EEF4FF 100%);
+        background:linear-gradient(135deg,var(--sf) 0%, #EEF4FF 100%);
         border:1px solid #DCE6F5; border-radius:20px;
       }
       .ex-hero-icon {
@@ -254,27 +249,27 @@ function _renderExecutivePanel() {
         background:linear-gradient(135deg,#1D4ED8,#3B82F6); color:#fff; font-size:1.35rem; flex-shrink:0;
         box-shadow:0 14px 28px rgba(37,99,235,.18);
       }
-      .ex-hero-title { font-size:1.15rem; font-weight:900; color:#0F172A; }
-      .ex-hero-sub { font-size:.82rem; color:#64748B; margin-top:.15rem; }
+      .ex-hero-title { font-size:1.15rem; font-weight:900; color:var(--tx); }
+      .ex-hero-sub { font-size:.82rem; color:var(--mu); margin-top:.15rem; }
       .ex-toolbar-btn {
-        border:1px solid #BFDBFE; background:#fff; color:#1D4ED8; border-radius:999px;
+        border:1px solid #BFDBFE; background:var(--cb); color:#1D4ED8; border-radius:999px;
         padding:.55rem 1rem; font-family:'KoHo',sans-serif; font-weight:700; cursor:pointer;
       }
       .ex-tabs {
         display:flex; gap:.4rem; flex-wrap:wrap; padding:.35rem;
-        background:rgba(255,255,255,.65); border:1px solid #E2E8F0; border-radius:18px;
+        background:var(--cb); border:1px solid var(--bd); border-radius:18px;
       }
       .ex-tab-btn {
-        padding:.7rem 1rem; border:none; border-radius:14px; background:transparent; color:#64748B;
+        padding:.7rem 1rem; border:none; border-radius:14px; background:transparent; color:var(--mu);
         font-family:'KoHo',sans-serif; font-size:.92rem; font-weight:800; cursor:pointer; transition:.18s ease;
       }
-      .ex-tab-btn.active { background:#fff; color:#0F4C81; box-shadow:0 10px 24px rgba(15,76,129,.12); }
+      .ex-tab-btn.active { background:var(--cb); color:#0F4C81; box-shadow:0 10px 24px rgba(15,76,129,.12); }
       .ex-surface {
-        background:rgba(255,255,255,.92); border:1px solid #E2E8F0; border-radius:20px; padding:1.1rem 1.15rem;
+        background:var(--cb); border:1px solid var(--bd); border-radius:20px; padding:1.1rem 1.15rem;
         box-shadow:0 10px 26px rgba(148,163,184,.10);
       }
       .ex-stat-card {
-        background:linear-gradient(180deg,#FFFFFF 0%, #F8FBFF 100%);
+        background:linear-gradient(180deg,#FFFFFF 0%, var(--sf) 100%);
         border:1px solid #E5EEF9; border-radius:18px; padding:1.1rem; position:relative;
       }
       .ex-stat-icon {
@@ -282,22 +277,22 @@ function _renderExecutivePanel() {
         font-size:1.05rem; margin-bottom:.75rem;
       }
       .ex-stat-value { font-size:1.9rem; font-weight:900; color:#0F4C81; line-height:1; }
-      .ex-stat-label { margin-top:.45rem; font-size:.82rem; color:#64748B; }
+      .ex-stat-label { margin-top:.45rem; font-size:.82rem; color:var(--mu); }
       .ex-section-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:.9rem; }
-      .ex-section-title { font-size:1rem; font-weight:900; color:#0F172A; }
-      .ex-section-sub { font-size:.8rem; color:#64748B; margin-top:.12rem; }
+      .ex-section-title { font-size:1rem; font-weight:900; color:var(--tx); }
+      .ex-section-sub { font-size:.8rem; color:var(--mu); margin-top:.12rem; }
       .ex-link-btn {
-        border:none; background:#EFF6FF; color:#1D4ED8; border-radius:999px; padding:.5rem .85rem;
+        border:none; background:var(--tint); color:#1D4ED8; border-radius:999px; padding:.5rem .85rem;
         font-family:'KoHo',sans-serif; font-weight:700; cursor:pointer;
       }
       .ex-list { display:grid; gap:.75rem; }
       .ex-list-item {
         display:flex; justify-content:space-between; gap:1rem; align-items:center;
-        padding:.9rem 1rem; background:#F8FBFF; border:1px solid #E5EEF9; border-radius:16px;
+        padding:.9rem 1rem; background:var(--sf); border:1px solid #E5EEF9; border-radius:16px;
       }
-      .ex-item-title { font-size:.92rem; font-weight:800; color:#0F172A; }
-      .ex-item-sub { font-size:.78rem; color:#64748B; margin-top:.2rem; }
-      .ex-note { font-size:.76rem; color:#64748B; }
+      .ex-item-title { font-size:.92rem; font-weight:800; color:var(--tx); }
+      .ex-item-sub { font-size:.78rem; color:var(--mu); margin-top:.2rem; }
+      .ex-note { font-size:.76rem; color:var(--mu); }
       .ex-role-pill {
         display:inline-flex; align-items:center; border-radius:999px; padding:.28rem .65rem;
         font-size:.76rem; font-weight:800;
@@ -305,11 +300,11 @@ function _renderExecutivePanel() {
       .ex-table-wrap { overflow-x:auto; border-radius:16px; border:1px solid #EAF0F7; }
       .ex-table { width:100%; border-collapse:collapse; min-width:720px; font-size:.84rem; }
       .ex-table th {
-        background:#F7FAFC; color:#64748B; text-align:left; font-size:.78rem; font-weight:800;
-        padding:.9rem .85rem; border-bottom:1px solid #E5E7EB;
+        background:#F7FAFC; color:var(--mu); text-align:left; font-size:.78rem; font-weight:800;
+        padding:.9rem .85rem; border-bottom:1px solid var(--bd);
       }
       .ex-table td {
-        padding:.9rem .85rem; border-bottom:1px solid #EEF2F7; vertical-align:top; color:#0F172A;
+        padding:.9rem .85rem; border-bottom:1px solid #EEF2F7; vertical-align:top; color:var(--tx);
       }
       .ex-table tr:hover td { background:#FBFDFF; }
       @media (max-width: 980px) {
@@ -322,7 +317,6 @@ function _renderExecutivePanel() {
 
     <div class="ex-shell">
       <div class="ex-hero">
-        <div class="ex-hero-icon">💼</div>
         <div style="flex:1">
           <div class="ex-hero-title">แผงผู้บริหาร</div>
           <div class="ex-hero-sub">ดูภาพรวมระบบ คะแนนนักเรียนในหน้าที่อ่านง่ายขึ้น</div>
@@ -331,9 +325,9 @@ function _renderExecutivePanel() {
       </div>
 
       <div class="ex-tabs">
-        <button class="ex-tab-btn ${_exTab === 'dashboard' ? 'active' : ''}" onclick="exSelectTab('dashboard')">📊 ภาพรวม</button>
-        <button class="ex-tab-btn ${_exTab === 'users' ? 'active' : ''}" onclick="exSelectTab('users')">👥 ผู้ใช้</button>
-        <button class="ex-tab-btn ${_exTab === 'scores' ? 'active' : ''}" onclick="exSelectTab('scores')">🏆 คะแนน</button>
+        <button class="ex-tab-btn ${_exTab === 'dashboard' ? 'active' : ''}" onclick="exSelectTab('dashboard')">ภาพรวม</button>
+        <button class="ex-tab-btn ${_exTab === 'users' ? 'active' : ''}" onclick="exSelectTab('users')">ผู้ใช้</button>
+        <button class="ex-tab-btn ${_exTab === 'scores' ? 'active' : ''}" onclick="exSelectTab('scores')">คะแนน</button>
       </div>
 
       <div id="ex-body" style="display:grid;gap:1rem">

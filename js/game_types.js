@@ -2,7 +2,7 @@
 // รูปแบบคำถามของแต่ละแบบตรงกับที่ save_teacher_game / game_play ใน backend.php รับและคืน
 //
 // แต่ละแบบมี
-//   label, icon, desc       ใช้ในการ์ดเลือกแบบเกม
+//   label, desc             ใช้ในการ์ดเลือกแบบเกม
 //   emptyQuestion()         คำถามว่างสำหรับปุ่ม "เพิ่มข้อ"
 //   editorHtml(q)           ช่องกรอกของคำถามหนึ่งข้อ
 //   readEditor(root)        อ่านช่องกรอกกลับเป็นคำถาม
@@ -36,7 +36,7 @@ let _gtRadioSeq = 0;
 const _gtRadioName = () => `gt-radio-${++_gtRadioSeq}`;
 
 const _gtExplanationField = (q) => _gtTextField('คำอธิบายเฉลย (ไม่บังคับ)', 'explanation', q.explanation)
-  + '<div class="ge-hint">💡 เขียนเศษส่วนแบบ 7/8 หรือจำนวนคละแบบ 3 7/8 (เว้นวรรคหนึ่งครั้ง) นักเรียนจะเห็นเป็นเศษส่วนซ้อนบน-ล่าง</div>';
+  + '<div class="ge-hint">เขียนเศษส่วนแบบ 7/8 หรือจำนวนคละแบบ 3 7/8 (เว้นวรรคหนึ่งครั้ง) นักเรียนจะเห็นเป็นเศษส่วนซ้อนบน-ล่าง</div>';
 const _gtRead = (root, key) => root.querySelector(`[data-k="${key}"]`)?.value.trim() ?? '';
 
 function _gtQuestionText(q) {
@@ -57,7 +57,7 @@ const GT_MIN_ROWS = 3, GT_MAX_ROWS = 6;
 function _gtRowsField(label, addLabel, rows) {
   return `<div class="fl">${label}</div>
     <div class="ge-rows">${rows.join('')}</div>
-    <button type="button" class="btn btn-sm ge-add" onclick="_gtAddRow(this)"${rows.length >= GT_MAX_ROWS ? ' hidden' : ''}>➕ ${addLabel}</button>`;
+    <button type="button" class="btn btn-sm ge-add" onclick="_gtAddRow(this)"${rows.length >= GT_MAX_ROWS ? ' hidden' : ''}>${addLabel}</button>`;
 }
 
 const _gtRemoveBtn = (count) =>
@@ -107,7 +107,7 @@ const _gtPairsEditor = {
     const rows = q.pairs.map((p, i) => `
       <div class="ge-row">
         <input class="fc" data-k="left" value="${_gtEsc(p.left)}" placeholder="ฝั่งซ้าย" aria-label="คู่ที่ ${i + 1} ฝั่งซ้าย">
-        <span aria-hidden="true">↔</span>
+        
         <input class="fc" data-k="right" value="${_gtEsc(p.right)}" placeholder="ฝั่งขวา" aria-label="คู่ที่ ${i + 1} ฝั่งขวา">
         ${_gtRemoveBtn(q.pairs.length)}
       </div>`);
@@ -261,7 +261,6 @@ function _gtRenderPairs(q, root, done, withLines) {
 const GAME_TYPES = {
   mcq: {
     label: 'ตอบคำถามสี่ตัวเลือก',
-    icon: '🔤',
     desc: 'โจทย์ 1 ข้อ มี 4 ตัวเลือก ถูก 1 ข้อ',
     points: () => 1,
     emptyQuestion: () => ({ text: '', choices: ['', '', '', ''], correct: null, explanation: '' }),
@@ -304,7 +303,6 @@ const GAME_TYPES = {
 
   truefalse: {
     label: 'ถูกหรือผิด',
-    icon: '⭕',
     desc: 'ข้อความ 1 ข้อ ให้ตอบว่าถูกหรือผิด',
     points: () => 1,
     emptyQuestion: () => ({ text: '', answer: null, explanation: '' }),
@@ -329,8 +327,8 @@ const GAME_TYPES = {
     render(q, root, done) {
       root.innerHTML = `${_gtQuestionText(q)}
         <div class="gq-tf">
-          <button type="button" class="gq-tf-btn t" data-v="true"><span aria-hidden="true">✅</span>ถูก</button>
-          <button type="button" class="gq-tf-btn f" data-v="false"><span aria-hidden="true">❌</span>ผิด</button>
+          <button type="button" class="gq-tf-btn t" data-v="true">ถูก</button>
+          <button type="button" class="gq-tf-btn f" data-v="false">ผิด</button>
         </div>`;
       const correctBtn = root.querySelector(`[data-v="${q.answer}"]`);
       root.querySelectorAll('.gq-tf-btn').forEach(b => b.addEventListener('click', () => _gtFinishChoice(root, b, correctBtn, done)));
@@ -339,7 +337,6 @@ const GAME_TYPES = {
 
   matching: {
     label: 'จับคู่โจทย์กับคำตอบ',
-    icon: '🧩',
     desc: 'แตะฝั่งซ้ายแล้วแตะฝั่งขวาเพื่อจับคู่ 3-6 คู่',
     ..._gtPairsEditor,
     render: (q, root, done) => _gtRenderPairs(q, root, done, false),
@@ -347,7 +344,6 @@ const GAME_TYPES = {
 
   linematch: {
     label: 'เกมโยงเส้น',
-    icon: '〰️',
     desc: 'ลากเส้นเชื่อมฝั่งซ้ายกับฝั่งขวา 3-6 คู่',
     ..._gtPairsEditor,
     render: (q, root, done) => _gtRenderPairs(q, root, done, true),
@@ -355,7 +351,6 @@ const GAME_TYPES = {
 
   sequence: {
     label: 'เรียงลำดับ',
-    icon: '🔢',
     desc: 'เรียง 3-6 รายการให้อยู่ในลำดับที่ถูกต้อง',
     points: (q) => q.items.length,
     emptyQuestion: () => ({ text: '', items: Array(GT_MIN_ROWS).fill(''), explanation: '' }),

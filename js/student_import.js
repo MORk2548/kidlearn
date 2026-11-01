@@ -204,9 +204,9 @@ function siRender(){
       `<option value="${c}"${c === sel ? ' selected' : ''}>คอลัมน์ ${c + 1}${head[c] ? ': ' + _esc(String(head[c]).slice(0, 20)) : ''}</option>`).join('');
   };
   panel.innerHTML = `<div class="ts">
-    <h3>👦 เพิ่มบัญชีนักเรียน</h3>
+    <h3>เพิ่มบัญชีนักเรียน</h3>
     <div class="fg">
-      <label class="fl">🏫 ชั้นและห้อง</label>
+      <label class="fl">ชั้นและห้อง</label>
       <select class="fc" onchange="A.si.classroomId=this.value;siDirty()">
         <option value="">-- เลือกห้อง --</option>
         ${Object.entries(groups).map(([g, list]) => `<optgroup label="${g}">${list.map(r =>
@@ -215,11 +215,11 @@ function siRender(){
       ${si.rooms.length ? '' : '<div style="font-size:.8rem;color:var(--mu);margin-top:.3rem">ยังไม่มีห้องที่คุณสอน</div>'}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
-      <label class="btn btn-s btn-sm" style="cursor:pointer">📂 นำเข้าไฟล์
+      <label class="btn btn-s btn-sm" style="cursor:pointer">นำเข้าไฟล์
         <input type="file" multiple accept=".xlsx,.xls,.ods,.csv,.tsv,.txt,.docx,.pdf" style="display:none" onchange="siPickFiles(this)">
       </label>
-      <button class="btn btn-s btn-sm" onclick="document.getElementById('si-paste').style.display='block'">📋 วางจาก Excel / Sheets</button>
-      <a class="btn btn-s btn-sm" href="files/student-list-template.pdf" download="ตัวอย่างรายชื่อนักเรียน.pdf">⬇️ ไฟล์ตัวอย่าง (PDF)</a>
+      <button class="btn btn-s btn-sm" onclick="document.getElementById('si-paste').style.display='block'">วางจาก Excel / Sheets</button>
+      <a class="btn btn-s btn-sm" href="files/student-list-template.pdf" download="ตัวอย่างรายชื่อนักเรียน.pdf">ไฟล์ตัวอย่าง (PDF)</a>
     </div>
     <div style="font-size:.78rem;color:var(--mu);margin-bottom:.75rem">รองรับ Excel (.xlsx .xls) · .ods · .csv · Word (.docx ที่มีตาราง) · PDF ที่เลือกข้อความได้ · ไฟล์ต้องมีชื่อนักเรียนและเบอร์ผู้ปกครอง</div>
     <div id="si-paste" style="display:none;margin-bottom:.75rem">
@@ -227,7 +227,7 @@ function siRender(){
       <button class="btn btn-p btn-sm" style="margin-top:.4rem" onclick="siPaste(this.previousElementSibling.value)">ใช้ข้อมูลที่วาง</button>
     </div>
     ${si.sources.map((src, i) => `<div style="border:1px dashed var(--bd,#ddd);border-radius:10px;padding:.5rem .7rem;margin-bottom:.5rem;font-size:.8rem">
-      <strong>📄 ${_esc(src.label)}</strong>
+      <strong>${_esc(src.label)}</strong>
       <div style="display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin-top:.35rem">
         ${SI_FIELDS.map(f => `<label style="display:flex;gap:.3rem;align-items:center">${f.label}
           <select class="fc" style="padding:.2rem .4rem;width:auto" onchange="siRemap(${i},'${f.key}',+this.value)">
@@ -243,10 +243,10 @@ function siRender(){
           <th style="padding:.4rem;text-align:left;width:7rem">เบอร์ผู้ปกครอง</th>
           <th style="width:2.6rem"></th>
         </tr></thead>
-        <tbody>${si.rows.map((r, i) => `<tr style="border-top:1px solid #F1F5F9${r.err ? ';background:#FEF2F2' : ''}">
+        <tbody>${si.rows.map((r, i) => `<tr style="border-top:1px solid var(--sf)${r.err ? ';background:#FEF2F2' : ''}">
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .4rem;text-align:center" inputmode="numeric" maxlength="2" value="${_esc(r.no)}" oninput="siEdit(${i},'no',this.value)"></td>
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" value="${_esc(r.name)}" oninput="siEdit(${i},'name',this.value)">
-            ${r.err ? `<div style="color:#B91C1C;font-size:.74rem;margin-top:.15rem">⚠️ ${_esc(r.err)}</div>` : ''}
+            ${r.err ? `<div style="color:#B91C1C;font-size:.74rem;margin-top:.15rem">${_esc(r.err)}</div>` : ''}
             ${r.src >= 0 ? `<div style="color:var(--mu);font-size:.7rem">จาก ${_esc(si.sources[r.src]?.label || '')}</div>` : ''}</td>
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" inputmode="tel" value="${_esc(r.phone)}" oninput="siEdit(${i},'phone',this.value)"></td>
           <td style="padding:.3rem;vertical-align:top"><button class="btn btn-s btn-sm" title="ลบแถว" onclick="siRemoveRow(${i})">✕</button></td>
@@ -254,13 +254,13 @@ function siRender(){
       </table>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.75rem">
-      <button class="btn btn-s btn-sm" onclick="siAddRows(5)">➕ เพิ่ม 5 แถว</button>
-      ${si.sources.length || filled ? '<button class="btn btn-s btn-sm" onclick="siClear()">🗑️ ล้างทั้งหมด</button>' : ''}
+      <button class="btn btn-s btn-sm" onclick="siAddRows(5)">เพิ่ม 5 แถว</button>
+      ${si.sources.length || filled ? '<button class="btn btn-s btn-sm" onclick="siClear()">ล้างทั้งหมด</button>' : ''}
       <span style="font-size:.8rem;color:var(--mu)">${filled} คน${errCount ? ` · <span style="color:#B91C1C">ต้องแก้ ${errCount} แถว</span>` : ''}</span>
     </div>
     <div style="display:flex;gap:.5rem;margin-top:1rem">
-      <button class="btn btn-s" style="flex:1" onclick="siCheck()">🔍 ตรวจสอบ</button>
-      <button class="btn btn-p" style="flex:1" id="si-submit" onclick="siSubmit()"${si.checked ? '' : ' disabled'}>✅ สร้างบัญชี ${filled} คน</button>
+      <button class="btn btn-s" style="flex:1" onclick="siCheck()">ตรวจสอบ</button>
+      <button class="btn btn-p" style="flex:1" id="si-submit" onclick="siSubmit()"${si.checked ? '' : ' disabled'}>สร้างบัญชี ${filled} คน</button>
     </div>
   </div>`;
 }
@@ -303,7 +303,7 @@ async function siPickFiles(input){
       if (SI_UNSUPPORTED[ext]) throw new Error(SI_UNSUPPORTED[ext]);
       if (!SI_READERS[ext]) throw new Error('ไม่รองรับไฟล์ชนิดนี้');
       if (file.size > SI_MAX_FILE_BYTES) throw new Error('ไฟล์ใหญ่เกิน 5 MB');
-      A.si.msg = `⏳ กำลังอ่าน ${file.name}...`; siRender();
+      A.si.msg = `กำลังอ่าน ${file.name}...`; siRender();
       const parts = await SI_READERS[ext](await file.arrayBuffer());
       parts.forEach(p => siAddSource(p.sheet ? `${file.name} (${p.sheet})` : file.name, p.grid));
     } catch (e) {
@@ -346,7 +346,7 @@ async function siCheck(){
 
 async function siSubmit(){
   const btn = document.getElementById('si-submit');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังสร้างบัญชี...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังสร้างบัญชี...'; }
   const res = await siRequest(false);
   A.si.msg = res.ok ? '' : res.error;
   if (res.ok && res.accounts.length) {
@@ -361,16 +361,16 @@ async function siSubmit(){
 function siRenderAccounts(panel){
   const si = A.si;
   panel.innerHTML = `<div class="ts">
-    <h3>✅ สร้างบัญชีแล้ว ${si.accounts.length} คน · ${_esc(si.accountRoom)}</h3>
+    <h3>สร้างบัญชีแล้ว ${si.accounts.length} คน · ${_esc(si.accountRoom)}</h3>
     <div class="al ae">รหัสผ่านแสดงครั้งเดียว กรุณาดาวน์โหลดหรือพิมพ์เก็บไว้ก่อนออกจากหน้านี้</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.85rem;width:100%">
       <thead><tr><th style="padding:.4rem;text-align:center">เลขที่</th><th style="padding:.4rem;text-align:left">ชื่อ</th><th style="padding:.4rem;text-align:left">ชื่อผู้ใช้</th><th style="padding:.4rem;text-align:left">รหัสผ่าน</th></tr></thead>
-      <tbody>${si.accounts.map(a => `<tr style="border-top:1px solid #F1F5F9"><td style="padding:.4rem;text-align:center">${a.student_no || '–'}</td><td style="padding:.4rem">${_esc(a.full_name)}</td><td style="padding:.4rem;font-family:monospace">${a.username}</td><td style="padding:.4rem;font-family:monospace">${a.password}</td></tr>`).join('')}</tbody>
+      <tbody>${si.accounts.map(a => `<tr style="border-top:1px solid var(--sf)"><td style="padding:.4rem;text-align:center">${a.student_no || '–'}</td><td style="padding:.4rem">${_esc(a.full_name)}</td><td style="padding:.4rem;font-family:monospace">${a.username}</td><td style="padding:.4rem;font-family:monospace">${a.password}</td></tr>`).join('')}</tbody>
     </table></div>
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem">
-      <button class="btn btn-p" onclick="siDownloadAccounts()">⬇️ ดาวน์โหลด CSV</button>
-      <button class="btn btn-s" onclick="siPrintAccounts()">🖨️ พิมพ์บัตรแจกนักเรียน</button>
-      <button class="btn btn-s" onclick="if(confirm('ดาวน์โหลดหรือพิมพ์รหัสผ่านไว้แล้วใช่ไหม?')){A.si=null;loadStudentImport();}">➕ เพิ่มนักเรียนชุดใหม่</button>
+      <button class="btn btn-p" onclick="siDownloadAccounts()">ดาวน์โหลด CSV</button>
+      <button class="btn btn-s" onclick="siPrintAccounts()">พิมพ์บัตรแจกนักเรียน</button>
+      <button class="btn btn-s" onclick="if(confirm('ดาวน์โหลดหรือพิมพ์รหัสผ่านไว้แล้วใช่ไหม?')){A.si=null;loadStudentImport();}">เพิ่มนักเรียนชุดใหม่</button>
     </div>
   </div>`;
 }

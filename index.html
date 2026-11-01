@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=KoHo:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=5.17">
+  <link rel="stylesheet" href="style.css?v=5.21">
+  <script src="js/theme.js?v=1.0"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -21,12 +22,12 @@
     <div id="login-err" class="al ae" style="display:none"></div>
 
     <div id="room-step" style="display:none">
-      <p style="text-align:center;font-weight:700;margin-bottom:.75rem">🏫 เลือกห้องเรียนของคุณ</p>
+      <p style="text-align:center;font-weight:700;margin-bottom:.75rem">เลือกห้องเรียนของคุณ</p>
       <div class="fg">
         <select id="lg-room" class="fc"></select>
-        <div style="font-size:.72rem;color:var(--mu);margin-top:.25rem">⚠️ เลือกได้ครั้งเดียว ถ้าต้องการเปลี่ยนห้องให้ติดต่อครูหรือเจ้าหน้าที่</div>
+        <div style="font-size:.72rem;color:var(--mu);margin-top:.25rem">เลือกได้ครั้งเดียว ถ้าต้องการเปลี่ยนห้องให้ติดต่อครูหรือเจ้าหน้าที่</div>
       </div>
-      <button class="btn btn-p btn-fw" onclick="chooseRoom()">ยืนยันห้องเรียน ✅</button>
+      <button class="btn btn-p btn-fw" onclick="chooseRoom()">ยืนยันห้องเรียน</button>
     </div>
 
     <div id="login-form">
@@ -42,14 +43,14 @@
         onkeydown="if(event.key==='Enter')doLogin()">
       <button type="button" onclick="togglePw('lp','eye-lp')"
         style="position:absolute;right:.85rem;bottom:.72rem;background:none;border:none;
-               cursor:pointer;padding:.3rem;line-height:1;font-size:1.15rem;color:#9CA3AF;
+               cursor:pointer;padding:.3rem;line-height:1;font-size:1.15rem;color:var(--mu);
                transition:color .2s" title="แสดง/ซ่อนรหัสผ่าน"
-        onmouseover="this.style.color='#6B7280'" onmouseout="this.style.color='#9CA3AF'">
+        onmouseover="this.style.color='var(--mu)'" onmouseout="this.style.color='var(--mu)'">
         <i id="eye-lp" class="fa-regular fa-eye"></i>
       </button>
     </div>
 
-    <button class="btn btn-p btn-fw" style="margin-bottom:.75rem" onclick="doLogin()">เข้าสู่ระบบ 🚀</button>
+    <button class="btn btn-p btn-fw" style="margin-bottom:.75rem" onclick="doLogin()">เข้าสู่ระบบ</button>
     <div style="text-align:right;margin-bottom:1rem">
       <a onclick="showForgot()" style="font-size:.8rem;color:var(--mu);cursor:pointer;text-decoration:underline">ลืมรหัสผ่าน?</a>
     </div>
@@ -89,7 +90,7 @@
 
     <!-- Step 1: กรอกอีเมล -->
     <div id="fg-step1">
-      <div class="modal-t">🔑 ลืมรหัสผ่าน</div>
+      <div class="modal-t">ลืมรหัสผ่าน</div>
       <div class="fg">
         <label class="fl">อีเมลที่ลงทะเบียนไว้</label>
         <input id="fg-email" type="email" class="fc" placeholder="example@email.com"
@@ -104,9 +105,9 @@
 
     <!-- Step 2: กรอก OTP + รหัสใหม่ -->
     <div id="fg-step2" style="display:none">
-      <div class="modal-t">🔑 รีเซ็ตรหัสผ่าน</div>
+      <div class="modal-t">รีเซ็ตรหัสผ่าน</div>
       <div style="background:#D1FAE5;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;color:#065F46">
-        ✅ ส่งรหัส OTP แล้ว — <strong id="fg-otp-display"></strong><br>
+        ส่งรหัส OTP แล้ว — <strong id="fg-otp-display"></strong><br>
         <span style="font-size:.78rem;color:#047857">(ระบบ demo แสดง OTP โดยตรง — production จะส่งอีเมล)</span>
       </div>
       <div class="fg">
@@ -119,7 +120,7 @@
         <div style="position:relative">
           <input id="fg-newpass" type="password" class="fc" placeholder="อย่างน้อย 6 ตัวอักษร" style="padding-right:3rem">
           <button type="button" onclick="togglePw('fg-newpass','fg-eye')"
-            style="position:absolute;right:.85rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9CA3AF">
+            style="position:absolute;right:.85rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--mu)">
             <i class="fa-regular fa-eye" id="fg-eye"></i>
           </button>
         </div>
@@ -165,7 +166,7 @@
     const res=await apiResetPassword({email,token,new_password:pass}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
     if(!res.ok){ showAlEl(msg,res.error||'เกิดข้อผิดพลาด'); return; }
     hideForgot();
-    showAl('login-err','✅ เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่');
+    showAl('login-err','เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่');
     document.getElementById('login-err').style.background='#D1FAE5';
     document.getElementById('login-err').style.color='#065F46';
   }

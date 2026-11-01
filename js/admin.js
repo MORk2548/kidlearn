@@ -19,9 +19,9 @@ function _renderAdminTabs(){
   const wrap=document.getElementById('adm-tabs');
   if(!wrap)return;
   wrap.innerHTML=`
-    <button class="rec-tab${A.adminTab==='users'?' active':''}"   onclick="switchAdminTab('users')">👥 จัดการผู้ใช้</button>
-    <button class="rec-tab${A.adminTab==='subjects'?' active':''}" onclick="switchAdminTab('subjects')">📚 วิชาและห้อง</button>
-    <button class="rec-tab${A.adminTab==='reports'?' active':''}" onclick="switchAdminTab('reports')">📊 รายงาน</button>`;
+    <button class="rec-tab${A.adminTab==='users'?' active':''}"   onclick="switchAdminTab('users')">จัดการผู้ใช้</button>
+    <button class="rec-tab${A.adminTab==='subjects'?' active':''}" onclick="switchAdminTab('subjects')">วิชาและห้อง</button>
+    <button class="rec-tab${A.adminTab==='reports'?' active':''}" onclick="switchAdminTab('reports')">รายงาน</button>`;
   document.getElementById('adm-users-panel').style.display  =A.adminTab==='users'  ?'block':'none';
   document.getElementById('adm-subject-panel').style.display=A.adminTab==='subjects'?'block':'none';
   document.getElementById('adm-report-panel').style.display =A.adminTab==='reports'?'block':'none';
@@ -35,19 +35,19 @@ async function _loadAdminSubjects(){
   if(!res.ok){el.innerHTML='<div style="color:#EF4444">โหลดวิชาไม่สำเร็จ</div>';return;}
   const lastRoom=Math.max(0,...(roomRes.classrooms||[]).map(r=>+r.room_no));
   el.innerHTML=`
-    <h3>🏫 ห้องเรียน (ป.1–ป.6 มีชั้นละ ${lastRoom} ห้อง)</h3>
+    <h3>ห้องเรียน (ป.1–ป.6 มีชั้นละ ${lastRoom} ห้อง)</h3>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem">
-      <button class="child-btn" onclick="adminRoomChange(apiAddClassroom,'เพิ่มห้องที่ ${lastRoom+1} ให้ทุกระดับชั้น?')">➕ เพิ่มห้องทุกชั้น</button>
-      <button class="child-btn" onclick="adminRoomChange(apiDeleteClassroom,'ลบห้องที่ ${lastRoom} ของทุกระดับชั้น? (ลบได้เฉพาะห้องที่ไม่มีนักเรียน)')">🗑️ ลบห้องสุดท้ายทุกชั้น</button>
+      <button class="child-btn" onclick="adminRoomChange(apiAddClassroom,'เพิ่มห้องที่ ${lastRoom+1} ให้ทุกระดับชั้น?')">เพิ่มห้องทุกชั้น</button>
+      <button class="child-btn" onclick="adminRoomChange(apiDeleteClassroom,'ลบห้องที่ ${lastRoom} ของทุกระดับชั้น? (ลบได้เฉพาะห้องที่ไม่มีนักเรียน)')">ลบห้องสุดท้ายทุกชั้น</button>
     </div>
-    <h3>📚 วิชา</h3>
+    <h3>วิชา</h3>
     <div style="display:flex;gap:.4rem;margin-bottom:.75rem">
       <input class="fc" id="adm-new-subject" placeholder="ชื่อวิชาใหม่" maxlength="100" onkeydown="if(event.key==='Enter')adminAddSubject()">
-      <button class="btn btn-p" style="white-space:nowrap" onclick="adminAddSubject()">➕ เพิ่มวิชา</button>
+      <button class="btn btn-p" style="white-space:nowrap" onclick="adminAddSubject()">เพิ่มวิชา</button>
     </div>
-    ${(res.subjects||[]).map(s=>`<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .25rem;border-bottom:1px solid #F1F5F9">
-      <span>${s.icon||'📚'} ${_esc(s.name)}</span>
-      <button class="btn" style="margin-left:auto" onclick="adminDeleteSubject(${s.subject_id},this.previousElementSibling.textContent)">🗑️ ลบ</button>
+    ${(res.subjects||[]).map(s=>`<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .25rem;border-bottom:1px solid var(--sf)">
+      <span>${_esc(s.name)}</span>
+      <button class="btn" style="margin-left:auto" onclick="adminDeleteSubject(${s.subject_id},this.previousElementSibling.textContent)">ลบ</button>
     </div>`).join('')}`;
 }
 async function adminAddSubject(){
@@ -74,7 +74,7 @@ async function adminDeleteSubject(id, name){
 async function _loadAdminUsers(){
   const el=document.getElementById('adm-user-list');
   if(!el)return;
-  el.innerHTML='<div style="color:var(--mu);padding:1rem">⏳ กำลังโหลด...</div>';
+  el.innerHTML='<div style="color:var(--mu);padding:1rem">กำลังโหลด...</div>';
   const res=await apiAdminUsers({role:A.adminRole,search:A.adminSearch,date_range:A.adminDateRange}).catch(()=>({ok:false,users:[]}));
   const users=res.ok?(res.users||[]):[];
   const total=res.total||0;
@@ -94,8 +94,8 @@ async function _loadAdminUsers(){
       <input class="fc" type="text" placeholder="ค้นหาชื่อ/username..." value="${A.adminSearch}"
         style="flex:1;min-width:160px;padding:.5rem .75rem;font-size:.85rem"
         oninput="A.adminSearch=this.value" onkeydown="if(event.key==='Enter')_loadAdminUsers()">
-      <button class="btn btn-s btn-sm" onclick="_loadAdminUsers()">🔍 ค้นหา</button>
-      <button class="lp-btn-play" style="padding:.45rem 1rem;font-size:.82rem;white-space:nowrap" onclick="adminOpenCreateStaff()">➕ เพิ่มเจ้าหน้าที่/ผู้บริหาร</button>
+      <button class="btn btn-s btn-sm" onclick="_loadAdminUsers()">ค้นหา</button>
+      <button class="lp-btn-play" style="padding:.45rem 1rem;font-size:.82rem;white-space:nowrap" onclick="adminOpenCreateStaff()">เพิ่มเจ้าหน้าที่/ผู้บริหาร</button>
       <span style="font-size:.82rem;color:var(--mu)">ทั้งหมด ${total} คน</span>
     </div>
     <div style="overflow-x:auto">
@@ -117,16 +117,16 @@ async function _loadAdminUsers(){
 function _renderUserRow(u){
   const roleColor={student:'#10B981',parent:'#3B82F6',teacher:'#F59E0B',admin:'#EF4444'};
   const extra=u.role==='student'?`ชั้น ${classLabel(u)}`:u.role==='parent'?`โทร ${u.phone}`:u.role==='teacher'?u.department:'—';
-  return `<tr style="border-bottom:1px solid #F1F5F9">
+  return `<tr style="border-bottom:1px solid var(--sf)">
     <td style="padding:.55rem .75rem;font-weight:600">${u.full_name}</td>
     <td style="padding:.55rem .75rem;color:var(--mu)">${u.username}</td>
     <td style="padding:.55rem .75rem;text-align:center">
-      <span style="background:${roleColor[u.role]||'#888'}22;color:${roleColor[u.role]||'#888'};
+      <span style="background:${roleColor[u.role]||'var(--mu)'}22;color:${roleColor[u.role]||'var(--mu)'};
         padding:.15rem .55rem;border-radius:99px;font-size:.75rem;font-weight:700">${u.role}</span>
     </td>
     <td style="padding:.55rem .75rem;text-align:center">
       <span style="color:${u.is_active?'#10B981':'#EF4444'};font-weight:700;font-size:.82rem">
-        ${u.is_active?'✅ ใช้งาน':'⛔ ระงับ'}</span>
+        ${u.is_active?'ใช้งาน':'ระงับ'}</span>
     </td>
     <td style="padding:.55rem .75rem;text-align:center;white-space:nowrap">${formatDateTimeTH(u.created_at)}</td>
     <td style="padding:.55rem .75rem;text-align:center;white-space:nowrap">${formatDateTimeTH(u.updated_at)}</td>
@@ -134,11 +134,11 @@ function _renderUserRow(u){
     <td style="padding:.55rem .75rem;text-align:center">
       <div style="display:flex;gap:.3rem;justify-content:center;flex-wrap:wrap">
         <button class="btn btn-sm" style="background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;font-size:.72rem"
-          onclick="adminToggleUser(${u.user_id},${u.is_active})">${u.is_active?'⛔ ระงับ':'✅ เปิดใช้'}</button>
-        <button class="btn btn-sm" style="background:#EEF2FF;color:var(--s);border:1px solid #C7D2FE;font-size:.72rem"
-          onclick="adminResetPass(${u.user_id},'${u.full_name}')">🔑 รีเซ็ต</button>
+          onclick="adminToggleUser(${u.user_id},${u.is_active})">${u.is_active?'ระงับ':'เปิดใช้'}</button>
+        <button class="btn btn-sm" style="background:var(--tint);color:var(--s);border:1px solid #C7D2FE;font-size:.72rem"
+          onclick="adminResetPass(${u.user_id},'${u.full_name}')">รีเซ็ต</button>
         ${u.role!=='admin'?`<button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;font-size:.72rem"
-          onclick="adminDeleteUser(${u.user_id},'${u.full_name}')">🗑 ลบ</button>`:''}
+          onclick="adminDeleteUser(${u.user_id},'${u.full_name}')">ลบ</button>`:''}
       </div>
     </td>
   </tr>`;
@@ -153,7 +153,7 @@ async function adminResetPass(uid, name){
   const pass=prompt(`รีเซ็ตรหัสผ่านของ "${name}" เป็น:`, 'kidlearn123');
   if(!pass)return;
   const res=await apiAdminResetPass({user_id:uid,new_password:pass});
-  if(res.ok)alert('✅ รีเซ็ตรหัสผ่านสำเร็จ');
+  if(res.ok)alert('รีเซ็ตรหัสผ่านสำเร็จ');
 }
 async function adminDeleteUser(uid, name){
   if(!confirm(`ยืนยันลบบัญชี "${name}" ออกจากระบบ?\nข้อมูลทั้งหมดจะถูกลบถาวร`))return;
@@ -172,13 +172,13 @@ function adminOpenCreateStaff() {
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
     <div class="modal" style="max-width:520px;width:100%;padding:1.5rem">
-      <div class="modal-t" style="font-size:1.05rem;margin-bottom:1.1rem">➕ เพิ่มเจ้าหน้าที่ / ผู้บริหาร</div>
+      <div class="modal-t" style="font-size:1.05rem;margin-bottom:1.1rem">เพิ่มเจ้าหน้าที่ / ผู้บริหาร</div>
 
       <div style="margin-bottom:.75rem">
         <label style="font-weight:700;font-size:.82rem;display:block;margin-bottom:.3rem">ตำแหน่ง *</label>
         <select id="cs-role" class="fc" style="font-size:.88rem;padding:.6rem .85rem" onchange="adminToggleStaffFields()">
-          <option value="officer">👔 เจ้าหน้าที่ (Officer)</option>
-          <option value="executive">💼 ผู้บริหาร (Executive)</option>
+          <option value="officer">เจ้าหน้าที่ (Officer)</option>
+          <option value="executive">ผู้บริหาร (Executive)</option>
         </select>
       </div>
 
@@ -219,9 +219,9 @@ function adminOpenCreateStaff() {
         <input id="cs-permissions" type="text" class="fc" placeholder="เช่น manage_users,view_reports" style="font-size:.88rem;padding:.6rem .85rem">
       </div>
 
-      <div style="display:flex;gap:.65rem;justify-content:flex-end;padding-top:.75rem;border-top:1px solid #F1F5F9;margin-top:.5rem">
+      <div style="display:flex;gap:.65rem;justify-content:flex-end;padding-top:.75rem;border-top:1px solid var(--sf);margin-top:.5rem">
         <button class="btn btn-sm" onclick="document.getElementById('adm-create-staff-modal').remove()">ยกเลิก</button>
-        <button class="lp-btn-play" style="padding:.6rem 1.4rem;font-size:.88rem" onclick="adminSubmitCreateStaff()">💾 สร้างบัญชี</button>
+        <button class="lp-btn-play" style="padding:.6rem 1.4rem;font-size:.88rem" onclick="adminSubmitCreateStaff()">สร้างบัญชี</button>
       </div>
       <div id="cs-msg" style="font-size:.85rem;margin-top:.5rem;text-align:center"></div>
     </div>`;
@@ -277,17 +277,17 @@ async function _renderReport(type){
       <div class="stat"><div class="sv">${res.total_parents||0}</div><div class="sl2">ผู้ปกครอง</div></div>
       <div class="stat"><div class="sv">${res.total_teachers||0}</div><div class="sl2">ครู</div></div>
       <div class="stat"><div class="sv">${res.total_plays||0}</div><div class="sl2">ครั้งที่เล่น</div></div>
-      <div class="stat"><div class="sv">${Math.round(res.avg_score||0)}%</div><div class="sl2">คะแนนเฉลี่ย</div></div>
+      <div class="stat"><div class="sv">${Math.round(res.avg_score||0)}</div><div class="sl2">คะแนนเฉลี่ย</div></div>
     </div>`;
     return;
   }
   if(type==='by_subject'){
     const rows=(res.subjects||[]).map(s=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem;font-weight:600">${s.subject_name}</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.student_count||0}</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.total_plays||0}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.best_score||0}</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>วิชา</th><th style="text-align:center">นักเรียน</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Best</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -295,11 +295,11 @@ async function _renderReport(type){
   }
   if(type==='by_student'){
     const rows=(res.students||[]).map(s=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem;font-weight:600">${s.full_name}</td>
         <td style="padding:.6rem .75rem;text-align:center">${classLabel(s)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.total_plays||0}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}</td>
         <td style="padding:.6rem .75rem">${s.last_active?new Date(s.last_active).toLocaleDateString('th-TH'):'-'}</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>นักเรียน</th><th style="text-align:center">ชั้น</th><th style="text-align:center">เล่นแล้ว</th><th style="text-align:center">Avg Score</th><th>ล่าสุด</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -307,11 +307,11 @@ async function _renderReport(type){
   }
   if(type==='daily'){
     const rows=(res.daily||[]).map(d=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem">${d.day}</td>
         <td style="padding:.6rem .75rem;text-align:center">${d.active_students||0}</td>
         <td style="padding:.6rem .75rem;text-align:center">${d.plays||0}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+d.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+d.avg_score||0)}</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>วัน</th><th style="text-align:center">นักเรียนที่เล่น</th><th style="text-align:center">Plays</th><th style="text-align:center">Avg Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     return;
@@ -319,11 +319,11 @@ async function _renderReport(type){
 
   if(type==='engagement'){
     const rows=(res.engagement||[]).map(r=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem">${r.day}</td>
         <td style="padding:.6rem .75rem;text-align:center">${r.active_students}</td>
         <td style="padding:.6rem .75rem;text-align:center">${r.plays}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+r.avg_score||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+r.avg_score||0)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${Math.round(+r.avg_time||0)} วิ</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>วัน</th><th style="text-align:center">Active</th><th style="text-align:center">Plays</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Avg Time</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -331,11 +331,11 @@ async function _renderReport(type){
   }
   if(type==='at_risk'){
     const rows=(res.students||[]).map(s=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem;font-weight:600">${s.full_name}</td>
         <td style="padding:.6rem .75rem;text-align:center">${classLabel(s)}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}%</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.weakest_mastery||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.avg_score||0)}</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+s.weakest_mastery||0)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${s.inactive_days||0}</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>นักเรียน</th><th style="text-align:center">ชั้น</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Weakest Mastery</th><th style="text-align:center">Inactive Days</th></tr></thead><tbody>${rows||'<tr><td colspan="5" style="padding:1rem;text-align:center;color:var(--mu)">ไม่มีรายการเสี่ยง</td></tr>'}</tbody></table></div>`;
@@ -343,10 +343,10 @@ async function _renderReport(type){
   }
   if(type==='mastery'){
     const rows=(res.mastery||[]).map(m=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem">${m.subject_name}</td>
         <td style="padding:.6rem .75rem">${m.skill_name}</td>
-        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+m.avg_mastery||0)}%</td>
+        <td style="padding:.6rem .75rem;text-align:center">${Math.round(+m.avg_mastery||0)}</td>
         <td style="padding:.6rem .75rem;text-align:center">${m.student_count||0}</td>
       </tr>`).join('');
     el.innerHTML=`<div class="tw"><table><thead><tr><th>วิชา</th><th>หัวข้อ</th><th style="text-align:center">Avg Mastery</th><th style="text-align:center">Students</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -354,7 +354,7 @@ async function _renderReport(type){
   }
   if(type==='plans'){
     const rows=(res.plans||[]).map(p=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem;font-weight:600">${p.title}</td>
         <td style="padding:.6rem .75rem">${p.student_name}</td>
         <td style="padding:.6rem .75rem;text-align:center">${p.completed_items||0}/${p.total_items||0}</td>
@@ -366,7 +366,7 @@ async function _renderReport(type){
   }
   if(type==='notifications'){
     const rows=(res.notifications||[]).map(n=>`
-      <tr style="border-bottom:1px solid #F1F5F9">
+      <tr style="border-bottom:1px solid var(--sf)">
         <td style="padding:.6rem .75rem">${n.notif_type||'info'}</td>
         <td style="padding:.6rem .75rem;text-align:center">${n.total||0}</td>
         <td style="padding:.6rem .75rem;text-align:center">${n.unread||0}</td>
@@ -391,15 +391,15 @@ async function adminSubmitCreateStaff() {
     permissions: document.getElementById('cs-permissions')?.value.trim(),
   };
   if (!payload.full_name || !payload.username || !payload.email) {
-    msg.innerHTML = '<span style="color:#EF4444">⚠️ ต้องกรอกชื่อ, username, อีเมล</span>'; return;
+    msg.innerHTML = '<span style="color:#EF4444">ต้องกรอกชื่อ, username, อีเมล</span>'; return;
   }
-  msg.innerHTML = '<span style="color:var(--mu)">⏳ กำลังสร้าง...</span>';
+  msg.innerHTML = '<span style="color:var(--mu)">กำลังสร้าง...</span>';
   const res = await _api('admin_create_staff', { body: payload }).catch(() => ({ ok: false, error: 'เชื่อมต่อไม่ได้' }));
   if (res.ok) {
     document.getElementById('adm-create-staff-modal')?.remove();
-    alert(`✅ สร้างบัญชี ${payload.role} "${payload.full_name}" สำเร็จ\nรหัสผ่าน: ${payload.password}`);
+    alert(`สร้างบัญชี ${payload.role} "${payload.full_name}" สำเร็จ\nรหัสผ่าน: ${payload.password}`);
     _loadAdminUsers();
   } else {
-    msg.innerHTML = `<span style="color:#EF4444">❌ ${res.error || 'สร้างไม่สำเร็จ'}</span>`;
+    msg.innerHTML = `<span style="color:#EF4444">${res.error || 'สร้างไม่สำเร็จ'}</span>`;
   }
 }

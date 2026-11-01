@@ -29,7 +29,7 @@ window.addEventListener('popstate', e => {
 function sec(name, state = { sec: name }) {
   navPush(state);
   // ซ่อนทุก section รวมถึง s-lessons และ s-content
-  ['home','lessons','scores','rec','children','teach','officer','executive','admin','profile'].forEach(s => {
+  ['home','lessons','scores','rec','children','teach','officer','executive','admin','settings'].forEach(s => {
     const e = document.getElementById('s-' + s);
     if (e) e.style.display = 'none';
   });
@@ -52,20 +52,12 @@ function sec(name, state = { sec: name }) {
   if (name === 'teach')    loadTeach();
   if (name === 'officer')  _renderOfficerPanel();
   if (name === 'executive') _renderExecutivePanel();
-  if (name === 'profile')  loadProfile();
+  if (name === 'settings') loadSettings();
   if (name === 'admin')    loadAdmin();
 }
 
 function applyRoleUI() {
   const u = A.user;
-  document.getElementById('sb-av').className    = 'avatar ' + u.role;
-  applyAvatar(document.getElementById('sb-av'), u.name.charAt(0));
-  document.getElementById('sb-nm').textContent  = u.name;
-
-  const rb = document.getElementById('sb-rb');
-  rb.className   = 'rb ' + u.role;
-  rb.textContent = { student:'👦 นักเรียน', parent:'👨‍👩‍👧 ผู้ปกครอง', teacher:'👩‍🏫 ครู', officer:'👔 เจ้าหน้าที่', executive:'💼 ผู้บริหาร', admin:'🛡️ ผู้ดูแล' }[u.role];
-
   const isTc = u.role === 'teacher';
   const isPa = u.role === 'parent';
   const isOf = u.role === 'officer';

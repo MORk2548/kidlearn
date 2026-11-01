@@ -9,7 +9,7 @@ const GB_MAX_IMAGES = 4; // ตรงกับ GAME_MAX_IMAGES ใน backend.ph
 async function loadGameBuilder() {
   const panel = document.getElementById('tc-game-panel');
   if (!panel) return;
-  panel.innerHTML = '<div class="ts" style="color:var(--mu)">⏳ กำลังโหลดเกม...</div>';
+  panel.innerHTML = '<div class="ts" style="color:var(--mu)">กำลังโหลดเกม...</div>';
   const [gamesRes, asgRes, subRes] = await Promise.all([
     apiTeacherGames().catch(() => ({ ok: false })),
     apiTeacherAssignments().catch(() => ({ ok: false })),
@@ -63,7 +63,6 @@ function gbListHtml() {
     const type = GAME_TYPES[g.game_type];
     const published = g.status === 'published';
     return `<div class="gb-card">
-      <div class="gb-card-ico" aria-hidden="true">${_esc(g.icon || type?.icon || '🎮')}</div>
       <div class="gb-card-body">
         <div class="gb-card-name">${_esc(g.name)}</div>
         ${g.description ? `<div class="gb-card-meta">${_esc(g.description)}</div>` : ''}
@@ -74,16 +73,16 @@ function gbListHtml() {
         </div>
       </div>
       <div class="gb-card-actions">
-        <button class="btn btn-sm btn-s" onclick="gbEdit(${g.game_id})">✏️ แก้ไข</button>
-        <button class="btn btn-sm btn-g" onclick="gbPreviewSaved(${g.game_id})">▶️ ทดลองเล่น</button>
-        <button class="btn btn-sm" onclick="gbDelete(${g.game_id})" aria-label="ลบเกม ${_esc(g.name)}">🗑️</button>
+        <button class="btn btn-sm btn-s" onclick="gbEdit(${g.game_id})">แก้ไข</button>
+        <button class="btn btn-sm btn-g" onclick="gbPreviewSaved(${g.game_id})">ทดลองเล่น</button>
+        <button class="btn btn-sm" onclick="gbDelete(${g.game_id})" aria-label="ลบเกม ${_esc(g.name)}"></button>
       </div>
     </div>`;
   };
   return `<div class="ts">
     <div class="gb-head">
-      <h3 style="margin:0">🎮 เกมของฉัน</h3>
-      <button class="btn btn-p" onclick="gbNew()">➕ สร้างเกมใหม่</button>
+      <h3 style="margin:0">เกมของฉัน</h3>
+      <button class="btn btn-p" onclick="gbNew()">สร้างเกมใหม่</button>
     </div>
     ${A.gb.games.length ? `<div class="gb-filters">
       <select class="fc" aria-label="กรองตามระดับชั้น" onchange="A.gb.filter.grade=this.value;gbRender()">
@@ -116,7 +115,6 @@ function gbPickHtml() {
     <div class="gb-types">
       ${Object.entries(GAME_TYPES).map(([key, t]) => `
         <button class="gb-type" onclick="gbPickType('${key}')">
-          <span class="gb-type-ico" aria-hidden="true">${t.icon}</span>
           <span class="gb-type-name">${t.label}</span>
           <span class="gb-type-desc">${t.desc}</span>
         </button>`).join('')}
@@ -157,7 +155,7 @@ function gbEditHtml() {
   const times = GB_TIME_OPTIONS.includes(d.time_limit) ? GB_TIME_OPTIONS : [...GB_TIME_OPTIONS, d.time_limit].sort((a, b) => a - b);
   return `<div class="ts">
     <div class="gb-head">
-      <h3 style="margin:0">${type.icon} ${d.game_id ? 'แก้ไขเกม' : 'สร้างเกม'} · ${type.label}</h3>
+      <h3 style="margin:0">${d.game_id ? 'แก้ไขเกม' : 'สร้างเกม'} · ${type.label}</h3>
       <button class="btn btn-sm" onclick="gbCancel()">✕ ยกเลิก</button>
     </div>
     <div class="fg"><label class="fl" for="gb-name">ชื่อเกม</label>
@@ -167,7 +165,7 @@ function gbEditHtml() {
     <div class="gb-row">
       <div class="fg"><label class="fl" for="gb-subject">วิชา</label>
         <select class="fc" id="gb-subject" onchange="gbSetScope(+this.value, null)">
-          ${gbSubjectsAllowed().map(s => `<option value="${s.subject_id}"${s.subject_id == d.subject_id ? ' selected' : ''}>${s.icon || '📚'} ${_esc(s.name)}</option>`).join('')}
+          ${gbSubjectsAllowed().map(s => `<option value="${s.subject_id}"${s.subject_id == d.subject_id ? ' selected' : ''}>${_esc(s.name)}</option>`).join('')}
         </select></div>
       <div class="fg"><label class="fl" for="gb-grade">ระดับชั้น</label>
         <select class="fc" id="gb-grade" onchange="gbSetScope(${d.subject_id}, this.value)">
@@ -186,24 +184,24 @@ function gbEditHtml() {
       ${d.questions.map((q, i) => `
         <div class="gb-q" data-i="${i}">
           <div class="gb-q-head"><strong>ข้อ ${i + 1}</strong>
-            ${d.questions.length > 1 ? `<button class="btn btn-sm" onclick="gbRemoveQuestion(${i})" aria-label="ลบข้อ ${i + 1}">🗑️ ลบข้อนี้</button>` : ''}</div>
+            ${d.questions.length > 1 ? `<button class="btn btn-sm" onclick="gbRemoveQuestion(${i})" aria-label="ลบข้อ ${i + 1}">ลบข้อนี้</button>` : ''}</div>
           <div class="gb-q-img">
             ${(q.images || []).map((url, k) => `<figure>
               <img src="${_esc(url)}" alt="รูปที่ ${k + 1} ของข้อ ${i + 1}">
               <button type="button" onclick="gbRemoveImage(${i}, ${k})" aria-label="ลบรูปที่ ${k + 1} ของข้อ ${i + 1}">✕</button>
             </figure>`).join('')}
-            ${(q.images || []).length < GB_MAX_IMAGES ? `<label class="btn btn-sm btn-s">🖼️ เพิ่มรูป (ไม่บังคับ ไม่เกิน ${GB_MAX_IMAGES} รูป)
+            ${(q.images || []).length < GB_MAX_IMAGES ? `<label class="btn btn-sm btn-s">เพิ่มรูป (ไม่บังคับ ไม่เกิน ${GB_MAX_IMAGES} รูป)
               <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onchange="gbUploadImages(${i}, this)"></label>` : ''}
           </div>
           ${type.editorHtml(q)}
         </div>`).join('')}
     </div>
-    <button class="btn btn-s" onclick="gbAddQuestion()">➕ เพิ่มข้อ</button>
+    <button class="btn btn-s" onclick="gbAddQuestion()">เพิ่มข้อ</button>
     <div id="gb-err" class="al ae" style="display:none;margin-top:1rem"></div>
     <div class="gb-actions">
-      <button class="btn btn-g" onclick="gbPreviewDraft()">▶️ ทดลองเล่น</button>
-      <button class="btn btn-s" onclick="gbSave('draft')">💾 บันทึกร่าง</button>
-      <button class="btn btn-p" onclick="gbSave('published')">🚀 ${d.status === 'published' ? 'บันทึกและเผยแพร่' : 'เผยแพร่'}</button>
+      <button class="btn btn-g" onclick="gbPreviewDraft()">ทดลองเล่น</button>
+      <button class="btn btn-s" onclick="gbSave('draft')">บันทึกร่าง</button>
+      <button class="btn btn-p" onclick="gbSave('published')">${d.status === 'published' ? 'บันทึกและเผยแพร่' : 'เผยแพร่'}</button>
     </div>
   </div>`;
 }
@@ -224,7 +222,7 @@ async function gbUploadImages(i, input) {
   const room = GB_MAX_IMAGES - (A.gb.draft.questions[i].images || []).length;
   const files = [...input.files].slice(0, room);
   if (!files.length) return;
-  input.closest('label').textContent = '⏳ กำลังอัปโหลด...';
+  input.closest('label').textContent = 'กำลังอัปโหลด...';
   const results = await Promise.all(files.map(f => apiUploadImage(f, 'game').catch(() => ({ ok: false }))));
   gbSync();
   A.gb.draft.questions[i].images.push(...results.filter(r => r.ok).map(r => r.url));
@@ -272,7 +270,7 @@ function gbCancel() {
 async function gbSaveDraft(status) {
   gbSync();
   const d = A.gb.draft;
-  const res = await apiSaveTeacherGame({ ...d, status, icon: GAME_TYPES[d.game_type].icon }).catch(() => ({ ok: false }));
+  const res = await apiSaveTeacherGame({ ...d, status }).catch(() => ({ ok: false }));
   if (!res.ok) { showAl('gb-err', res.error || 'บันทึกไม่สำเร็จ'); return null; }
   d.game_id = res.game_id;
   d.status = status;
@@ -282,7 +280,7 @@ async function gbSaveDraft(status) {
 async function gbSave(status) {
   if (!await gbSaveDraft(status)) return;
   await loadGameBuilder();
-  showAl('gb-list-msg', status === 'published' ? '🚀 เผยแพร่เกมแล้ว นักเรียนในห้องที่เลือกเล่นได้ทันที' : '💾 บันทึกร่างแล้ว');
+  showAl('gb-list-msg', status === 'published' ? 'เผยแพร่เกมแล้ว นักเรียนในห้องที่เลือกเล่นได้ทันที' : 'บันทึกร่างแล้ว');
 }
 
 // ทดลองเล่นจากข้อมูลที่บันทึกแล้วเท่านั้น เซิร์ฟเวอร์จะตรวจคำถามให้ครบก่อน ตัวเล่นจึงไม่เจอข้อที่กรอกไม่ครบ
@@ -303,5 +301,5 @@ async function gbDelete(gameId) {
   const res = await apiDeleteTeacherGame(gameId).catch(() => ({ ok: false }));
   if (!res.ok) { alert(res.error || 'ลบไม่สำเร็จ'); return; }
   await loadGameBuilder();
-  showAl('gb-list-msg', '🗑️ ลบเกมแล้ว');
+  showAl('gb-list-msg', 'ลบเกมแล้ว');
 }
