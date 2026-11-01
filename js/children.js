@@ -42,11 +42,8 @@ async function loadChildren() {
         <div class="si3">ชั้น ${classLabel(k)} · เล่นแล้ว ${k.total_games||0} ครั้ง</div>
         <div class="mp" style="width:120px"><div class="mf" style="width:${avg}%"></div></div>
       </div>
-      <div style="text-align:right">
-        <div style="font-size:.82rem;font-weight:700;color:var(--p);margin-bottom:.4rem">${avg}</div>
-        <button class="btn-del" title="ลบออก" aria-label="ลบออก"
-          onclick="removeChild(${k.student_id})"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-      </div>
+      <button class="btn-del" title="ลบออก" aria-label="ลบออก"
+        onclick="removeChild(${k.student_id})"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </div>`;
   }).join('');
 }

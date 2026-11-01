@@ -1097,6 +1097,14 @@ const STUDENT_PLAYABLE_GAME_SQL = "g.status = 'published' AND g.is_active = TRUE
     SELECT 1 FROM game_classrooms gc JOIN students st ON st.classroom_id = gc.classroom_id
     WHERE gc.game_id = g.game_id AND st.user_id = ?)";
 
+// ผู้ปกครองดูได้เฉพาะบุตรหลานที่ผูกบัญชีไว้แล้ว ต้องระบุ student_id เสมอ
+function assertParentOf(int $studentId): void {
+    $ok = $studentId && DB::get()->one(
+        "SELECT 1 FROM parents p JOIN parent_student ps ON ps.parent_id = p.parent_id
+         WHERE p.user_id = ? AND ps.student_id = ?", [myId(), $studentId], 'ii');
+    if (!$ok) DB::fail('ไม่มีสิทธิ์ดูข้อมูลนักเรียนคนนี้', 403);
+}
+
 const SCORE_KEEP_DAYS = 7;
 
 // ลบคะแนนที่เก่ากว่า SCORE_KEEP_DAYS วัน ยกเว้นคะแนนดีที่สุดของนักเรียนแต่ละคนในแต่ละเกม (ดาวคิดจากคะแนนนี้)
@@ -1113,9 +1121,16 @@ function pruneOldScores(): void {
          WHERE s.score_id = r.score_id AND r.rn > 1 AND s.played_at < NOW() - INTERVAL '" . SCORE_KEEP_DAYS . " days'");
 }
 
+// นักเรียนดูเกมของตัวเอง ผู้ปกครองส่ง student_id ของบุตรหลานมา
 function handleStudentGames(): never {
-    authRole('student');
+    authRole('student', 'parent');
     pruneOldScores();
+    $userId = myId();
+    if (myRole() === 'parent') {
+        $studentId = (int)($_GET['student_id'] ?? 0);
+        assertParentOf($studentId);
+        $userId = (int)DB::get()->one("SELECT user_id FROM students WHERE student_id=?", [$studentId], 'i')['user_id'];
+    }
     DB::ok(['games' => DB::get()->all(
         "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.time_limit, g.subject_id,
                 sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
@@ -1129,7 +1144,7 @@ function handleStudentGames(): never {
          ) mine ON TRUE
          WHERE " . STUDENT_PLAYABLE_GAME_SQL . "
          ORDER BY sub.order_no, g.game_id DESC",
-        [myId(), myId()])]);
+        [$userId, $userId])]);
 }
 
 // นักเรียนเล่นได้เฉพาะเกมที่มอบหมายให้ห้องตัวเอง ครู/แอดมินเปิดเกมของตัวเองเพื่อดูตัวอย่างได้
@@ -1746,15 +1761,10 @@ function handleScores(): never {
     if (myRole() === 'student') {
         // นักเรียนดูคะแนนตัวเอง
         $st = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
-        $studentId = $st ? $st['student_id'] : 0;
-    } elseif (myRole() === 'parent' && $studentId) {
-        // ผู้ปกครองต้องเชื่อมบัญชีก่อน
-        $p = $db->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
-        if ($p) {
-            $link = $db->one("SELECT 1 FROM parent_student WHERE parent_id=? AND student_id=?",
-                [$p['parent_id'], $studentId], 'ii');
-            if (!$link) DB::fail('ไม่มีสิทธิ์', 403);
-        }
+        if (!$st) DB::fail('ไม่พบข้อมูลนักเรียน', 403);
+        $studentId = (int)$st['student_id'];
+    } elseif (myRole() === 'parent') {
+        assertParentOf($studentId);
     }
     // teacher/admin ส่ง student_id มาตรงๆ ไม่ต้อง convert
 

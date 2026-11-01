@@ -1,65 +1,35 @@
 // SCORES
+// นักเรียนและผู้ปกครองเห็นการ์ดเกมละใบชุดเดียวกัน ผู้ปกครองมีสรุปสัปดาห์และเกมที่ควรช่วยฝึกเพิ่ม
 async function loadScores() {
   const childWrap = document.getElementById('child-sel-wrap');
-  const tb = document.getElementById('score-tb');
-  ensureScoreInsightsHost();
-  const isStudent = A.role === 'student';
-  document.getElementById('score-games').style.display = isStudent ? 'block' : 'none';
-  document.getElementById('score-insights').style.display = isStudent ? 'none' : '';
-  document.querySelector('#s-scores .tw').style.display = isStudent ? 'none' : '';
-  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">กำลังโหลด...</td></tr>';
-
-  if (A.role === 'parent') {
-    childWrap.style.display = 'block';
-    const cres = await apiMyChildren().catch(() => ({ ok: false }));
-    const kids = cres.ok ? (cres.children || []) : [];
-    const btns = document.getElementById('child-btns');
-    btns.innerHTML = '';
-
-    if (!kids.length) {
-      btns.innerHTML = '<div style="color:var(--mu);font-size:.85rem">ยังไม่มีบุตรหลานที่เชื่อมบัญชี</div>';
-      renderScoreInsights(null);
-      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">ยังไม่มีข้อมูลคะแนน</td></tr>';
-      return;
-    }
-
-    if (!A.selChild || !kids.find(k => k.student_id == A.selChild)) {
-      A.selChild = kids[0].student_id;
-    }
-
-    kids.forEach(k => {
-      const btn = document.createElement('button');
-      btn.className = 'child-btn' + (A.selChild == k.student_id ? ' active' : '');
-      btn.textContent = k.full_name;
-      btn.onclick = () => {
-        A.selChild = k.student_id;
-        loadScores();
-      };
-      btns.appendChild(btn);
-    });
-
-    const [res, analytics] = await Promise.all([
-      apiScores(A.selChild).catch(() => ({ ok: false, scores: [] })),
-      apiStudentAnalytics(A.selChild).catch(() => ({ ok: false })),
-    ]);
-    renderScoreInsights(analytics.ok ? analytics : null);
-    renderScoreTable(res.ok ? res.scores : []);
-    return;
-  }
+  const el = document.getElementById('score-games');
+  childWrap.style.display = A.role === 'parent' ? 'block' : 'none';
+  el.innerHTML = '<div class="ts" style="color:var(--mu)">กำลังโหลด...</div>';
 
   if (A.role === 'student') {
-    childWrap.style.display = 'none';
-    loadStudentScoreGames();
+    loadScoreGames(null);
+    return;
+  }
+  if (A.role !== 'parent') {
+    el.innerHTML = '<div class="ts" style="color:var(--mu)">ดูคะแนนรายเกมได้ที่เมนูแผงควบคุม</div>';
     return;
   }
 
-  childWrap.style.display = 'none';
-  renderScoreInsights(null);
-  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">ครูดูคะแนนรวมได้ที่เมนูแผงควบคุม</td></tr>';
+  const cres = await apiMyChildren().catch(() => ({ ok: false }));
+  const kids = cres.ok ? (cres.children || []) : [];
+  const btns = document.getElementById('child-btns');
+  if (!kids.length) {
+    btns.innerHTML = '';
+    el.innerHTML = '<div class="ts"><div class="gb-empty">ยังไม่มีบุตรหลานที่เชื่อมบัญชี</div></div>';
+    return;
+  }
+  if (!kids.find(k => k.student_id == A.selChild)) A.selChild = kids[0].student_id;
+  btns.innerHTML = kids.map(k =>
+    `<button class="child-btn${A.selChild == k.student_id ? ' active' : ''}" onclick="A.selChild=${k.student_id};loadScores()">${_esc(k.full_name)}</button>`).join('');
+  loadScoreGames(kids.find(k => k.student_id == A.selChild));
 }
 
-// ── นักเรียน: การ์ดเกมละใบ ดาว 5 ดวงจากคะแนนดีที่สุด (เต็ม 100) ──
-// 1-39 = 1 ดาว, ทุก 20 คะแนนได้เพิ่ม 1 ดาว, 5 ดาวต้องได้เต็ม 100
+// ดาว 5 ดวงจากคะแนนดีที่สุด (เต็ม 100): 1-39 = 1 ดาว, ทุก 20 คะแนนได้เพิ่ม 1 ดาว, 5 ดาวต้องได้เต็ม 100
 function scoreStars(best) {
   if (best == null || best <= 0) return 0;
   return best >= 100 ? 5 : Math.max(1, Math.floor(best / 20));
@@ -76,27 +46,69 @@ function nextStarHint(best, stars) {
   return `อีก ${target - best} คะแนนได้ ${stars + 1} ดาว`;
 }
 
-let _scoreGames = [];
-let _scoreGameFilter = 'all';
-
-async function loadStudentScoreGames() {
-  const el = document.getElementById('score-games');
-  el.innerHTML = '<div class="ts" style="color:var(--mu)">กำลังโหลด...</div>';
-  const res = await apiStudentGames().catch(() => ({ ok: false }));
-  if (!res.ok) { el.innerHTML = `<div class="ts" style="color:#EF4444">${_esc(res.error || 'โหลดคะแนนไม่สำเร็จ')}</div>`; return; }
-  _scoreGames = res.games.map(g => {
-    const best = g.best_score == null ? null : +g.best_score;
-    return { ...g, best, plays: +g.play_count || 0, stars: scoreStars(best) };
-  });
-  renderStudentScoreGames();
+function _daysAgo(date) {
+  const day = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  return Math.round((day(new Date()) - day(date)) / 864e5);
 }
 
-function renderStudentScoreGames() {
+function _playedLabel(date) {
+  const n = _daysAgo(date);
+  return n <= 0 ? 'วันนี้' : n === 1 ? 'เมื่อวาน' : n < 7 ? `${n} วันก่อน` : new Date(date).toLocaleDateString('th-TH');
+}
+
+// child = null คือนักเรียนดูของตัวเอง, ไม่งั้นคือบุตรหลานที่ผู้ปกครองเลือก
+const _scoreView = { games: [], filter: 'all', child: null, week: null, practiceOpen: true };
+
+async function loadScoreGames(child) {
   const el = document.getElementById('score-games');
-  const subjects = [...new Map(_scoreGames.map(g => [String(g.subject_id), g.subject_name])).entries()];
-  const filters = [['all', 'ทุกวิชา'], ...subjects, ['notfull', 'ยังได้ดาวไม่เต็ม']];
-  const shown = _scoreGames.filter(g => _scoreGameFilter === 'all' || (_scoreGameFilter === 'notfull' ? g.stars < 5 : String(g.subject_id) === _scoreGameFilter));
-  const totalStars = _scoreGames.reduce((t, g) => t + g.stars, 0);
+  const sid = child?.student_id;
+  const [res, hist] = await Promise.all([
+    apiStudentGames(sid).catch(() => ({ ok: false })),
+    child ? apiScores(sid).catch(() => ({ ok: false })) : null,
+  ]);
+  if (!res.ok) { el.innerHTML = `<div class="ts" style="color:#EF4444">${_esc(res.error || 'โหลดคะแนนไม่สำเร็จ')}</div>`; return; }
+  const attempts = hist?.ok ? hist.scores : [];
+  const lastPlayed = {};
+  attempts.forEach(a => { if (!lastPlayed[a.game_id] || a.played_at > lastPlayed[a.game_id]) lastPlayed[a.game_id] = a.played_at; });
+  _scoreView.child = child || null;
+  _scoreView.filter = 'all';
+  _scoreView.week = child ? _scoreWeek(attempts) : null;
+  _scoreView.games = res.games.map(g => {
+    const best = g.best_score == null ? null : +g.best_score;
+    return { ...g, best, plays: +g.play_count || 0, stars: scoreStars(best), lastPlayed: lastPlayed[g.game_id] || null };
+  });
+  renderScoreGames();
+}
+
+// สรุป 7 วันล่าสุด (ระบบเก็บประวัติไว้ 7 วัน): จำนวนครั้ง และวันไหนได้เล่น
+function _scoreWeek(attempts) {
+  const recent = attempts.filter(a => _daysAgo(a.played_at) < 7);
+  const playedDays = new Set(recent.map(a => _daysAgo(a.played_at)));
+  const days = [6, 5, 4, 3, 2, 1, 0].map(n => {
+    const d = new Date(); d.setDate(d.getDate() - n);
+    return { label: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][d.getDay()], played: playedDays.has(n) };
+  });
+  return { plays: recent.length, dayCount: playedDays.size, days };
+}
+
+// ควรช่วยฝึก: ได้ 1-2 ดาวทั้งที่เล่นแล้วอย่างน้อย 2 ครั้ง หรือครูมอบหมายแต่ยังไม่เคยเล่น
+function _needsPractice(g) {
+  return g.plays === 0 || (g.stars <= 2 && g.plays >= 2);
+}
+
+function renderScoreGames() {
+  const el = document.getElementById('score-games');
+  const { games, child, week } = _scoreView;
+  if (!games.length) { el.innerHTML = '<div class="ts"><div class="gb-empty">ยังไม่มีเกมจากครู</div></div>'; return; }
+
+  const subjects = [...new Map(games.map(g => [String(g.subject_id), g.subject_name])).entries()];
+  const filters = [['all', 'ทุกวิชา'], ...subjects, ...(child ? [] : [['notfull', 'ยังได้ดาวไม่เต็ม']])];
+  const f = _scoreView.filter;
+  const shown = games.filter(g => f === 'all' || (f === 'notfull' ? g.stars < 5 : String(g.subject_id) === f));
+  const totalStars = games.reduce((t, g) => t + g.stars, 0);
+  const starLine = `สะสมดาวได้ ${totalStars} จาก ${games.length * 5} ดวง`;
+  const name = child ? _esc(child.full_name) : '';
+
   const card = g => {
     const type = GAME_TYPES[g.game_type];
     const played = g.plays > 0;
@@ -105,190 +117,39 @@ function renderStudentScoreGames() {
       <div class="sc-meta">${_esc(g.subject_name)}${type ? ' · ' + _esc(type.label) : ''}</div>
       ${played ? `${starsHtml(g.stars)}
         <div class="sc-meta">ดีที่สุด ${g.best}/100 · เล่น ${g.plays} ครั้ง</div>
-        <div class="sc-hint">${nextStarHint(g.best, g.stars)}</div>`
-      : `<div class="sc-meta" style="margin:.6rem 0">ยังไม่เคยเล่น</div>`}
-      <button class="btn ${played ? 'btn-s' : 'btn-p'} btn-sm sc-play" onclick="playStudentGame(${g.game_id})">${played ? 'เล่นอีกครั้ง' : 'เริ่มเล่น'}</button>
+        ${child ? (g.lastPlayed ? `<div class="sc-meta">เล่นล่าสุด ${_playedLabel(g.lastPlayed)}</div>` : '')
+          : `<div class="sc-hint">${nextStarHint(g.best, g.stars)}</div>`}`
+      : '<div class="sc-meta" style="margin:.6rem 0">ยังไม่เคยเล่น</div>'}
+      ${child ? '' : `<button class="btn ${played ? 'btn-s' : 'btn-p'} btn-sm sc-play" onclick="playStudentGame(${g.game_id})">${played ? 'เล่นอีกครั้ง' : 'เริ่มเล่น'}</button>`}
     </div>`;
   };
-  el.innerHTML = !_scoreGames.length
-    ? '<div class="ts"><div class="gb-empty">ยังไม่มีเกมจากครู</div></div>'
-    : `<div class="ts">
-      <div class="sc-total">สะสมดาวได้ ${totalStars} จาก ${_scoreGames.length * 5} ดวง</div>
-      <div class="sc-filters">${filters.map(([v, l]) =>
-        `<button class="child-btn${_scoreGameFilter === v ? ' active' : ''}" onclick="_scoreGameFilter='${v}';renderStudentScoreGames()">${_esc(l)}</button>`).join('')}</div>
-      <div class="sc-grid">${shown.map(card).join('') || '<div class="gb-empty">ได้ดาวเต็มทุกเกมแล้ว</div>'}</div>
-    </div>`;
-}
 
-function ensureScoreInsightsHost() {
-  const scoreSection = document.getElementById('s-scores');
-  if (!scoreSection || document.getElementById('score-insights')) return;
-  const wrap = document.createElement('div');
-  wrap.id = 'score-insights';
-  wrap.style.margin = '0 0 1rem';
-  const tableWrap = scoreSection.querySelector('.tw');
-  if (tableWrap) scoreSection.insertBefore(wrap, tableWrap);
-}
-
-
-
-const SCORE_UI_TEXT = {
-  all: '\u0e17\u0e38\u0e01\u0e27\u0e34\u0e0a\u0e32',
-  scoreOverview: '\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e1c\u0e25\u0e01\u0e32\u0e23\u0e40\u0e23\u0e35\u0e22\u0e19',
-  subjectView: '\u0e14\u0e39\u0e04\u0e30\u0e41\u0e19\u0e19\u0e41\u0e22\u0e01\u0e15\u0e32\u0e21\u0e27\u0e34\u0e0a\u0e32',
-  weakSkills: '\u0e08\u0e38\u0e14\u0e17\u0e35\u0e48\u0e04\u0e27\u0e23\u0e17\u0e1a\u0e17\u0e27\u0e19\u0e01\u0e48\u0e2d\u0e19',
-  activePlans: '\u0e41\u0e1c\u0e19\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e40\u0e14\u0e34\u0e19\u0e2d\u0e22\u0e39\u0e48',
-  alerts: '\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e17\u0e35\u0e48\u0e04\u0e27\u0e23\u0e23\u0e39\u0e49',
-  attempts: '\u0e04\u0e23\u0e31\u0e49\u0e07',
-  avgScore: '\u0e40\u0e09\u0e25\u0e35\u0e48\u0e22',
-  timeMinutes: '\u0e19\u0e32\u0e17\u0e35',
-  mastery: 'Mastery',
-  badges: '\u0e40\u0e2b\u0e23\u0e35\u0e22\u0e0d',
-  noWeakSkills: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e08\u0e38\u0e14\u0e2d\u0e48\u0e2d\u0e19\u0e2a\u0e30\u0e2a\u0e21\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19',
-  noPlans: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e41\u0e1c\u0e19\u0e17\u0e35\u0e48\u0e44\u0e14\u0e49\u0e23\u0e31\u0e1a\u0e21\u0e2d\u0e1a\u0e2b\u0e21\u0e32\u0e22',
-  noAlerts: '\u0e44\u0e21\u0e48\u0e21\u0e35\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e1e\u0e34\u0e40\u0e28\u0e29',
-  allScores: '\u0e04\u0e30\u0e41\u0e19\u0e19\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14',
-  noScores: '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e04\u0e30\u0e41\u0e19\u0e19',
-  lesson: '\u0e1a\u0e17',
-  due: '\u0e04\u0e23\u0e1a\u0e01\u0e33\u0e2b\u0e19\u0e14',
-  plays: '\u0e40\u0e25\u0e48\u0e19',
-  openAdvice: '\u0e14\u0e39\u0e04\u0e33\u0e41\u0e19\u0e30\u0e19\u0e33'
-};
-
-function buildScoreSubjectSummary(rows){
-  const grouped={};
-  (rows||[]).forEach(row=>{
-    const name=row.subject_name || row.sub || SCORE_UI_TEXT.all;
-    if(!grouped[name]) grouped[name]={
-      name,
-      plays:0,
-      totalScore:0,
-      totalMax:0,
-      time:0,
-      best:0,
-      rows:[]
-    };
-    const score=+row.score||0;
-    const max=+row.max_score||100;
-    grouped[name].plays+=1;
-    grouped[name].totalScore+=score;
-    grouped[name].totalMax+=max;
-    grouped[name].time+=+row.time_spent||0;
-    grouped[name].best=Math.max(grouped[name].best, Math.round((score/max)*100));
-    grouped[name].rows.push(row);
-  });
-  return Object.values(grouped)
-    .map(item=>({
-      ...item,
-      avg:item.totalMax?Math.round((item.totalScore/item.totalMax)*100):0
-    }))
-    .sort((a,b)=>b.avg-a.avg || b.plays-a.plays);
-}
-
-function renderScoreInsights(data){
-  const host=document.getElementById('score-insights');
-  if(!host) return;
-  if(!data){ host.innerHTML=''; return; }
-
-  const overview=data.overview||{};
-  const mastery=data.mastery||[];
-  const review=(data.review_items||[]).slice(0,4);
-  const plans=(data.plans||[]).slice(0,3);
-  const alerts=data.alerts||[];
-  const subjects=mastery.reduce((acc,item)=>{
-    const name=item.subject_name||SCORE_UI_TEXT.all;
-    if(!acc[name]) acc[name]={name,total:0,count:0,weak:0};
-    acc[name].total += +item.mastery_score||0;
-    acc[name].count += 1;
-    if((+item.mastery_score||0) < 60) acc[name].weak += 1;
-    return acc;
-  },{});
-  const subjectCards=Object.values(subjects).map(item=>({
-    ...item,
-    avg: item.count ? Math.round(item.total/item.count) : 0
-  })).sort((a,b)=>b.avg-a.avg);
-
-  host.innerHTML=`
-    <div class="ts" style="margin-bottom:1rem">
-      <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap">
-        <div>
-          <h3 style="margin:0 0 .25rem">${SCORE_UI_TEXT.scoreOverview}</h3>
-          <div style="font-size:.78rem;color:var(--mu)">${SCORE_UI_TEXT.subjectView}</div>
+  const practice = child ? games.filter(_needsPractice).sort((a, b) => (a.plays === 0) - (b.plays === 0) || a.stars - b.stars) : [];
+  const summary = child ? `<div class="ts">
+      <div class="pw-week">
+        <div style="flex:1;min-width:200px">
+          <div class="pw-title">${week.plays ? `สัปดาห์นี้${name}เล่น ${week.plays} ครั้ง ใน ${week.dayCount} วัน` : `สัปดาห์นี้${name}ยังไม่ได้เล่นเกม`}</div>
+          <div class="sc-meta">${starLine}</div>
         </div>
-        <button class="btn btn-sm" onclick="sec && sec('recommendations')" style="background:var(--tint);color:var(--s);border:1px solid #C7D2FE">${SCORE_UI_TEXT.openAdvice}</button>
-      </div>
-      <div class="stats" style="margin:1rem 0 0">
-        <div class="stat"><div class="sv">${overview.total_plays||0}</div><div class="sl2">${SCORE_UI_TEXT.attempts}</div></div>
-        <div class="stat"><div class="sv">${Math.round(overview.avg_score||0)}</div><div class="sl2">${SCORE_UI_TEXT.avgScore}</div></div>
-        <div class="stat"><div class="sv">${Math.round((overview.total_time||0)/60)}</div><div class="sl2">${SCORE_UI_TEXT.timeMinutes}</div></div>
+        <div class="pw-days" role="img" aria-label="ได้เล่น ${week.dayCount} วันจาก 7 วันล่าสุด">${week.days.map(d =>
+          `<span class="pw-day"><i class="${d.played ? 'on' : ''}"></i>${_esc(d.label)}</span>`).join('')}</div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1rem">
-      <div class="ts" style="margin:0">
-        <h3>${SCORE_UI_TEXT.mastery}</h3>
-        ${subjectCards.length?subjectCards.map(subject=>`
-          <div style="padding:.5rem 0;border-bottom:1px solid var(--sf)">
-            <div style="display:flex;justify-content:space-between;gap:.75rem;font-size:.82rem"><strong>${subject.name}</strong><span>${subject.avg}</span></div>
-            <div style="font-size:.73rem;color:var(--mu)">${subject.count} skill${subject.count>1?'s':''} • ${subject.weak||0} \u0e08\u0e38\u0e14\u0e17\u0e35\u0e48\u0e22\u0e31\u0e07\u0e2d\u0e48\u0e2d\u0e19</div>
-            <div style="height:7px;background:var(--bd);border-radius:999px;margin-top:.3rem"><div style="width:${Math.max(0,Math.min(100,subject.avg))}%;height:100%;background:${subject.avg>=80?'#10B981':subject.avg>=60?'#F59E0B':'#EF4444'};border-radius:999px"></div></div>
-          </div>`).join(''):'<div style="color:var(--mu)">'+SCORE_UI_TEXT.noScores+'</div>'}
-      </div>
-      <div class="ts" style="margin:0">
-        <h3>${SCORE_UI_TEXT.weakSkills}</h3>
-        ${review.length?review.map(item=>`
-          <div style="padding:.55rem 0;border-bottom:1px solid var(--sf)">
-            <div style="font-size:.82rem;font-weight:700">${item.skill_name||SCORE_UI_TEXT.student}</div>
-            <div style="font-size:.74rem;color:#B45309">${item.subject_name||''}</div>
-            <div style="font-size:.76rem;color:var(--mu);margin-top:.2rem">${item.prompt_text||''}</div>
-            <div style="font-size:.72rem;color:var(--mu)">พลาด ${item.miss_count||0} ครั้ง</div>
-          </div>`).join(''):`<div style="color:var(--mu)">${SCORE_UI_TEXT.noWeakSkills}</div>`}
-      </div>
-      <div class="ts" style="margin:0">
-        <h3>${SCORE_UI_TEXT.activePlans}</h3>
-        ${plans.length?plans.map(plan=>`
-          <div style="padding:.55rem 0;border-bottom:1px solid var(--sf)">
-            <div style="display:flex;justify-content:space-between;gap:.75rem"><strong style="font-size:.82rem">${plan.title}</strong><span class="badge" style="background:var(--tint);color:var(--s)">${plan.completed_items||0}/${plan.total_items||0}</span></div>
-            <div style="font-size:.72rem;color:var(--mu)">${SCORE_UI_TEXT.due} ${plan.due_at ? new Date(plan.due_at).toLocaleDateString('th-TH') : (plan.week_start||'-')}</div>
-          </div>`).join(''):`<div style="color:var(--mu)">${SCORE_UI_TEXT.noPlans}</div>`}
-        <div style="margin-top:.85rem;border-top:1px solid var(--sf);padding-top:.75rem">
-          <div style="font-size:.78rem;font-weight:700;margin-bottom:.4rem">${SCORE_UI_TEXT.alerts}</div>
-          ${alerts.length?alerts.map(msg=>`<div style="font-size:.75rem;color:#92400E;margin-bottom:.28rem">• ${msg}</div>`).join(''):`<div style="font-size:.75rem;color:var(--mu)">${SCORE_UI_TEXT.noAlerts}</div>`}
-        </div>
-      </div>
+    ${practice.length ? `<details class="ts pw-practice"${_scoreView.practiceOpen ? ' open' : ''}
+      ontoggle="_scoreView.practiceOpen=this.open">
+      <summary>ช่วย${name}ฝึกเกมเหล่านี้ <span class="sc-meta">(${practice.length} เกม)</span></summary>
+      ${practice.map(g => `<div class="pw-row">
+        <div style="flex:1;min-width:0"><strong>${_esc(g.name)}</strong> <span class="sc-meta">· ${_esc(g.subject_name)}</span>
+          <div class="sc-meta">${g.plays ? `เล่น ${g.plays} ครั้ง ยังได้ ${g.stars} ดาว ดีที่สุด ${g.best}/100` : 'ครูมอบหมายแล้ว ยังไม่เคยเล่น'}</div></div>
+        ${g.plays ? starsHtml(g.stars) : '<span class="pw-tag">ยังไม่เล่น</span>'}
+      </div>`).join('')}
+    </details>` : ''}` : '';
+
+  el.innerHTML = `${summary}<div class="ts">
+      ${child ? `<h3>เกมทั้งหมด ${games.length} เกม</h3>` : `<div class="sc-total">${starLine}</div>`}
+      <div class="sc-filters">${filters.map(([v, l]) =>
+        `<button class="child-btn${f === v ? ' active' : ''}" onclick="_scoreView.filter='${v}';renderScoreGames()">${_esc(l)}</button>`).join('')}</div>
+      <div class="sc-grid">${shown.map(card).join('') || '<div class="gb-empty">ได้ดาวเต็มทุกเกมแล้ว</div>'}</div>
+      ${child ? '<div class="sc-meta" style="margin-top:.75rem">ประวัติการเล่นแสดงย้อนหลัง 7 วัน ส่วนคะแนนดีที่สุดของทุกเกมเก็บไว้ตลอด</div>' : ''}
     </div>`;
-}
-
-function renderScoreTable(sc){
-  const tb=document.getElementById('score-tb');
-  if(!sc || !sc.length){
-    tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
-    return;
-  }
-
-  const groups=buildScoreSubjectSummary(sc);
-  if(!groups.length){
-    tb.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2.5rem">${SCORE_UI_TEXT.noScores}</td></tr>`;
-    return;
-  }
-
-  tb.innerHTML=groups.map(group=>{
-    const header=`<tr><td colspan="6" style="background:var(--sf);padding:.85rem 1rem;border-bottom:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><strong style="font-size:.88rem">${group.name}</strong><div style="font-size:.74rem;color:var(--mu)">${SCORE_UI_TEXT.plays} ${group.plays} ${SCORE_UI_TEXT.attempts} • ${SCORE_UI_TEXT.avgScore} ${group.avg} • Best ${group.best}/100</div></div><div style="font-size:.76rem;color:var(--mu)">${Math.round(group.time/60)} ${SCORE_UI_TEXT.timeMinutes}</div></div></td></tr>`;
-    const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
-      const score=+s.score||0;
-      const max=+s.max_score||100;
-      const pct=Math.round((score/max)*100);
-      const c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
-      const date=s.played_at ? new Date(s.played_at).toLocaleDateString('th-TH') : (s.date||'-');
-      const time=s.time_spent ? `${s.time_spent} วินาที` : (s.time||'-');
-      return `<tr>
-        <td>${s.subject_name||s.sub||'-'}</td>
-        <td>${s.game_name||s.game||'-'}</td>
-        <td>${GAME_TYPES[s.game_type]?.label || s.game_type || '-'}</td>
-        <td><strong style="color:${c}">${score}/${max}</strong></td>
-        <td>${time}</td>
-        <td>${date}</td>
-      </tr>`;
-    }).join('');
-    return header+rows;
-  }).join('');
 }
