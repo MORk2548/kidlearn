@@ -283,6 +283,7 @@ function selectTcGame(gameId){
   A.tcBook.gameId=gameId;
   _renderTcGameList();
   _renderTcBookRows();
+  if(A.tcStudent) selectTcStudent(A.tcStudent);
 }
 
 function _renderTcGameList(){
@@ -406,12 +407,14 @@ async function selectTcStudent(sid){
   hist.innerHTML='<div style="color:var(--mu);padding:.5rem">กำลังโหลด...</div>';
   // ส่ง student_id (จาก students table) ไป API
   const res=await apiStudentScores(sid,A.tcSubject||null).catch(()=>({ok:false,scores:[]}));
-  const sc=res.ok?(res.scores||[]):[];
+  // เปิดจากหน้าคะแนนรายเกม แสดงเฉพาะเกมที่เลือกอยู่
+  const game=A.tcBook?.games.get(A.tcBook.gameId);
+  const sc=(res.ok?(res.scores||[]):[]).filter(s=>!game||s.game_id==game.game_id);
   const stu=A.tcBook?.students.find(s=>s.student_id==sid)||A.tcStudents.find(s=>s.student_id==sid);
 
   if(!sc.length){
     hist.innerHTML=`<div style="text-align:center;padding:1.5rem;color:var(--mu)">
-      <div style="font-weight:600">${stu?.full_name||'นักเรียน'} ยังไม่มีคะแนน${A.tcSubject?' ในวิชานี้':''}</div>
+      <div style="font-weight:600">${_esc(stu?.full_name||'นักเรียน')} ยังไม่ได้เล่น${game?'เกม '+_esc(game.name):'เกมในวิชานี้'}</div>
     </div>`;
     return;
   }
@@ -452,7 +455,7 @@ async function selectTcStudent(sid){
         <div><strong style="font-size:.88rem">${group.name}</strong>
           <div style="font-size:.73rem;color:var(--mu)">เล่น ${group.plays} ครั้ง • เฉลี่ย ${group.avg} • Best ${group.best}/100</div>
         </div>
-        <div style="font-size:.76rem;color:var(--mu)">${Math.round(group.time/60)} นาที</div>
+        <div style="font-size:.76rem;color:var(--mu)">${_tcTime(group.time)}</div>
       </div></td></tr>`;
     const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
       const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
@@ -471,7 +474,7 @@ async function selectTcStudent(sid){
   hist.innerHTML=`
     <div style="font-weight:800;font-size:.95rem;margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem">
       <div class="sa" style="width:32px;height:32px;font-size:.85rem">${(stu?.full_name||'?').charAt(0)}</div>
-      ${stu?.full_name||''} — ประวัติคะแนน
+      ${_esc(stu?.full_name||'')} — ประวัติคะแนน${game?' เกม '+_esc(game.name):''}
     </div>
     <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.4rem">ประวัติทั้งหมด ${sc.length} ครั้ง</div>
     <div style="overflow-x:auto">
