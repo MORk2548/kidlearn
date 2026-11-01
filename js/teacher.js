@@ -463,8 +463,8 @@ function _renderTcTabs(){
   if(!wrap)return;
   wrap.innerHTML=`
     <button class="rec-tab${A.tcTab==='scores'?' active':''}"  onclick="switchTcTab('scores')">คะแนนนักเรียน</button>
-    <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">เกมของฉัน</button>
-    <button class="rec-tab${A.tcTab==='lessons'?' active':''}" onclick="switchTcTab('lessons')">บทเรียนของฉัน</button>
+    <button class="rec-tab${A.tcTab==='games'?' active':''}"   onclick="switchTcTab('games')">เกม</button>
+    <button class="rec-tab${A.tcTab==='lessons'?' active':''}" onclick="switchTcTab('lessons')">บทเรียน</button>
     <button class="rec-tab${A.tcTab==='plans'?' active':''}"   onclick="switchTcTab('plans')">แผนรายสัปดาห์</button>
     <button class="rec-tab${A.tcTab==='students'?' active':''}" onclick="switchTcTab('students')">เพิ่มนักเรียน</button>`;
   const scorePanel=document.getElementById('tc-score-panel');
