@@ -9,8 +9,8 @@
   --sf: #F1F5F9;
   --tint: #EEF2FF;
   --bd: #E2E8F0;
-  --tx: #1A1A2E;
-  --mu: #6B7280;
+  --tx: #020617;
+  --mu: #374151;
   --r: 16px;
   --sh: 0 8px 32px rgba(0, 0, 0, .09);
   --tr: 0.22s cubic-bezier(.4, 0, .2, 1);
@@ -24,8 +24,8 @@
   --sf: #273449;
   --tint: #1E2A4A;
   --bd: #334155;
-  --tx: #E2E8F0;
-  --mu: #94A3B8;
+  --tx: #F8FAFC;
+  --mu: #E2E8F0;
   --sh: 0 8px 32px rgba(0, 0, 0, .4);
   color-scheme: dark
 }
@@ -40,6 +40,7 @@
 
 body {
   font-family: 'KoHo', sans-serif;
+  font-weight: 500;
   background: var(--bg);
   color: var(--tx);
   min-height: 100vh;
@@ -50,7 +51,8 @@ button,
 input,
 select,
 textarea {
-  font-family: inherit
+  font-family: inherit;
+  font-weight: inherit
 }
 
 /* LAYOUT */
