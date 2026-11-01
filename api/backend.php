@@ -670,6 +670,7 @@ function handleTeacherClassSummary(): never {
 // ผลคะแนนรายเกมของห้อง: เกมที่มอบหมายให้ห้อง (กรองวิชาได้) + ทุกครั้งที่นักเรียนในห้องเล่นเกมเหล่านั้น
 function handleTeacherGameResults(): never {
     authRole('teacher', 'admin', 'officer');
+    pruneOldScores();
     ensureTeacherAssignmentSchema();
     $db = DB::get();
     $classroomId = (int)($_GET['classroom_id'] ?? 0);
@@ -1096,8 +1097,25 @@ const STUDENT_PLAYABLE_GAME_SQL = "g.status = 'published' AND g.is_active = TRUE
     SELECT 1 FROM game_classrooms gc JOIN students st ON st.classroom_id = gc.classroom_id
     WHERE gc.game_id = g.game_id AND st.user_id = ?)";
 
+const SCORE_KEEP_DAYS = 7;
+
+// ลบคะแนนที่เก่ากว่า SCORE_KEEP_DAYS วัน ยกเว้นคะแนนดีที่สุดของนักเรียนแต่ละคนในแต่ละเกม (ดาวคิดจากคะแนนนี้)
+// เรียกจากหลายที่แต่ทำงานจริงไม่เกินชั่วโมงละครั้ง และรันซ้ำได้ผลเท่าเดิม
+function pruneOldScores(): void {
+    $stamp = sys_get_temp_dir() . '/kidlearn_prune_scores.stamp';
+    if (is_file($stamp) && filemtime($stamp) > time() - 3600) return;
+    touch($stamp);
+    DB::get()->run(
+        "DELETE FROM scores s USING (
+             SELECT score_id, ROW_NUMBER() OVER (PARTITION BY student_id, game_id ORDER BY score DESC, played_at DESC) AS rn
+             FROM scores
+         ) r
+         WHERE s.score_id = r.score_id AND r.rn > 1 AND s.played_at < NOW() - INTERVAL '" . SCORE_KEEP_DAYS . " days'");
+}
+
 function handleStudentGames(): never {
     authRole('student');
+    pruneOldScores();
     DB::ok(['games' => DB::get()->all(
         "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.time_limit, g.subject_id,
                 sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
@@ -1155,6 +1173,7 @@ function handleSaveScore(): never {
         ['student_id' => $studentId, 'game_id' => $gameId, 'score' => $score]);
     generateRecommendationsV2($studentId, myId());
     refreshStudentNotifications($studentId);
+    pruneOldScores();
     DB::ok(['score_id' => $scoreId, 'score' => $score]);
 }
 
