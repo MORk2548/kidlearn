@@ -92,7 +92,6 @@ const apiStudentScores = (sid, subjectId) => {
   return _api('scores', { params });
 };
 const apiStudentAnalytics = (sid) => _api('student_analytics', sid ? { params: { student_id: sid } } : {});
-const apiStudentPlans = (sid) => _api('student_plans', sid ? { params: { student_id: sid } } : {});
 const apiCreatePlan = (d) => _api('create_plan', { body: d });
 
 // Teacher games

@@ -44,8 +44,8 @@ async function loadChildren() {
       </div>
       <div style="text-align:right">
         <div style="font-size:.82rem;font-weight:700;color:var(--p);margin-bottom:.4rem">${avg}</div>
-        <button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5"
-          onclick="removeChild(${k.student_id})">ลบออก</button>
+        <button class="btn-del" title="ลบออก" aria-label="ลบออก"
+          onclick="removeChild(${k.student_id})"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
     </div>`;
   }).join('');

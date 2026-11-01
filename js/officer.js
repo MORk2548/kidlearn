@@ -82,7 +82,7 @@ function ofRenderUsersList() {
       </div>
       <div class="of-user-actions">
         <button class="of-btn-sm" onclick="ofEditUser(${u.user_id})">แก้ไข</button>
-        <button class="of-btn-sm of-btn-danger" onclick="ofDeleteUser(${u.user_id}, '${u.full_name}')">ลบ</button>
+        <button class="btn-del" title="ลบผู้ใช้" aria-label="ลบผู้ใช้" onclick="ofDeleteUser(${u.user_id}, '${u.full_name}')"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
     </div>`;
   }).join('');
@@ -353,7 +353,6 @@ function _ofRenderUsersTab() {
       .of-user-actions{display:flex;gap:.4rem;flex-wrap:wrap}
       .of-btn-sm{padding:.4rem .7rem;font-size:.75rem;border:1px solid var(--bd);border-radius:6px;background:var(--cb);cursor:pointer;font-family:'KoHo',sans-serif;transition:all .15s}
       .of-btn-sm:hover{background:var(--tint);border-color:#A5B4FC;color:var(--s)}
-      .of-btn-danger:hover{background:#FEE2E2;border-color:#FECACA;color:#DC2626}
     </style>
     <div style="display:grid;grid-template-columns:220px 1fr;gap:1rem;align-items:start" id="of-grid">
       <div style="background:var(--cb);border-radius:14px;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06);max-height:76vh;overflow-y:auto">

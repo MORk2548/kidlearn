@@ -249,7 +249,7 @@ function siRender(){
             ${r.err ? `<div style="color:#B91C1C;font-size:.74rem;margin-top:.15rem">${_esc(r.err)}</div>` : ''}
             ${r.src >= 0 ? `<div style="color:var(--mu);font-size:.7rem">จาก ${_esc(si.sources[r.src]?.label || '')}</div>` : ''}</td>
           <td style="padding:.3rem;vertical-align:top"><input class="fc" style="padding:.3rem .5rem" inputmode="tel" value="${_esc(r.phone)}" oninput="siEdit(${i},'phone',this.value)"></td>
-          <td style="padding:.3rem;vertical-align:top"><button class="btn btn-s btn-sm" title="ลบแถว" onclick="siRemoveRow(${i})">✕</button></td>
+          <td style="padding:.3rem;vertical-align:top"><button class="btn-del" title="ลบแถว" aria-label="ลบแถว" onclick="siRemoveRow(${i})"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>
         </tr>`).join('')}</tbody>
       </table>
     </div>

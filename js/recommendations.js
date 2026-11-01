@@ -142,7 +142,7 @@ async function loadRec() {
           <div style="flex:1;height:8px;background:var(--bd);border-radius:4px">
             <div style="width:${avg}%;height:100%;background:${c};border-radius:4px"></div>
           </div>
-          <div style="font-weight:700;color:${c};font-size:.85rem;width:48px;text-align:right">${avg}%</div>
+          <div style="font-weight:700;color:${c};font-size:.85rem;width:48px;text-align:right">${avg}</div>
           <div style="font-size:.75rem;color:var(--mu);width:48px">${d.plays} ครั้ง</div>
         </div>`;
       }).join('')}

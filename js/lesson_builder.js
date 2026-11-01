@@ -35,7 +35,7 @@ function lbListHtml() {
       <div class="gb-card-actions">
         <button class="btn btn-sm btn-s" onclick="lbEdit(${l.lesson_id})">แก้ไข</button>
         <button class="btn btn-sm btn-g" onclick="openLessonReader(A.lb.lessons.find(x => x.lesson_id == ${l.lesson_id}))">ดูตัวอย่าง</button>
-        <button class="btn btn-sm" onclick="lbDelete(${l.lesson_id})" aria-label="ลบบทเรียน ${_esc(l.title)}"></button>
+        <button class="btn-del" onclick="lbDelete(${l.lesson_id})" title="ลบบทเรียน" aria-label="ลบบทเรียน ${_esc(l.title)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
     </div>`;
   return `<div class="ts">

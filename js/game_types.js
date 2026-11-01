@@ -61,7 +61,7 @@ function _gtRowsField(label, addLabel, rows) {
 }
 
 const _gtRemoveBtn = (count) =>
-  `<button type="button" class="btn btn-sm ge-remove" onclick="_gtRemoveRow(this)" aria-label="ลบแถวนี้"${count <= GT_MIN_ROWS ? ' disabled' : ''}>✕</button>`;
+  `<button type="button" class="btn-del ge-remove" onclick="_gtRemoveRow(this)" title="ลบแถวนี้" aria-label="ลบแถวนี้"${count <= GT_MIN_ROWS ? ' disabled' : ''}><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
 
 function _gtSyncRows(rowsEl) {
   const rows = rowsEl.querySelectorAll('.ge-row');

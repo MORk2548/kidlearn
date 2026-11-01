@@ -47,7 +47,7 @@ async function _loadAdminSubjects(){
     </div>
     ${(res.subjects||[]).map(s=>`<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .25rem;border-bottom:1px solid var(--sf)">
       <span>${_esc(s.name)}</span>
-      <button class="btn" style="margin-left:auto" onclick="adminDeleteSubject(${s.subject_id},this.previousElementSibling.textContent)">ลบ</button>
+      <button class="btn-del" style="margin-left:auto" title="ลบวิชา" aria-label="ลบวิชา" onclick="adminDeleteSubject(${s.subject_id},this.previousElementSibling.textContent)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </div>`).join('')}`;
 }
 async function adminAddSubject(){
@@ -137,8 +137,8 @@ function _renderUserRow(u){
           onclick="adminToggleUser(${u.user_id},${u.is_active})">${u.is_active?'ระงับ':'เปิดใช้'}</button>
         <button class="btn btn-sm" style="background:var(--tint);color:var(--s);border:1px solid #C7D2FE;font-size:.72rem"
           onclick="adminResetPass(${u.user_id},'${u.full_name}')">รีเซ็ต</button>
-        ${u.role!=='admin'?`<button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;font-size:.72rem"
-          onclick="adminDeleteUser(${u.user_id},'${u.full_name}')">ลบ</button>`:''}
+        ${u.role!=='admin'?`<button class="btn-del" title="ลบผู้ใช้" aria-label="ลบผู้ใช้"
+          onclick="adminDeleteUser(${u.user_id},'${u.full_name}')"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`:''}
       </div>
     </td>
   </tr>`;

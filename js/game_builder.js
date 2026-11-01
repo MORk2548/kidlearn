@@ -75,7 +75,7 @@ function gbListHtml() {
       <div class="gb-card-actions">
         <button class="btn btn-sm btn-s" onclick="gbEdit(${g.game_id})">แก้ไข</button>
         <button class="btn btn-sm btn-g" onclick="gbPreviewSaved(${g.game_id})">ทดลองเล่น</button>
-        <button class="btn btn-sm" onclick="gbDelete(${g.game_id})" aria-label="ลบเกม ${_esc(g.name)}"></button>
+        <button class="btn-del" onclick="gbDelete(${g.game_id})" title="ลบเกม" aria-label="ลบเกม ${_esc(g.name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
     </div>`;
   };
@@ -184,11 +184,11 @@ function gbEditHtml() {
       ${d.questions.map((q, i) => `
         <div class="gb-q" data-i="${i}">
           <div class="gb-q-head"><strong>ข้อ ${i + 1}</strong>
-            ${d.questions.length > 1 ? `<button class="btn btn-sm" onclick="gbRemoveQuestion(${i})" aria-label="ลบข้อ ${i + 1}">ลบข้อนี้</button>` : ''}</div>
+            ${d.questions.length > 1 ? `<button class="btn-del" onclick="gbRemoveQuestion(${i})" title="ลบข้อนี้" aria-label="ลบข้อ ${i + 1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ''}</div>
           <div class="gb-q-img">
             ${(q.images || []).map((url, k) => `<figure>
               <img src="${_esc(url)}" alt="รูปที่ ${k + 1} ของข้อ ${i + 1}">
-              <button type="button" onclick="gbRemoveImage(${i}, ${k})" aria-label="ลบรูปที่ ${k + 1} ของข้อ ${i + 1}">✕</button>
+              <button type="button" class="btn-del" onclick="gbRemoveImage(${i}, ${k})" title="ลบรูป" aria-label="ลบรูปที่ ${k + 1} ของข้อ ${i + 1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </figure>`).join('')}
             ${(q.images || []).length < GB_MAX_IMAGES ? `<label class="btn btn-sm btn-s">เพิ่มรูป (ไม่บังคับ ไม่เกิน ${GB_MAX_IMAGES} รูป)
               <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onchange="gbUploadImages(${i}, this)"></label>` : ''}

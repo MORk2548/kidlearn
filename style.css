@@ -588,6 +588,32 @@ tbody tr:last-child td {
   margin-bottom: 1.4rem
 }
 
+.btn-del {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: #FEE2E2;
+  color: #DC2626;
+  font-size: .9rem;
+  cursor: pointer;
+  transition: var(--tr)
+}
+
+.btn-del:hover:not(:disabled) {
+  background: #DC2626;
+  color: #fff
+}
+
+.btn-del:disabled {
+  opacity: .35;
+  cursor: default
+}
+
 .att-dot {
   display: inline-block;
   width: .55rem;
@@ -1822,14 +1848,7 @@ tbody tr:last-child td {
 .gb-q-img figure button {
   position: absolute;
   top: 4px;
-  right: 4px;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, .65);
-  color: #fff;
-  cursor: pointer
+  right: 4px
 }
 
 .gb-q-img label {
@@ -2188,11 +2207,6 @@ tbody tr:last-child td {
   color: var(--s);
   font-weight: 800;
   font-size: .85rem
-}
-
-.ge-remove:disabled {
-  opacity: .35;
-  cursor: default
 }
 
 .ge-add {
