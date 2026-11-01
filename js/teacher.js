@@ -124,9 +124,6 @@ async function loadTeach() {
   } else if(setup) setup.innerHTML='';
   if(main) main.style.display='';
 
-  const el=document.getElementById('tc-stats');
-  if(el) el.innerHTML='<div style="color:var(--mu)">⏳ กำลังโหลด...</div>';
-
   const [statsRes,stuRes,roomRes,cardRes,subRes]=await Promise.all([
     apiTeacherStats().catch(()=>({ok:false})),
     apiAllStudents().catch(()=>({ok:false})),
@@ -138,14 +135,6 @@ async function loadTeach() {
   A.tcAllSubjects=subRes.ok?(subRes.subjects||[]):[];
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
-
-  const total  = statsRes.ok ? (+statsRes.total_students || A.tcStudents.length) : A.tcStudents.length;
-  const avgAll =total?Math.round(A.tcStudents.reduce((s,x)=>s+(+x.avg_score||0),0)/total):0;
-
-  if(el) el.innerHTML=`
-    <div class="stat"><div class="si">👦</div><div><div class="sv">${total}</div><div class="sl2">นักเรียน</div></div></div>
-    <div class="stat"><div class="si">📚</div><div><div class="sv">${A.tcSubjects.length}</div><div class="sl2">วิชา</div></div></div>
-    <div class="stat"><div class="si">📊</div><div><div class="sv">${avgAll}%</div><div class="sl2">คะแนนเฉลี่ย</div></div></div>`;
 
   _renderTcTabs();
   ensureTcPlanPanel();
