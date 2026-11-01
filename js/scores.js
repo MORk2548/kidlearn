@@ -3,6 +3,10 @@ async function loadScores() {
   const childWrap = document.getElementById('child-sel-wrap');
   const tb = document.getElementById('score-tb');
   ensureScoreInsightsHost();
+  const isStudent = A.role === 'student';
+  document.getElementById('score-games').style.display = isStudent ? 'block' : 'none';
+  document.getElementById('score-insights').style.display = isStudent ? 'none' : '';
+  document.querySelector('#s-scores .tw').style.display = isStudent ? 'none' : '';
   tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">กำลังโหลด...</td></tr>';
 
   if (A.role === 'parent') {
@@ -45,18 +49,75 @@ async function loadScores() {
 
   if (A.role === 'student') {
     childWrap.style.display = 'none';
-    const [res, analytics] = await Promise.all([
-      apiScores().catch(() => ({ ok: false, scores: [] })),
-      apiStudentAnalytics().catch(() => ({ ok: false })),
-    ]);
-    renderScoreInsights(analytics.ok ? analytics : null);
-    renderScoreTable(res.ok ? res.scores : []);
+    loadStudentScoreGames();
     return;
   }
 
   childWrap.style.display = 'none';
   renderScoreInsights(null);
   tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:2rem">ครูดูคะแนนรวมได้ที่เมนูแผงควบคุม</td></tr>';
+}
+
+// ── นักเรียน: การ์ดเกมละใบ ดาว 5 ดวงจากคะแนนดีที่สุด (เต็ม 100) ──
+// 1-39 = 1 ดาว, ทุก 20 คะแนนได้เพิ่ม 1 ดาว, 5 ดาวต้องได้เต็ม 100
+function scoreStars(best) {
+  if (best == null || best <= 0) return 0;
+  return best >= 100 ? 5 : Math.max(1, Math.floor(best / 20));
+}
+
+function starsHtml(n) {
+  return `<span class="sc-stars" role="img" aria-label="${n} ดาวจาก 5">${
+    [1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? 'fa-solid on' : 'fa-regular'} fa-star" aria-hidden="true"></i>`).join('')}</span>`;
+}
+
+function nextStarHint(best, stars) {
+  if (stars >= 5) return 'ได้ดาวเต็มแล้ว เก่งมาก';
+  const target = stars === 4 ? 100 : (stars + 1) * 20;
+  return `อีก ${target - best} คะแนนได้ ${stars + 1} ดาว`;
+}
+
+let _scoreGames = [];
+let _scoreGameFilter = 'all';
+
+async function loadStudentScoreGames() {
+  const el = document.getElementById('score-games');
+  el.innerHTML = '<div class="ts" style="color:var(--mu)">กำลังโหลด...</div>';
+  const res = await apiStudentGames().catch(() => ({ ok: false }));
+  if (!res.ok) { el.innerHTML = `<div class="ts" style="color:#EF4444">${_esc(res.error || 'โหลดคะแนนไม่สำเร็จ')}</div>`; return; }
+  _scoreGames = res.games.map(g => {
+    const best = g.best_score == null ? null : +g.best_score;
+    return { ...g, best, plays: +g.play_count || 0, stars: scoreStars(best) };
+  });
+  renderStudentScoreGames();
+}
+
+function renderStudentScoreGames() {
+  const el = document.getElementById('score-games');
+  const subjects = [...new Map(_scoreGames.map(g => [String(g.subject_id), g.subject_name])).entries()];
+  const filters = [['all', 'ทุกวิชา'], ...subjects, ['notfull', 'ยังได้ดาวไม่เต็ม']];
+  const shown = _scoreGames.filter(g => _scoreGameFilter === 'all' || (_scoreGameFilter === 'notfull' ? g.stars < 5 : String(g.subject_id) === _scoreGameFilter));
+  const totalStars = _scoreGames.reduce((t, g) => t + g.stars, 0);
+  const card = g => {
+    const type = GAME_TYPES[g.game_type];
+    const played = g.plays > 0;
+    return `<div class="sc-card${played ? '' : ' new'}">
+      <div class="sc-name">${_esc(g.name)}</div>
+      <div class="sc-meta">${_esc(g.subject_name)}${type ? ' · ' + _esc(type.label) : ''}</div>
+      ${played ? `${starsHtml(g.stars)}
+        <div class="sc-meta">ดีที่สุด ${g.best}/100 · เล่น ${g.plays} ครั้ง</div>
+        <div class="sc-hint">${nextStarHint(g.best, g.stars)}</div>`
+      : `<div class="sc-meta" style="margin:.6rem 0">ยังไม่เคยเล่น</div>`}
+      <button class="btn ${played ? 'btn-s' : 'btn-p'} btn-sm sc-play" onclick="playStudentGame(${g.game_id})">${played ? 'เล่นอีกครั้ง' : 'เริ่มเล่น'}</button>
+    </div>`;
+  };
+  el.innerHTML = !_scoreGames.length
+    ? '<div class="ts"><div class="gb-empty">ยังไม่มีเกมจากครู</div></div>'
+    : `<div class="ts">
+      <div class="sc-total">สะสมดาวได้ ${totalStars} จาก ${_scoreGames.length * 5} ดวง</div>
+      <div class="sc-filters">${filters.map(([v, l]) =>
+        `<button class="child-btn${_scoreGameFilter === v ? ' active' : ''}" onclick="_scoreGameFilter='${v}';renderStudentScoreGames()">${_esc(l)}</button>`).join('')}</div>
+      <div class="sc-grid">${shown.map(card).join('') || '<div class="gb-empty">ได้ดาวเต็มทุกเกมแล้ว</div>'}</div>
+    </div>`;
 }
 
 function ensureScoreInsightsHost() {

@@ -66,7 +66,7 @@ async function loadStudentGames(){
         <span class="sg-name">${_esc(g.name)}</span>
         ${g.description?`<span class="sg-meta">${_esc(g.description)}</span>`:''}
         <span class="sg-meta">${_esc(type?.label||'')} · ${g.question_count} ข้อ · ${Math.round(g.time_limit/60)} นาที</span>
-        <span class="sg-meta">${best==null?'ยังไม่เคยเล่น':`คะแนนสูงสุด <strong style="color:${scoreColor(best)}">${best}/100</strong>`}</span>
+        ${best==null?'<span class="sg-meta">ยังไม่เคยเล่น</span>':`${starsHtml(scoreStars(best))}<span class="sg-meta">ดีที่สุด ${best}/100</span>`}
       </span>
       <span class="sg-play">เล่น</span>
     </button>`;
@@ -111,6 +111,6 @@ async function playStudentGame(gameId){
     if(msg) msg.insertAdjacentHTML('beforeend',saved.ok
       ?'<div class="gp-saved">บันทึกคะแนนแล้ว</div>'
       :`<div class="gp-saved err">บันทึกคะแนนไม่สำเร็จ: ${_esc(saved.error||'ลองใหม่อีกครั้ง')}</div>`);
-    if(saved.ok) loadHome();
+    if(saved.ok) document.getElementById('s-scores').style.display==='block' ? loadScores() : loadHome();
   }});
 }

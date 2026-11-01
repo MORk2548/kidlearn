@@ -620,6 +620,152 @@ tbody tr:last-child td {
   margin-bottom: 1.4rem
 }
 
+.tc-games {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: .9rem;
+  align-items: start
+}
+
+.tc-game-list {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem
+}
+
+.tc-game-item {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: .6rem .75rem;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: var(--cb);
+  color: var(--tx);
+  font: inherit;
+  text-align: left;
+  cursor: pointer
+}
+
+.tc-game-item.active {
+  border-color: var(--s);
+  background: var(--tint)
+}
+
+.tc-game-name {
+  font-weight: 700;
+  font-size: .88rem
+}
+
+.tc-game-sub {
+  font-size: .74rem;
+  color: var(--mu)
+}
+
+.tc-pill {
+  display: inline-block;
+  min-width: 3.6rem;
+  padding: .15rem .4rem;
+  border-radius: 6px;
+  font-weight: 700;
+  color: #fff
+}
+
+.tc-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+  vertical-align: middle
+}
+
+.tc-bars i {
+  display: block;
+  width: 6px;
+  border-radius: 2px
+}
+
+@media(max-width:768px) {
+  .tc-games {
+    grid-template-columns: 1fr
+  }
+
+  .tc-game-list {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: .25rem
+  }
+
+  .tc-game-item {
+    flex: 0 0 auto;
+    max-width: 220px
+  }
+}
+
+.sc-total {
+  font-weight: 700;
+  margin-bottom: .75rem
+}
+
+.sc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: 1rem
+}
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: .75rem
+}
+
+.sc-card {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  padding: 1rem;
+  border: 2px solid var(--bd);
+  border-radius: 14px;
+  background: var(--cb)
+}
+
+.sc-card.new {
+  border-style: dashed
+}
+
+.sc-name {
+  font-weight: 700;
+  font-size: 1rem
+}
+
+.sc-meta {
+  font-size: .8rem;
+  color: var(--mu)
+}
+
+.sc-stars {
+  font-size: 1.3rem;
+  color: var(--bd);
+  letter-spacing: .1rem;
+  margin: .3rem 0
+}
+
+.sc-stars .on {
+  color: #F59E0B
+}
+
+.sc-hint {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--s)
+}
+
+.sc-play {
+  margin-top: auto;
+  align-self: stretch
+}
+
 .btn-del {
   flex-shrink: 0;
   width: 1.75rem;

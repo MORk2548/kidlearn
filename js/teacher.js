@@ -213,25 +213,25 @@ async function openTcCard(classroomId, subjectId){
   const book=document.getElementById('tc-gradebook');
   document.getElementById('tc-history').style.display='none';
   book.style.display='block';
-  book.innerHTML='<div style="color:var(--mu)">กำลังโหลดสมุดคะแนน...</div>';
-  const res=await apiTeacherGradebook(classroomId, subjectId).catch(()=>({ok:false}));
-  if(!res.ok){book.innerHTML=`<div style="color:#EF4444">${res.error||'โหลดสมุดคะแนนไม่สำเร็จ'}</div>`;return;}
-  const cells={};
-  res.cells.forEach(c=>{(cells[c.student_id] ||= {})[c.col]=Math.round(+c.val);});
+  book.innerHTML='<div style="color:var(--mu)">กำลังโหลดคะแนน...</div>';
+  const res=await apiTeacherGameResults(classroomId, subjectId).catch(()=>({ok:false}));
+  if(!res.ok){book.innerHTML=`<div style="color:#EF4444">${res.error||'โหลดคะแนนไม่สำเร็จ'}</div>`;return;}
   const room=A.tcClassrooms.find(r=>r.classroom_id==classroomId)||{};
   const subject=subjectId?A.tcSubjects.find(s=>s.subject_id==subjectId):null;
+  const games=_tcGameStats(res);
   A.tcSubject=subjectId;
-  A.tcBook={...res, cells, classroom_id:classroomId, subject_id:subjectId,
+  A.tcBook={students:res.students, games, gameId:games.keys().next().value??null,
+    classroom_id:classroomId, subject_id:subjectId,
     title:_tcCardTitle({...room, subject_id:subjectId, subject_name:subject?.subject_name})};
   book.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
-      <h3 style="margin:0">สมุดคะแนน ${A.tcBook.title}</h3>
+      <h3 style="margin:0">คะแนนรายเกม ${A.tcBook.title}</h3>
       <div style="display:flex;gap:.4rem">
         <button class="btn btn-sm" onclick="exportTcBookCsv()">ส่งออก CSV</button>
         <button class="btn btn-sm" onclick="closeTcCard()">✕ ปิด</button>
       </div>
     </div>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
+    ${games.size?`<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
       <input class="fc" style="flex:1;min-width:150px" placeholder="ค้นหาชื่อหรือเลขที่" value="${_esc(A.tcBookView.search)}"
         oninput="A.tcBookView.search=this.value;_renderTcBookRows()">
       <select class="fc" style="width:auto" onchange="A.tcBookView.sort=this.value;_renderTcBookRows()">
@@ -241,11 +241,60 @@ async function openTcCard(classroomId, subjectId){
       <label style="font-size:.82rem;cursor:pointer"><input type="checkbox"${A.tcBookView.attentionOnly?' checked':''}
         onchange="A.tcBookView.attentionOnly=this.checked;_renderTcBookRows()"> เฉพาะคนที่ต้องดูแล</label>
     </div>
-    <div style="font-size:.72rem;color:var(--mu);margin-bottom:.5rem"><span class="att-dot"></span>ต้องดูแล = คะแนนเฉลี่ยต่ำกว่า ${res.attention_rule.min_score} หรือไม่ได้เล่นเกิน ${res.attention_rule.inactive_days} วัน ·
-      ช่องในตาราง = ${subjectId?'คะแนนดีที่สุดของแต่ละเกม':'คะแนนเฉลี่ยของแต่ละวิชา'} · กดชื่อเพื่อดูประวัติ</div>
-    <div id="tc-book-rows"></div>`;
+    <div style="font-size:.72rem;color:var(--mu);margin-bottom:.6rem"><span class="att-dot"></span>ต้องดูแล = คะแนนเฉลี่ยต่ำกว่า ${res.attention_rule.min_score} หรือไม่ได้เล่นเกิน ${res.attention_rule.inactive_days} วัน · กดชื่อเพื่อดูประวัติ</div>
+    <div class="tc-games">
+      <div class="tc-game-list" id="tc-game-list"></div>
+      <div class="tc-game-detail" id="tc-book-rows"></div>
+    </div>`
+    :'<div class="gb-empty">ยังไม่มีเกมที่มอบหมายให้ห้องนี้</div>'}`;
+  _renderTcGameList();
   _renderTcBookRows();
   book.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// รวมทุกครั้งที่เล่นเป็นสถิติต่อเกม ต่อนักเรียน (attempts เรียงตามเวลาจาก backend)
+function _tcGameStats(res){
+  const avg=xs=>xs.length?Math.round(xs.reduce((t,x)=>t+x,0)/xs.length):null;
+  const games=new Map(res.games.map(g=>[g.game_id,{...g, byStudent:new Map()}]));
+  for(const a of res.attempts){
+    const g=games.get(a.game_id);
+    if(!g)continue;
+    const s=g.byStudent.get(a.student_id)||{series:[],times:[]};
+    s.series.push(+a.score);
+    if(+a.time_spent) s.times.push(+a.time_spent);
+    s.lastPlayed=a.played_at;
+    g.byStudent.set(a.student_id,s);
+  }
+  for(const g of games.values()){
+    for(const s of g.byStudent.values()) Object.assign(s,{best:Math.max(...s.series), last:s.series.at(-1), plays:s.series.length, avgTime:avg(s.times)});
+    const stats=[...g.byStudent.values()], bests=stats.map(s=>s.best);
+    g.summary={played:stats.length, avg:avg(bests), max:bests.length?Math.max(...bests):null,
+      min:bests.length?Math.min(...bests):null, avgTime:avg(stats.flatMap(s=>s.times))};
+  }
+  return games;
+}
+
+function _tcTime(sec){
+  if(sec==null)return '—';
+  return sec<60?`${sec} วิ`:`${Math.round(sec/60)} นาที`;
+}
+
+function selectTcGame(gameId){
+  A.tcBook.gameId=gameId;
+  _renderTcGameList();
+  _renderTcBookRows();
+}
+
+function _renderTcGameList(){
+  const el=document.getElementById('tc-game-list');
+  if(!el||!A.tcBook)return;
+  const total=A.tcBook.students.length;
+  el.innerHTML=[...A.tcBook.games.values()].map(g=>`
+    <button class="tc-game-item${g.game_id===A.tcBook.gameId?' active':''}" onclick="selectTcGame(${g.game_id})">
+      <span class="tc-game-name">${_esc(g.name)}</span>
+      <span class="tc-game-sub">${A.tcBook.subject_id?'':_esc(g.subject_name)+' · '}${g.summary.played
+        ?`เล่นแล้ว ${g.summary.played}/${total} คน · เฉลี่ย ${g.summary.avg}`:'ยังไม่มีใครเล่น'}</span>
+    </button>`).join('');
 }
 
 function closeTcCard(){
@@ -255,32 +304,33 @@ function closeTcCard(){
   document.getElementById('tc-history').style.display='none';
 }
 
+// นักเรียนที่ยังไม่ได้เล่นเกมนี้อยู่ท้ายเสมอเมื่อเรียงตามคะแนนหรือเวลา
 function _tcBookVisibleRows(){
-  const {students}=A.tcBook, v=A.tcBookView;
+  const {students,games,gameId}=A.tcBook, v=A.tcBookView;
+  const stat=s=>games.get(gameId)?.byStudent.get(s.student_id);
   const q=v.search.trim().toLowerCase();
-  const avg=s=>s.avg_score==null?-1:+s.avg_score;
   const byName=(a,b)=>a.full_name.localeCompare(b.full_name,'th');
-  const sorters={no:(a,b)=>(a.student_no??999)-(b.student_no??999)||byName(a,b), name:byName, avg_asc:(a,b)=>avg(a)-avg(b),
-    avg_desc:(a,b)=>avg(b)-avg(a), recent:(a,b)=>new Date(b.last_played||0)-new Date(a.last_played||0)};
+  const byNo=(a,b)=>(a.student_no??999)-(b.student_no??999)||byName(a,b);
+  const unplayedLast=f=>(a,b)=>(!stat(a)-!stat(b))||(stat(a)&&stat(b)?f(stat(a),stat(b)):byNo(a,b));
+  const sorters={no:byNo, name:byName, avg_asc:unplayedLast((x,y)=>x.best-y.best),
+    avg_desc:unplayedLast((x,y)=>y.best-x.best), recent:unplayedLast((x,y)=>new Date(y.lastPlayed)-new Date(x.lastPlayed))};
   // พิมพ์ตัวเลขล้วน = หาเลขที่ตรงตัว ไม่งั้น "1" จะไปเจอเลขที่ 10-19 ด้วย
   const match=s=>/^\d+$/.test(q)?s.student_no==q:s.full_name.toLowerCase().includes(q);
-  return students.filter(s=>(!q||match(s))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]);
+  return students.filter(s=>(!q||match(s))&&(!v.attentionOnly||s.needs_attention)).sort(sorters[v.sort]).map(s=>({...s, stat:stat(s)}));
 }
 
 function exportTcBookCsv(){
-  if(!A.tcBook)return;
-  const {columns,cells}=A.tcBook;
+  const g=A.tcBook?.games.get(A.tcBook.gameId);
+  if(!g)return;
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
   const lines=[
-    ['เลขที่','นักเรียน',...columns.map(c=>c.name),'เฉลี่ย','เล่นล่าสุด','ต้องดูแล'],
-    ..._tcBookVisibleRows().map(s=>[s.student_no??'',s.full_name,...columns.map(c=>cells[s.student_id]?.[c.id]),
-      s.avg_score==null?'':Math.round(+s.avg_score),
-      s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'',
-      s.needs_attention?'ใช่':'']),
+    ['เลขที่','นักเรียน','ดีที่สุด','ล่าสุด','จำนวนครั้ง','คะแนนทุกครั้ง','เวลาเฉลี่ย (วินาที)','เล่นล่าสุด','ต้องดูแล'],
+    ..._tcBookVisibleRows().map(({stat:s,...st})=>[st.student_no??'',st.full_name,s?.best,s?.last,s?.plays??0,s?.series.join(' '),
+      s?.avgTime,s?new Date(s.lastPlayed).toLocaleDateString('th-TH'):'',st.needs_attention?'ใช่':'']),
   ].map(r=>r.map(q).join(','));
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
-  a.download=`คะแนน ${A.tcBook.title.replace(/[\\/:*?"<>|]/g,'-')} ${new Date().toISOString().slice(0,10)}.csv`;
+  a.download=`คะแนน ${g.name} ${A.tcBook.title} ${new Date().toISOString().slice(0,10)}.csv`.replace(/[\\/:*?"<>|]/g,'-');
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -298,30 +348,33 @@ async function editTcStudentNo(sid){
 
 function _renderTcBookRows(){
   const el=document.getElementById('tc-book-rows');
-  if(!el||!A.tcBook)return;
-  const {columns,cells,students}=A.tcBook;
-  const rows=_tcBookVisibleRows();
-  const cell=val=>val==null?'<span style="color:var(--bd)">–</span>'
-    :`<span style="display:inline-block;min-width:2.4rem;padding:.15rem .35rem;border-radius:6px;font-weight:700;color:#fff;background:${scoreColor(val)}">${val}</span>`;
+  const g=A.tcBook?.games.get(A.tcBook.gameId);
+  if(!el||!g)return;
+  const rows=_tcBookVisibleRows(), sm=g.summary;
+  const pill=val=>`<span class="tc-pill" style="background:${scoreColor(val)}">${val}/100</span>`;
+  const bars=series=>`<span class="tc-bars" role="img" aria-label="คะแนนทุกครั้ง ${series.join(', ')}">${
+    series.slice(-10).map(v=>`<i style="height:${Math.max(3,v/100*22)}px;background:${scoreColor(v)}"></i>`).join('')}</span>`;
   const th='padding:.5rem .6rem;white-space:nowrap;font-weight:700';
-  const sticky='position:sticky;left:0;z-index:1';
-  el.innerHTML=`<div style="font-size:.78rem;color:var(--mu);margin-bottom:.35rem">แสดง ${rows.length} จาก ${students.length} คน ·
-      ต้องดูแล ${students.filter(s=>s.needs_attention).length} คน</div>
+  const td='padding:.45rem .6rem;text-align:center;white-space:nowrap';
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+      <strong style="font-size:1rem">${_esc(g.name)}</strong>
+      <span style="font-size:.8rem;color:var(--mu)">${sm.played?`เฉลี่ย ${sm.avg} · สูงสุด ${sm.max} · ต่ำสุด ${sm.min} · เวลาเฉลี่ย ${_tcTime(sm.avgTime)}`:'ยังไม่มีใครเล่นเกมนี้'}</span>
+    </div>
     <div style="overflow-x:auto;border:1px solid var(--bd);border-radius:10px">
     <table style="border-collapse:collapse;font-size:.8rem;width:100%">
       <thead><tr style="background:var(--sf);color:var(--tx)">
-        <th style="${th};${sticky};background:var(--sf);color:var(--tx);text-align:left">เลขที่ · นักเรียน</th>
-        ${columns.map(c=>`<th style="${th};max-width:7rem;overflow:hidden;text-overflow:ellipsis" title="${_esc(c.name)}">${_esc(c.name)}</th>`).join('')}
-        <th style="${th}">เฉลี่ย</th><th style="${th}">เล่นล่าสุด</th>
+        <th style="${th};text-align:left">เลขที่ · นักเรียน</th><th style="${th}">ดีที่สุด</th><th style="${th}">ล่าสุด</th>
+        <th style="${th}">เล่น</th><th style="${th}">ทุกครั้ง</th><th style="${th}">เวลาเฉลี่ย</th><th style="${th}">เล่นล่าสุด</th>
       </tr></thead>
-      <tbody>${rows.map(s=>{
-        const bg=A.tcStudent==s.student_id?'var(--tint)':'#fff';
-        return `<tr style="border-top:1px solid var(--sf);cursor:pointer;background:${bg}" onclick="selectTcStudent(${s.student_id})">
-        <td style="padding:.45rem .6rem;${sticky};background:${bg};white-space:nowrap;font-weight:600"><span title="กดเพื่อแก้เลขที่" onclick="event.stopPropagation();editTcStudentNo(${s.student_id})" style="display:inline-block;min-width:1.8rem;margin-right:.35rem;padding:.05rem .3rem;border:1px dashed var(--bd);border-radius:6px;text-align:center;color:var(--tx)">${s.student_no??'–'}</span>${s.needs_attention?'<span class="att-dot" title="ต้องดูแล"></span>':''}${_esc(s.full_name)}</td>
-        ${columns.map(c=>`<td style="padding:.45rem .6rem;text-align:center">${cell(cells[s.student_id]?.[c.id])}</td>`).join('')}
-        <td style="padding:.45rem .6rem;text-align:center">${cell(s.avg_score==null?null:Math.round(+s.avg_score))}</td>
-        <td style="padding:.45rem .6rem;text-align:center;white-space:nowrap;color:var(--mu)">${s.last_played?new Date(s.last_played).toLocaleDateString('th-TH'):'ยังไม่เคยเล่น'}</td>
-      </tr>`;}).join('')||`<tr><td colspan="${columns.length+3}" style="padding:1rem;text-align:center;color:var(--mu)">ไม่พบนักเรียน</td></tr>`}</tbody>
+      <tbody>${rows.map(({stat:s,...st})=>{
+        const bg=A.tcStudent==st.student_id?'var(--tint)':'var(--cb)';
+        return `<tr style="border-top:1px solid var(--sf);cursor:pointer;background:${bg}" onclick="selectTcStudent(${st.student_id})">
+        <td style="padding:.45rem .6rem;white-space:nowrap;font-weight:600"><span title="กดเพื่อแก้เลขที่" onclick="event.stopPropagation();editTcStudentNo(${st.student_id})" style="display:inline-block;min-width:1.8rem;margin-right:.35rem;padding:.05rem .3rem;border:1px dashed var(--bd);border-radius:6px;text-align:center;color:var(--tx)">${st.student_no??'–'}</span>${st.needs_attention?'<span class="att-dot" title="ต้องดูแล"></span>':''}${_esc(st.full_name)}</td>
+        ${s?`<td style="${td}">${pill(s.best)}</td><td style="${td}">${s.last}/100</td><td style="${td}">${s.plays}</td>
+          <td style="${td}">${bars(s.series)}</td><td style="${td};color:var(--mu)">${_tcTime(s.avgTime)}</td>
+          <td style="${td};color:var(--mu)">${new Date(s.lastPlayed).toLocaleDateString('th-TH')}</td>`
+        :`<td colspan="6" style="padding:.45rem .6rem;color:var(--mu)">ยังไม่ได้เล่นเกมนี้</td>`}
+      </tr>`;}).join('')||'<tr><td colspan="7" style="padding:1rem;text-align:center;color:var(--mu)">ไม่พบนักเรียน</td></tr>'}</tbody>
     </table></div>`;
 }
 
@@ -363,10 +416,10 @@ async function selectTcStudent(sid){
     return;
   }
 
-  // สรุปรายวิชา
+  // สรุปรายเกม
   const bySub={};
   sc.forEach(s=>{
-    const k=s.subject_name||'อื่นๆ';
+    const k=s.game_name||'อื่นๆ';
     if(!bySub[k])bySub[k]={plays:0,total:0,totalMax:0};
     bySub[k].plays++;bySub[k].total+=(+s.score||0);bySub[k].totalMax+=(+s.max_score||100);
   });
@@ -382,10 +435,10 @@ async function selectTcStudent(sid){
     </div>`;
   }).join('');
 
-  // Group by subject for table
+  // จัดกลุ่มตามเกม
   const groups={};
   sc.forEach(s=>{
-    const k=s.subject_name||'อื่นๆ';
+    const k=s.game_name||'อื่นๆ';
     if(!groups[k])groups[k]={name:k,plays:0,totalScore:0,totalMax:0,time:0,best:0,rows:[]};
     const score=+s.score||0,max=+s.max_score||100;
     groups[k].plays++;groups[k].totalScore+=score;groups[k].totalMax+=max;
@@ -404,7 +457,7 @@ async function selectTcStudent(sid){
     const rows=group.rows.sort((a,b)=>new Date(b.played_at||0)-new Date(a.played_at||0)).map(s=>{
       const pct=Math.round((+s.score||0)/(+s.max_score||100)*100),c=pct>=80?'#065F46':pct>=50?'#92400E':'#991B1B';
       return `<tr style="border-bottom:1px solid var(--sf)">
-        <td style="padding:.5rem .75rem">${s.game_name||'—'}<br><span style="font-size:.7rem;color:var(--mu)">${GAME_TYPES[s.game_type]?.label||''}</span></td>
+        <td style="padding:.5rem .75rem">${s.subject_name||'—'}<br><span style="font-size:.7rem;color:var(--mu)">${GAME_TYPES[s.game_type]?.label||''}</span></td>
         <td style="padding:.5rem .75rem;text-align:center">
           <strong style="color:${c}">${s.score}/${s.max_score||100}</strong>
         </td>
@@ -423,8 +476,8 @@ async function selectTcStudent(sid){
     <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.4rem">ประวัติทั้งหมด ${sc.length} ครั้ง</div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:350px">
-      <thead><tr style="background:#1E3A5F;color:#fff">
-        <th style="padding:.5rem .75rem;text-align:left">เกม</th>
+      <thead><tr style="background:var(--sf);color:var(--tx)">
+        <th style="padding:.5rem .75rem;text-align:left">วิชา</th>
         <th style="padding:.5rem .75rem;text-align:center">คะแนน</th>
         <th style="padding:.5rem .75rem;text-align:center">เวลา</th>
         <th style="padding:.5rem .75rem;text-align:left">วันที่</th>

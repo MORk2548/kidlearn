@@ -667,7 +667,8 @@ function handleTeacherClassSummary(): never {
     DB::ok(['cards' => $cards]);
 }
 
-function handleTeacherGradebook(): never {
+// ผลคะแนนรายเกมของห้อง: เกมที่มอบหมายให้ห้อง (กรองวิชาได้) + ทุกครั้งที่นักเรียนในห้องเล่นเกมเหล่านั้น
+function handleTeacherGameResults(): never {
     authRole('teacher', 'admin', 'officer');
     ensureTeacherAssignmentSchema();
     $db = DB::get();
@@ -682,28 +683,24 @@ function handleTeacherGradebook(): never {
     $students = cardStudentRows("SELECT ?::int AS classroom_id, ?::int AS subject_id", [$classroomId, $subjectId]);
     foreach ($students as &$s) $s['needs_attention'] = needsAttention($s['avg_score'], $s['last_played']);
 
-    // วิชาเดียว: คอลัมน์ = เกม (คะแนนดีที่สุด); ทุกวิชา: คอลัมน์ = วิชา (คะแนนเฉลี่ย)
-    if ($subjectId) {
-        $columns = $db->all("SELECT g.game_id AS id, g.name, g.icon FROM games g
-                             JOIN game_classrooms gc ON gc.game_id = g.game_id AND gc.classroom_id = ?
-                             WHERE g.subject_id=? AND g.is_active=TRUE AND g.status='published'
-                             ORDER BY g.game_id", [$classroomId, $subjectId], 'ii');
-        $cells = $db->all(
-            "SELECT sc.student_id, sc.game_id AS col, MAX(sc.score) AS val
-             FROM scores sc JOIN students st ON st.student_id = sc.student_id
-             JOIN games g ON g.game_id = sc.game_id AND g.subject_id = ?
-             WHERE st.classroom_id = ? GROUP BY sc.student_id, sc.game_id",
-            [$subjectId, $classroomId], 'ii');
-    } else {
-        $columns = $db->all("SELECT subject_id AS id, name, icon FROM subjects ORDER BY order_no");
-        $cells = $db->all(
-            "SELECT sc.student_id, g.subject_id AS col, ROUND(AVG(sc.score)) AS val
-             FROM scores sc JOIN students st ON st.student_id = sc.student_id
-             JOIN games g ON g.game_id = sc.game_id
-             WHERE st.classroom_id = ? GROUP BY sc.student_id, g.subject_id",
-            [$classroomId], 'i');
-    }
-    DB::ok(['columns' => $columns, 'cells' => $cells, 'students' => $students,
+    $games = $db->all(
+        "SELECT g.game_id, g.name, g.game_type, sub.name AS subject_name
+         FROM games g
+         JOIN game_classrooms gc ON gc.game_id = g.game_id AND gc.classroom_id = ?
+         JOIN subjects sub ON sub.subject_id = g.subject_id
+         WHERE (?::int IS NULL OR g.subject_id = ?::int) AND g.is_active = TRUE AND g.status = 'published'
+         ORDER BY sub.order_no, g.game_id",
+        [$classroomId, $subjectId, $subjectId], 'iii');
+    $attempts = $db->all(
+        "SELECT sc.student_id, sc.game_id, sc.score, sc.time_spent, sc.played_at
+         FROM scores sc
+         JOIN students st ON st.student_id = sc.student_id AND st.classroom_id = ?
+         JOIN game_classrooms gc ON gc.game_id = sc.game_id AND gc.classroom_id = st.classroom_id
+         JOIN games g ON g.game_id = sc.game_id
+         WHERE (?::int IS NULL OR g.subject_id = ?::int)
+         ORDER BY sc.played_at",
+        [$classroomId, $subjectId, $subjectId], 'iii');
+    DB::ok(['games' => $games, 'attempts' => $attempts, 'students' => $students,
             'attention_rule' => ['min_score' => ATTENTION_MIN_SCORE, 'inactive_days' => ATTENTION_INACTIVE_DAYS]]);
 }
 
@@ -1105,9 +1102,13 @@ function handleStudentGames(): never {
         "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.time_limit, g.subject_id,
                 sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
                 (SELECT COUNT(*) FROM questions q WHERE q.game_id = g.game_id) AS question_count,
-                (SELECT MAX(sc.score) FROM scores sc JOIN students st ON st.student_id = sc.student_id
-                 WHERE sc.game_id = g.game_id AND st.user_id = ?) AS best_score
+                mine.best_score, COALESCE(mine.play_count, 0) AS play_count
          FROM games g JOIN subjects sub ON sub.subject_id = g.subject_id
+         LEFT JOIN LATERAL (
+             SELECT MAX(sc.score) AS best_score, COUNT(*) AS play_count
+             FROM scores sc JOIN students st ON st.student_id = sc.student_id
+             WHERE sc.game_id = g.game_id AND st.user_id = ?
+         ) mine ON TRUE
          WHERE " . STUDENT_PLAYABLE_GAME_SQL . "
          ORDER BY sub.order_no, g.game_id DESC",
         [myId(), myId()])]);
@@ -1231,7 +1232,7 @@ match ($action) {
     'teacher_create_students'  => handleTeacherCreateStudents(),
     'set_student_no'           => handleSetStudentNo(),
     'teacher_class_summary'    => handleTeacherClassSummary(),
-    'teacher_gradebook'        => handleTeacherGradebook(),
+    'teacher_game_results'     => handleTeacherGameResults(),
     'teacher_games'            => handleTeacherGames(),
     'teacher_game'             => handleTeacherGame(),
     'save_teacher_game'        => handleSaveTeacherGame(),
