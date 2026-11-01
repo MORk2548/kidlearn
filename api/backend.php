@@ -196,7 +196,7 @@ function parseRequestBody(): array {
 function enforceRequestPolicy(string $action, array $body): void {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $postActions = [
-        'login', 'logout', 'register', 'update_profile', 'change_password',
+        'login', 'logout', 'register', 'update_profile', 'change_password', 'request_password_otp',
         'auto_link', 'unlink_child', 'mark_notif_read',
         'create_plan',
         'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
@@ -1208,6 +1208,7 @@ match ($action) {
     'me'              => handleMe(),
     'update_profile'  => handleUpdateProfile(),
     'change_password' => handleChangePassword(),
+    'request_password_otp' => handleRequestPasswordOtp(),
     'upload_image'    => handleUploadImage(),
     'subjects'        => handleSubjects(),
     'scores'          => handleScores(),
@@ -1676,15 +1677,32 @@ function handleUpdateProfile(): never {
     DB::ok(['created_at' => $accountDates['created_at'] ?? null, 'updated_at' => $accountDates['updated_at'] ?? null]);
 }
 
+// ขั้นแรกของการเปลี่ยนรหัสผ่าน: ยืนยันรหัสเดิมแล้วส่ง OTP ไปที่อีเมลของบัญชี
+function handleRequestPasswordOtp(): never {
+    global $body;
+    auth();
+    $old = $body['old_password'] ?? '';
+    if (!$old) DB::fail('กรุณากรอกรหัสผ่านปัจจุบัน', 400);
+    $user = DB::get()->one("SELECT user_id, email, full_name, password FROM users WHERE user_id=?", [myId()], 'i');
+    if (!password_verify($old, $user['password'])) DB::fail('รหัสผ่านปัจจุบันไม่ถูกต้อง', 400);
+    if (!smtpConfigured()) DB::fail('ระบบยังไม่ได้ตั้งค่าการส่งอีเมล กรุณาติดต่อผู้ดูแลระบบ', 503);
+    $status = issuePasswordOtp($user, 'เปลี่ยนรหัสผ่าน');
+    if ($status === 'cooldown') DB::fail('เพิ่งส่งรหัสไปแล้ว กรุณารอ 1 นาทีก่อนขอใหม่', 429);
+    if ($status === 'failed') DB::fail('ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 502);
+    DB::ok(['email' => maskEmail($user['email'])]);
+}
+
 function handleChangePassword(): never {
     global $body;
     auth();
     $old = $body['old_password'] ?? '';
     $new = $body['new_password'] ?? '';
-    if (!$old || !$new) DB::fail('กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่', 400);
+    $otp = trim((string)($body['otp'] ?? ''));
+    if (!$old || !$new || !$otp) DB::fail('กรุณากรอกรหัสผ่านและรหัส OTP ให้ครบ', 400);
     if (strlen($new) < 6) DB::fail('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร', 400);
     $user = DB::get()->one("SELECT password FROM users WHERE user_id=?", [myId()], 'i');
-    if (!password_verify($old, $user['password'])) DB::fail('รหัสผ่านเดิมไม่ถูกต้อง', 401);
+    if (!password_verify($old, $user['password'])) DB::fail('รหัสผ่านเดิมไม่ถูกต้อง', 400);
+    if (!consumePasswordOtp(myId(), $otp)) DB::fail('รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว', 400);
     DB::get()->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($new, PASSWORD_BCRYPT), myId()], 'si');
     $updatedAt = DB::get()->one("SELECT updated_at FROM users WHERE user_id=?", [myId()], 'i')['updated_at'] ?? null;
@@ -2688,36 +2706,115 @@ function handleReport(): never {
 // FORGOT / RESET PASSWORD
 // ============================================================
 
+const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+
+function smtpConfigured(): bool {
+    return (bool)(envValue('SMTP_HOST') && envValue('SMTP_USER') && envValue('SMTP_PASS'));
+}
+
+// ส่งอีเมลข้อความล้วนผ่าน SMTP (SMTP_* ใน .env) — พอร์ต 465 เข้ารหัสตั้งแต่ต่อ พอร์ตอื่นใช้ STARTTLS
+function sendMail(string $to, string $subject, string $text): bool {
+    if (!smtpConfigured() || preg_match('/[\r\n]/', $to)) return false;
+    $host = envValue('SMTP_HOST');
+    $port = (int)envValue('SMTP_PORT', 587);
+    $user = envValue('SMTP_USER');
+    $from = envValue('SMTP_FROM', $user);
+    $sock = @stream_socket_client(($port === 465 ? 'ssl://' : 'tcp://') . "$host:$port", $errno, $errstr, 15);
+    if (!$sock) { error_log("SMTP connect failed: $errstr"); return false; }
+    stream_set_timeout($sock, 15);
+    $reply = function (string $code) use ($sock): bool {
+        do { $line = fgets($sock, 1024); if ($line === false) return false; } while (($line[3] ?? '') === '-');
+        return str_starts_with($line, $code);
+    };
+    $cmd = function (string $line, string $code) use ($sock, $reply): bool { fwrite($sock, "$line\r\n"); return $reply($code); };
+    $mime = fn(string $v): string => '=?UTF-8?B?' . base64_encode($v) . '?=';
+
+    $ok = $reply('220') && $cmd('EHLO kidlearn', '250');
+    if ($ok && $port !== 465)
+        $ok = $cmd('STARTTLS', '220') && stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT) && $cmd('EHLO kidlearn', '250');
+    $ok = $ok && $cmd('AUTH LOGIN', '334') && $cmd(base64_encode($user), '334') && $cmd(base64_encode(envValue('SMTP_PASS')), '235')
+        && $cmd("MAIL FROM:<$from>", '250') && $cmd("RCPT TO:<$to>", '250') && $cmd('DATA', '354');
+    if ($ok) {
+        $headers = 'From: ' . $mime(envValue('SMTP_FROM_NAME', 'KidLearn')) . " <$from>\r\n"
+            . "To: <$to>\r\nSubject: " . $mime($subject) . "\r\nDate: " . date('r') . "\r\n"
+            . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n";
+        $ok = $cmd($headers . "\r\n" . chunk_split(base64_encode($text)) . '.', '250');
+    }
+    fwrite($sock, "QUIT\r\n");
+    fclose($sock);
+    if (!$ok) error_log("SMTP send to $to failed");
+    return $ok;
+}
+
+function maskEmail(string $email): string {
+    [$name, $domain] = array_pad(explode('@', $email, 2), 2, '');
+    return mb_substr($name, 0, 2) . str_repeat('*', max(1, mb_strlen($name) - 2)) . '@' . $domain;
+}
+
+function ensurePasswordResetSchema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (!tableColumnExists('password_resets', 'attempts'))
+        DB::get()->rawQuery("ALTER TABLE password_resets ADD COLUMN attempts INT NOT NULL DEFAULT 0");
+}
+
+// เก็บแค่ hash ของ OTP ผูกกับ user_id (คอลัมน์ token เป็น UNIQUE และ OTP 6 หลักซ้ำข้ามผู้ใช้ได้)
+function otpHash(int $userId, string $otp): string {
+    return hash('sha256', "$userId:$otp");
+}
+
+/** @return 'sent'|'cooldown'|'failed' */
+function issuePasswordOtp(array $user, string $purpose): string {
+    ensurePasswordResetSchema();
+    $db = DB::get();
+    $userId = (int)$user['user_id'];
+    if ($db->one("SELECT 1 FROM password_resets WHERE user_id=? AND created_at > NOW() - INTERVAL '60 seconds'", [$userId], 'i'))
+        return 'cooldown';
+    $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $db->run("DELETE FROM password_resets WHERE user_id=?", [$userId], 'i');
+    $db->run("INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, NOW() + INTERVAL '" . OTP_TTL_MINUTES . " minutes')",
+        [$userId, otpHash($userId, $otp)], 'is');
+    $sent = sendMail($user['email'], "รหัส OTP สำหรับ$purpose - KidLearn",
+        "สวัสดี {$user['full_name']}\n\nรหัส OTP สำหรับ$purpose ของคุณคือ $otp\n"
+        . "รหัสนี้ใช้ได้ " . OTP_TTL_MINUTES . " นาที และใช้ได้ครั้งเดียว\n\n"
+        . "ถ้าคุณไม่ได้ขอรหัสนี้ ไม่ต้องทำอะไร รหัสผ่านของคุณจะไม่ถูกเปลี่ยน");
+    if (!$sent) $db->run("DELETE FROM password_resets WHERE user_id=?", [$userId], 'i');
+    return $sent ? 'sent' : 'failed';
+}
+
+// ใช้ OTP ได้ครั้งเดียว ผิดครบ OTP_MAX_ATTEMPTS ครั้งต้องขอใหม่ กันการเดาทีละเลข
+function consumePasswordOtp(int $userId, string $otp): bool {
+    ensurePasswordResetSchema();
+    $db = DB::get();
+    $row = $db->one("SELECT reset_id, token, attempts FROM password_resets WHERE user_id=? AND used=FALSE AND expires_at > NOW()", [$userId], 'i');
+    if (!$row) return false;
+    if (!hash_equals($row['token'], otpHash($userId, $otp))) {
+        if ((int)$row['attempts'] + 1 >= OTP_MAX_ATTEMPTS)
+            $db->run("DELETE FROM password_resets WHERE reset_id=?", [$row['reset_id']], 'i');
+        else
+            $db->run("UPDATE password_resets SET attempts = attempts + 1 WHERE reset_id=?", [$row['reset_id']], 'i');
+        return false;
+    }
+    $db->run("UPDATE password_resets SET used=TRUE WHERE reset_id=?", [$row['reset_id']], 'i');
+    return true;
+}
+
 function handleForgotPassword(): never {
     global $body;
-    $db    = DB::get();
     $email = trim($body['email'] ?? '');
     if (!$email) DB::fail('กรุณากรอกอีเมล', 400);
+    if (!smtpConfigured()) DB::fail('ระบบยังไม่ได้ตั้งค่าการส่งอีเมล กรุณาติดต่อครูหรือผู้ดูแลระบบ', 503);
 
-    $user = $db->one("SELECT user_id, full_name FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
-    // ไม่บอกว่าอีเมลมีหรือไม่ (security)
-    if (!$user) DB::ok(['message' => 'หากอีเมลนี้มีในระบบ จะได้รับรหัสรีเซ็ต']);
-
-    // สร้าง token 6 หลัก (OTP style — ง่ายต่อการใช้งานในระบบโรงเรียน)
-    $token = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    $expires = date('Y-m-d H:i:s', time() + 1800); // 30 นาที
-
-    // ลบ token เก่า
-    $db->run("DELETE FROM password_resets WHERE user_id=?", [$user['user_id']], 'i');
-    $db->run("INSERT INTO password_resets (user_id,token,expires_at) VALUES (?,?,?)",
-        [$user['user_id'], $token, $expires], 'iss');
-
-    // ในระบบจริงควรส่งอีเมล — ระบบนี้ return token โดยตรง (สำหรับ demo/โรงเรียน)
-    DB::ok([
-        'message' => 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน (ใช้ได้ 30 นาที)',
-        'otp'     => $token,   // production: ส่งอีเมลแทน
-        'name'    => $user['full_name'],
-    ]);
+    // ตอบข้อความเดียวกันเสมอ ไม่บอกว่าอีเมลนี้มีในระบบหรือไม่
+    $user = DB::get()->one("SELECT user_id, email, full_name FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
+    if ($user) issuePasswordOtp($user, 'รีเซ็ตรหัสผ่าน');
+    DB::ok(['message' => 'หากอีเมลนี้มีในระบบ รหัส OTP จะถูกส่งไปที่อีเมล']);
 }
 
 function handleResetPassword(): never {
     global $body;
-    $db    = DB::get();
     $email = trim($body['email']    ?? '');
     $token = trim($body['token']    ?? '');
     $pass  = $body['new_password']  ?? '';
@@ -2725,21 +2822,12 @@ function handleResetPassword(): never {
     if (!$email || !$token || !$pass) DB::fail('กรุณากรอกข้อมูลให้ครบ', 400);
     if (strlen($pass) < 6)           DB::fail('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 400);
 
-    $user = $db->one("SELECT user_id FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
-    if (!$user) DB::fail('ไม่พบอีเมลนี้ในระบบ', 404);
+    $user = DB::get()->one("SELECT user_id FROM users WHERE email=? AND is_active=TRUE", [$email], 's');
+    if (!$user || !consumePasswordOtp((int)$user['user_id'], $token))
+        DB::fail('รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว', 400);
 
-    $reset = $db->one(
-        "SELECT reset_id FROM password_resets
-         WHERE user_id=? AND token=? AND expires_at>NOW() AND used=FALSE",
-        [$user['user_id'], $token], 'is'
-    );
-    if (!$reset) DB::fail('รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว', 400);
-
-    // อัปเดตรหัสผ่าน
-    $db->run("UPDATE users SET password=? WHERE user_id=?",
+    DB::get()->run("UPDATE users SET password=? WHERE user_id=?",
         [password_hash($pass, PASSWORD_BCRYPT), $user['user_id']], 'si');
-    $db->run("UPDATE password_resets SET used=TRUE WHERE reset_id=?", [$reset['reset_id']], 'i');
-
     DB::ok(['message' => 'เปลี่ยนรหัสผ่านสำเร็จ']);
 }
 

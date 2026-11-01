@@ -1,32 +1,37 @@
 // ══════════════════════════════════════════════════════
-// THEME — 'light' | 'dark' | 'auto' เก็บแยกต่อเครื่อง
-// โหลดใน <head> เพื่อให้หน้าไม่กระพริบเป็นธีมผิดก่อน
+// PREFS — ค่าที่ผู้ใช้ตั้งเองต่อเครื่อง (ธีม, ขนาดตัวอักษร)
+// โหลดใน <head> เพื่อให้หน้าไม่กระพริบเป็นค่าผิดก่อน
 // ══════════════════════════════════════════════════════
-const THEME_KEY = 'kl-theme';
+const PREFS = {
+  theme: { key: 'kl-theme', def: 'light' },
+  font:  { key: 'kl-font',  def: 'md' },
+};
 const _darkMq = matchMedia('(prefers-color-scheme: dark)');
 
-function themePref() {
-  try { return localStorage.getItem(THEME_KEY) || 'light'; } catch (e) { return 'light'; }
+function getPref(name) {
+  try { return localStorage.getItem(PREFS[name].key) || PREFS[name].def; } catch (e) { return PREFS[name].def; }
 }
 
-function applyTheme(pref = themePref()) {
-  document.documentElement.dataset.theme = pref === 'auto' ? (_darkMq.matches ? 'dark' : 'light') : pref;
+function applyPrefs() {
+  const html = document.documentElement;
+  const theme = getPref('theme');
+  html.dataset.theme = theme === 'auto' ? (_darkMq.matches ? 'dark' : 'light') : theme;
+  html.dataset.font = getPref('font');
 }
 
-function setTheme(pref) {
-  try { localStorage.setItem(THEME_KEY, pref); } catch (e) {}
-  applyTheme(pref);
+function setPref(name, value) {
+  try { localStorage.setItem(PREFS[name].key, value); } catch (e) {}
+  applyPrefs();
   loadSettings();
 }
 
 function loadSettings() {
-  const pref = themePref();
-  document.querySelectorAll('.theme-opt').forEach(b => {
-    const on = b.dataset.themePref === pref;
+  document.querySelectorAll('[data-pref]').forEach(b => {
+    const on = getPref(b.dataset.pref) === b.dataset.value;
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', on);
   });
 }
 
-_darkMq.addEventListener('change', () => applyTheme());
-applyTheme();
+_darkMq.addEventListener('change', applyPrefs);
+applyPrefs();

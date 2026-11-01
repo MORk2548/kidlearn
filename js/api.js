@@ -55,6 +55,7 @@ const apiRegister = (d) => _api('register', { body: d });
 const apiMe = () => _api('me');
 const apiUpdateProfile = (d) => _api('update_profile', { body: d });
 const apiChangePassword = (d) => _api('change_password', { body: d });
+const apiRequestPasswordOtp = (d) => _api('request_password_otp', { body: d });
 
 
 // Scores

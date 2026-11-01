@@ -625,16 +625,33 @@ tbody tr:last-child td {
 }
 
 .pf-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  max-width: 820px
+  max-width: 560px
 }
 
 .theme-opts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: .75rem
+}
+
+:root[data-font="sm"] { font-size: 87.5% }
+:root[data-font="lg"] { font-size: 112.5% }
+:root[data-font="xl"] { font-size: 125% }
+
+.font-opts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem
+}
+
+.font-pv {
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--sf);
+  font-weight: 700
 }
 
 .theme-opt {
@@ -675,8 +692,8 @@ tbody tr:last-child td {
 }
 
 @media(max-width:640px) {
-  .pf-grid {
-    grid-template-columns: 1fr
+  .font-opts {
+    grid-template-columns: repeat(2, minmax(0, 1fr))
   }
 }
 

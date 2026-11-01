@@ -128,35 +128,53 @@ async function saveProfile() {
   showAl('pf-ok', 'บันทึกข้อมูลโปรไฟล์สำเร็จ');
 }
 
-async function changePassword() {
-  const op = document.getElementById('pf-old-pw')?.value || document.getElementById('pf-op')?.value;
-  const np = document.getElementById('pf-new-pw')?.value || document.getElementById('pf-np')?.value;
-  const cp = document.getElementById('pf-cfm-pw')?.value || document.getElementById('pf-cp')?.value;
-  if (!op || !np || !cp) {
-    showAl('pw-err', 'กรุณากรอกรหัสผ่านให้ครบ');
-    return;
-  }
-  if (np.length < 6) {
-    showAl('pw-err', 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
-    return;
-  }
-  if (np !== cp) {
-    showAl('pw-err', 'รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน');
-    return;
-  }
+function _pwFields() {
+  const v = id => document.getElementById(id).value;
+  return { op: v('pf-old-pw'), np: v('pf-new-pw'), cp: v('pf-cfm-pw') };
+}
 
-  const res = await apiChangePassword({ old_password: op, new_password: np });
-  if (!res.ok) {
-    showAl('pw-err', res.error || 'เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
-    return;
-  }
+function _pwError() {
+  const { op, np, cp } = _pwFields();
+  if (!op || !np || !cp) return 'กรุณากรอกรหัสผ่านให้ครบ';
+  if (np.length < 6) return 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร';
+  if (np !== cp) return 'รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน';
+  return '';
+}
+
+function _setPwOtpStep(on) {
+  document.getElementById('pw-otp-step').style.display = on ? 'block' : 'none';
+  document.getElementById('pw-btn').textContent = on ? 'ยืนยันและเปลี่ยนรหัสผ่าน' : 'ส่งรหัส OTP ไปที่อีเมล';
+  if (!on) document.getElementById('pw-otp').value = '';
+}
+
+// ขั้นที่ 1: ตรวจรหัสเดิมที่ server แล้วให้ server ส่ง OTP ไปที่อีเมลของบัญชี
+async function requestPasswordOtp() {
+  const err = _pwError();
+  if (err) { showAl('pw-err', err); return; }
+  const btn = document.getElementById('pw-btn');
+  btn.disabled = true;
+  const res = await apiRequestPasswordOtp({ old_password: _pwFields().op }).catch(() => ({ ok: false }));
+  btn.disabled = false;
+  if (!res.ok) { showAl('pw-err', res.error || 'ส่งรหัส OTP ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'); return; }
+  document.getElementById('pw-otp-email').textContent = res.email;
+  _setPwOtpStep(true);
+  showAl('pw-ok', 'ส่งรหัส OTP ไปที่อีเมลแล้ว รหัสใช้ได้ 10 นาที');
+  document.getElementById('pw-otp').focus();
+}
+
+async function changePassword() {
+  if (document.getElementById('pw-otp-step').style.display === 'none') return requestPasswordOtp();
+  const err = _pwError();
+  if (err) { showAl('pw-err', err); return; }
+  const otp = document.getElementById('pw-otp').value.trim();
+  if (!/^d{6}$/.test(otp)) { showAl('pw-err', 'กรุณากรอกรหัส OTP 6 หลักจากอีเมล'); return; }
+
+  const { op, np } = _pwFields();
+  const res = await apiChangePassword({ old_password: op, new_password: np, otp }).catch(() => ({ ok: false }));
+  if (!res.ok) { showAl('pw-err', res.error || 'เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'); return; }
 
   A.user.updated_at = res.updated_at || A.user.updated_at;
-  const updatedAt = document.getElementById('pf-updated-at');
-  if (updatedAt) updatedAt.textContent = formatDateTimeTH(A.user.updated_at);
+  ['pf-old-pw', 'pf-new-pw', 'pf-cfm-pw'].forEach(id => { document.getElementById(id).value = ''; });
+  _setPwOtpStep(false);
   showAl('pw-ok', 'เปลี่ยนรหัสผ่านสำเร็จ');
-  ['pf-old-pw', 'pf-new-pw', 'pf-cfm-pw', 'pf-op', 'pf-np', 'pf-cp'].forEach((id) => {
-    const e = document.getElementById(id);
-    if (e) e.value = '';
-  });
 }

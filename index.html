@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=KoHo:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo.webp" type="image/webp">
-  <link rel="stylesheet" href="style.css?v=5.22">
-  <script src="js/theme.js?v=1.0"></script>
+  <link rel="stylesheet" href="style.css?v=5.25">
+  <script src="js/theme.js?v=1.3"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -62,8 +62,8 @@
   </div>
 </div>
 
-<script src="js/api.js?v=3.17"></script>
-<script src="js/data.js?v=4.5"></script>
+<script src="js/api.js?v=3.18"></script>
+<script src="js/data.js?v=4.6"></script>
 <script src="js/state.js?v=3.8"></script>
 <script src="js/auth.js?v=3.11"></script>
 <script>
@@ -107,8 +107,8 @@
     <div id="fg-step2" style="display:none">
       <div class="modal-t">รีเซ็ตรหัสผ่าน</div>
       <div style="background:#D1FAE5;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;color:#065F46">
-        ส่งรหัส OTP แล้ว — <strong id="fg-otp-display"></strong><br>
-        <span style="font-size:.78rem;color:#047857">(ระบบ demo แสดง OTP โดยตรง — production จะส่งอีเมล)</span>
+        ถ้าอีเมลนี้มีในระบบ เราส่งรหัส OTP 6 หลักไปที่ <strong id="fg-otp-display"></strong> แล้ว<br>
+        <span style="font-size:.78rem;color:#047857">รหัสใช้ได้ 10 นาที ถ้าไม่เห็น ลองดูในโฟลเดอร์สแปม</span>
       </div>
       <div class="fg">
         <label class="fl">รหัส OTP (6 หลัก)</label>
@@ -150,8 +150,7 @@
     if(!email){ showAl('fg-msg','กรุณากรอกอีเมล'); return; }
     const res=await apiForgotPassword({email}).catch(()=>({ok:false,error:'เชื่อมต่อไม่ได้'}));
     if(!res.ok){ showAlEl(msg,res.error||'เกิดข้อผิดพลาด'); return; }
-    // แสดง OTP (demo mode)
-    document.getElementById('fg-otp-display').textContent = res.otp ? `OTP: ${res.otp}` : '(ส่งอีเมลแล้ว)';
+    document.getElementById('fg-otp-display').textContent = email;
     document.getElementById('fg-step1').style.display='none';
     document.getElementById('fg-step2').style.display='block';
   }
