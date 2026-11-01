@@ -11,6 +11,8 @@
   --bd: #E2E8F0;
   --tx: #020617;
   --mu: #374151;
+  --field: #FFF;
+  --ph: #6B7280;
   --r: 16px;
   --sh: 0 8px 32px rgba(0, 0, 0, .09);
   --tr: 0.22s cubic-bezier(.4, 0, .2, 1);
@@ -26,6 +28,8 @@
   --bd: #334155;
   --tx: #F8FAFC;
   --mu: #E2E8F0;
+  --field: #0F172A;
+  --ph: #64748B;
   --sh: 0 8px 32px rgba(0, 0, 0, .4);
   color-scheme: dark
 }
@@ -40,7 +44,7 @@
 
 body {
   font-family: 'KoHo', sans-serif;
-  font-weight: 500;
+  font-weight: 600;
   background: var(--bg);
   color: var(--tx);
   min-height: 100vh;
@@ -386,6 +390,31 @@ thead {
   color: #fff
 }
 
+[data-theme="dark"] thead {
+  background: var(--sf);
+  color: var(--tx)
+}
+
+[data-theme="dark"] .btn-s {
+  background: #2563EB
+}
+
+[data-theme="dark"] .btn:disabled {
+  background: var(--sf);
+  color: var(--ph);
+  opacity: 1
+}
+
+[data-theme="dark"] .btn-del {
+  background: rgba(248, 113, 113, .15);
+  color: #F87171
+}
+
+[data-theme="dark"] .btn-del:hover:not(:disabled) {
+  background: #DC2626;
+  color: #fff
+}
+
 th,
 td {
   padding: .82rem 1rem;
@@ -468,6 +497,7 @@ tbody tr:last-child td {
   font-family: 'KoHo', sans-serif;
   font-size: .88rem;
   color: var(--tx);
+  background: var(--field);
   transition: var(--tr);
   outline: none
 }
@@ -478,7 +508,7 @@ tbody tr:last-child td {
 }
 
 .fc::placeholder {
-  color: var(--mu)
+  color: var(--ph)
 }
 
 .al {
