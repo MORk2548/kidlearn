@@ -197,7 +197,7 @@ function enforceRequestPolicy(string $action, array $body): void {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $postActions = [
         'login', 'logout', 'register', 'update_profile', 'change_password', 'request_password_otp',
-        'auto_link', 'unlink_child', 'mark_notif_read',
+        'auto_link', 'unlink_child',
         'create_plan',
         'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
         'save_subject', 'toggle_subject', 'delete_subject',
@@ -1181,8 +1181,6 @@ function handleSaveScore(): never {
         [$studentId, $gameId, $score, $timeSpent])['score_id'];
     logAudit('score_saved', 'score', (string)$scoreId, 'บันทึกผลการเล่นเกม',
         ['student_id' => $studentId, 'game_id' => $gameId, 'score' => $score]);
-    generateRecommendationsV2($studentId, myId());
-    refreshStudentNotifications($studentId);
     pruneOldScores();
     DB::ok(['score_id' => $scoreId, 'score' => $score]);
 }
@@ -1245,9 +1243,6 @@ match ($action) {
     'my_children'     => handleMyChildren(),
     'auto_link'       => handleAutoLink(),
     'unlink_child'    => handleUnlinkChild(),
-    'recommendations' => handleRecommendations(),
-    'notifications'   => handleNotificationsV2(),
-    'mark_notif_read' => handleMarkNotifRead(),
     'teacher_stats'   => handleTeacherStats(),
     'all_students'    => handleAllStudents(),
     'classrooms'      => handleClassrooms(),
@@ -1273,7 +1268,6 @@ match ($action) {
     'student_games'            => handleStudentGames(),
     'game_play'                => handleGamePlay(),
     'save_score'               => handleSaveScore(),
-    'student_analytics' => handleStudentAnalytics(),
     'student_plans'     => handleStudentPlansV2(),
     'create_plan'       => handleCreatePlanV3(),
     'health'            => handleHealthCheck(),
@@ -1858,194 +1852,6 @@ function handleUnlinkChild(): never {
 // RECOMMENDATIONS
 // ============================================================
 
-function generateRecommendations(int $studentId, int $userId): void {
-    $db      = DB::get();
-    $subjects = $db->all(
-        "SELECT g.subject_id, ROUND(AVG(sc.score),1) AS avg
-         FROM scores sc JOIN games g ON g.game_id=sc.game_id
-         WHERE sc.student_id=? GROUP BY g.subject_id",
-        [$studentId], 'i'
-    );
-
-    foreach ($subjects as $sub) {
-        $avg = (float)$sub['avg'];
-        if ($avg >= 80)     { $type='praise';    $msg='เยี่ยมมาก! ทำคะแนนได้ดีในวิชานี้ ให้กำลังใจต่อไปเลย!'; }
-        elseif ($avg >= 55) { $type='improve';   $msg='กำลังพัฒนาดีขึ้น! เล่นเกมวิชานี้บ่อยขึ้นอีกนิดนะครับ'; }
-        else                { $type='low_score'; $msg='คะแนนยังน้อย ควรฝึกเล่นเกมในวิชานี้เพิ่มเติมนะครับ'; }
-
-        $db->run(
-            "INSERT INTO recommendations (student_id,subject_id,message,rec_type)
-             VALUES (?,?,?,?)
-             ON CONFLICT (student_id, subject_id)
-             DO UPDATE SET message=EXCLUDED.message, rec_type=EXCLUDED.rec_type, created_at=NOW()",
-            [$studentId, $sub['subject_id'], $msg, $type], 'iiss'
-        );
-    }
-
-    // Notifications ให้ผู้ปกครอง
-    $sName   = $db->one("SELECT full_name FROM users WHERE user_id=?", [$userId], 'i')['full_name'] ?? 'นักเรียน';
-    $parents = $db->all(
-        "SELECT p.parent_id, p.user_id FROM parent_student ps
-         JOIN parents p ON p.parent_id=ps.parent_id
-         WHERE ps.student_id=?", [$studentId], 'i'
-    );
-
-    foreach ($parents as $par) {
-        $lowSubs  = array_filter($subjects, fn($s) => (float)$s['avg'] < 50);
-        $highSubs = array_filter($subjects, fn($s) => (float)$s['avg'] >= 85);
-
-        if ($lowSubs) {
-            $db->run(
-                "INSERT INTO parent_notifications (parent_id,student_id,ico,title,message,notif_type)
-                 VALUES (?,?,'','ต้องการความช่วยเหลือ',?,'warn')",
-                [$par['parent_id'], $studentId,
-                 "$sName มีวิชาที่คะแนนต่ำกว่า 50 ลองช่วยทบทวนบทเรียนร่วมกันที่บ้านดูครับ"],
-                'iis'
-            );
-        }
-        if ($highSubs) {
-            $db->run(
-                "INSERT INTO parent_notifications (parent_id,student_id,ico,title,message,notif_type)
-                 VALUES (?,?,'','ผลการเรียนดีเยี่ยม!',?,'praise')",
-                [$par['parent_id'], $studentId,
-                 "$sName ทำคะแนนได้ยอดเยี่ยม! ให้กำลังใจกันด้วยนะครับ"],
-                'iis'
-            );
-        }
-    }
-}
-
-function generateRecommendationsV2(int $studentId, int $userId): void {
-    $db = DB::get();
-    $subjects = $db->all(
-        "SELECT g.subject_id, ROUND(AVG(sc.score),1) AS avg, sub.name AS subject_name
-         FROM scores sc
-         JOIN games g ON g.game_id = sc.game_id
-         JOIN subjects sub ON sub.subject_id = g.subject_id
-         WHERE sc.student_id=?
-         GROUP BY g.subject_id, sub.name",
-        [$studentId], 'i'
-    );
-
-    $weakSkills = $db->all(
-        "SELECT sm.subject_id, sm.skill_key, sm.skill_name, sm.mastery_score
-         FROM student_mastery sm
-         WHERE sm.student_id=?
-         ORDER BY sm.mastery_score ASC, sm.updated_at DESC",
-        [$studentId], 'i'
-    );
-
-    foreach ($subjects as $sub) {
-        $avg = (float)$sub['avg'];
-        $nextGame = $db->one(
-            "SELECT name FROM games WHERE subject_id=? ORDER BY game_id LIMIT 1",
-            [$sub['subject_id']], 'i'
-        );
-        $weakSkill = null;
-        foreach ($weakSkills as $skill) {
-            if ((int)$skill['subject_id'] === (int)$sub['subject_id']) {
-                $weakSkill = $skill;
-                break;
-            }
-        }
-
-        if ($avg >= 80) {
-            $type = 'praise';
-            $msg = 'พร้อมต่อยอดแล้ว';
-        } elseif ($avg >= 55) {
-            $type = 'improve';
-            $msg = 'กำลังดีขึ้น';
-        } else {
-            $type = 'low_score';
-            $msg = 'ควรทบทวนก่อนเรียนต่อ';
-        }
-
-        if ($weakSkill) {
-            $msg .= ' โดยเน้นหัวข้อ "' . $weakSkill['skill_name'] . '"';
-        }
-        if ($nextGame) {
-            $msg .= ' และเล่นเกม "' . $nextGame['name'] . '" เป็นลำดับถัดไป';
-        }
-
-        $db->run(
-            "INSERT INTO recommendations (student_id,subject_id,message,rec_type)
-             VALUES (?,?,?,?)
-             ON CONFLICT (student_id, subject_id)
-             DO UPDATE SET message=EXCLUDED.message, rec_type=EXCLUDED.rec_type, created_at=NOW()",
-            [$studentId, $sub['subject_id'], $msg, $type], 'iiss'
-        );
-    }
-
-    $studentName = $db->one(
-        "SELECT u.full_name
-         FROM students st
-         JOIN users u ON u.user_id = st.user_id
-         WHERE st.student_id=?",
-        [$studentId], 'i'
-    )['full_name'] ?? 'นักเรียน';
-
-    $weakest = $weakSkills[0] ?? null;
-    if ($weakest && (float)$weakest['mastery_score'] < 60) {
-        createParentNotification(
-            $studentId,
-            'มีหัวข้อที่ควรทบทวน',
-            $studentName . ' ยังอ่อนในเรื่อง "' . $weakest['skill_name'] . '" ลองเปิดฝึกเฉพาะจุดหรือมอบหมายแผนรายสัปดาห์เพิ่ม',
-            'warn',
-            '',
-            'weak_skill_' . $weakest['skill_key']
-        );
-    }
-}
-
-function handleRecommendations(): never {
-    auth();
-    $db  = DB::get();
-    $sid = (int)($_GET['student_id'] ?? 0);
-
-    if (myRole() === 'student') {
-        $st  = $db->one("SELECT student_id FROM students WHERE user_id=?", [myId()], 'i');
-        $sid = $st ? $st['student_id'] : 0;
-    }
-    if (!$sid) DB::fail('ต้องส่ง student_id', 400);
-
-    $recs = $db->all(
-        "SELECT r.*, sub.name AS subject_name, sub.color, sub.icon
-         FROM recommendations r JOIN subjects sub ON sub.subject_id=r.subject_id
-         WHERE r.student_id=? ORDER BY r.created_at DESC",
-        [$sid], 'i'
-    );
-    DB::ok(['recs' => $recs]);
-}
-
-function handleNotifications(): never {
-    authRole('parent');
-    $p = DB::get()->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
-    if (!$p) DB::ok(['notifications' => []]);
-    $notifs = DB::get()->all(
-        "SELECT n.*, u.full_name AS student_name
-         FROM parent_notifications n JOIN users u ON u.user_id=n.student_id
-         WHERE n.parent_id=? ORDER BY n.created_at DESC LIMIT 50",
-        [$p['parent_id']], 'i'
-    );
-    DB::ok(['notifications' => $notifs]);
-}
-
-function handleMarkNotifRead(): never {
-    global $body;
-    authRole('parent');
-    $p = DB::get()->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
-    if (!$p) DB::ok();
-    $nid = (int)($body['notif_id'] ?? 0);
-    if ($nid) {
-        DB::get()->run("UPDATE parent_notifications SET is_read=TRUE WHERE notif_id=? AND parent_id=?",
-            [$nid, $p['parent_id']], 'ii');
-    } else {
-        DB::get()->run("UPDATE parent_notifications SET is_read=TRUE WHERE parent_id=?",
-            [$p['parent_id']], 'i');
-    }
-    DB::ok();
-}
-
 // ============================================================
 // TEACHER
 // ============================================================
@@ -2114,93 +1920,6 @@ function resolveStudentScope(int $requestedStudentId = 0): int {
         return $link ? $requestedStudentId : 0;
     }
     return teacherCanSeeStudent($requestedStudentId) ? $requestedStudentId : 0;
-}
-
-function handleStudentAnalytics(): never {
-    authRole('student', 'parent', 'teacher', 'admin');
-    $db = DB::get();
-    $studentId = resolveStudentScope((int)($_GET['student_id'] ?? 0));
-    if (!$studentId) DB::fail('ไม่พบ student_id', 404);
-
-    $overview = $db->one(
-        "SELECT COUNT(*) AS total_plays, ROUND(AVG(score),1) AS avg_score, SUM(time_spent) AS total_time,
-                MAX(played_at) AS last_played
-         FROM scores WHERE student_id=?",
-        [$studentId], 'i'
-    ) ?: [];
-    $trend = $db->all(
-        "SELECT TO_CHAR(played_at, 'YYYY-MM-DD') AS played_day, score
-         FROM scores WHERE student_id=?
-         ORDER BY played_at DESC LIMIT 8",
-        [$studentId], 'i'
-    );
-    $mastery = $db->all(
-        "SELECT sm.skill_key, sm.skill_name, sm.mastery_score, sm.last_score, sm.weak_streak,
-                sub.name AS subject_name, sub.color AS subject_color
-         FROM student_mastery sm
-         JOIN subjects sub ON sub.subject_id = sm.subject_id
-         WHERE sm.student_id=?
-         ORDER BY sm.mastery_score ASC, sm.updated_at DESC",
-        [$studentId], 'i'
-    );
-    $reviewItems = $db->all(
-        "SELECT prompt_text, correct_answer, student_answer, skill_name, COUNT(*) AS miss_count
-         FROM score_attempt_details
-         WHERE student_id=? AND is_correct=FALSE
-         GROUP BY prompt_text, correct_answer, student_answer, skill_name
-         ORDER BY miss_count DESC
-         LIMIT 10",
-        [$studentId], 'i'
-    );
-    $badges = $db->all(
-        "SELECT badge_code, badge_title, description, awarded_at
-         FROM student_badges WHERE student_id=?
-         ORDER BY awarded_at DESC",
-        [$studentId], 'i'
-    );
-    $plans = $db->all(
-        "SELECT lp.plan_id, lp.title, lp.description, lp.week_start, lp.due_at, lp.status,
-                COUNT(lpi.item_id) AS total_items,
-                SUM(CASE WHEN COALESCE(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
-         FROM learning_plans lp
-         LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
-         LEFT JOIN (
-            SELECT student_id, game_id, MAX(score) AS best_score
-            FROM scores
-            WHERE student_id=?
-            GROUP BY student_id, game_id
-         ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
-         WHERE lp.student_id=?
-         GROUP BY lp.plan_id
-         ORDER BY lp.week_start DESC, lp.created_at DESC
-         LIMIT 10",
-        [$studentId, $studentId], 'ii'
-    );
-
-    $daysSince = null;
-    if (!empty($overview['last_played'])) {
-        $daysSince = (int)floor((time() - strtotime($overview['last_played'])) / 86400);
-    }
-    $alerts = [];
-    if ($daysSince !== null && $daysSince >= 7) $alerts[] = 'ไม่ได้เข้าเรียนเกิน 7 วัน';
-    if (!empty($mastery) && (float)$mastery[0]['mastery_score'] < 60) $alerts[] = 'มีหัวข้ออ่อนที่ควรทบทวนทันที';
-
-    DB::ok([
-        'overview' => [
-            'total_plays' => (int)($overview['total_plays'] ?? 0),
-            'avg_score' => (float)($overview['avg_score'] ?? 0),
-            'total_time' => (int)($overview['total_time'] ?? 0),
-            'last_played' => $overview['last_played'] ?? null,
-            'days_since_active' => $daysSince,
-            'badge_count' => count($badges),
-        ],
-        'trend' => array_reverse($trend),
-        'mastery' => $mastery,
-        'review_items' => $reviewItems,
-        'badges' => $badges,
-        'plans' => $plans,
-        'alerts' => $alerts,
-    ]);
 }
 
 function handleStudentPlans(): never {
@@ -2357,28 +2076,6 @@ function refreshStudentNotifications(int $studentId): void {
         );
         $db->run("UPDATE learning_plans SET status='completed' WHERE plan_id=?", [$activePlan['plan_id']], 'i');
     }
-}
-
-function handleNotificationsV2(): never {
-    authRole('parent');
-    $p = DB::get()->one("SELECT parent_id FROM parents WHERE user_id=?", [myId()], 'i');
-    if (!$p) DB::ok(['notifications' => [], 'summary' => ['unread' => 0, 'total' => 0]]);
-    $notifs = DB::get()->all(
-        "SELECT n.*, u.full_name AS student_name
-         FROM parent_notifications n
-         JOIN students st ON st.student_id = n.student_id
-         JOIN users u ON u.user_id = st.user_id
-         WHERE n.parent_id=?
-         ORDER BY n.created_at DESC
-         LIMIT 80",
-        [$p['parent_id']], 'i'
-    );
-    $summary = DB::get()->one(
-        "SELECT COUNT(*) AS total, SUM(CASE WHEN is_read=FALSE THEN 1 ELSE 0 END) AS unread
-         FROM parent_notifications WHERE parent_id=?",
-        [$p['parent_id']], 'i'
-    ) ?: ['total' => 0, 'unread' => 0];
-    DB::ok(['notifications' => $notifs, 'summary' => ['total' => (int)$summary['total'], 'unread' => (int)$summary['unread']]]);
 }
 
 function handleCreatePlanV2(): never {

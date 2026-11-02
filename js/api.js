@@ -65,9 +65,6 @@ const apiScores = (sid) => _api('scores', sid ? { params: { student_id: sid } } 
 // Parent
 const apiMyChildren = () => _api('my_children');
 const apiUnlinkChild = (d) => _api('unlink_child', { body: d });
-const apiRecommendations = (sid) => _api('recommendations', sid ? { params: { student_id: sid } } : {});
-const apiNotifications = () => _api('notifications');
-const apiMarkNotifRead = (id) => _api('mark_notif_read', { body: id ? { notif_id: id } : {} });
 
 // Teacher
 const apiTeacherStats = () => _api('teacher_stats');
@@ -92,7 +89,6 @@ const apiStudentScores = (sid, subjectId) => {
   if (subjectId) params.subject_id = subjectId;
   return _api('scores', { params });
 };
-const apiStudentAnalytics = (sid) => _api('student_analytics', sid ? { params: { student_id: sid } } : {});
 const apiCreatePlan = (d) => _api('create_plan', { body: d });
 
 // Teacher games

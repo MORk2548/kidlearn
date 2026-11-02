@@ -741,64 +741,72 @@ tbody tr:last-child td {
   border-color: #10B981
 }
 
-.pw-practice {
-  border: 2px solid #F59E0B
-}
-
-.pw-practice summary {
+.rec-link {
   display: flex;
   align-items: center;
-  gap: .4rem;
-  font-size: .95rem;
-  font-weight: 700;
-  color: var(--s);
-  cursor: pointer;
-  list-style: none
-}
-
-.pw-practice summary::-webkit-details-marker {
-  display: none
-}
-
-.pw-practice summary::after {
-  content: '\f078';
-  font-family: 'Font Awesome 6 Free';
-  font-weight: 900;
-  font-size: .8rem;
-  margin-left: auto;
-  transition: transform var(--tr)
-}
-
-.pw-practice[open] summary {
-  margin-bottom: .6rem
-}
-
-.pw-practice[open] summary::after {
-  transform: rotate(180deg)
-}
-
-.pw-row {
-  display: flex;
-  align-items: center;
+  justify-content: space-between;
   gap: .75rem;
-  padding: .6rem 0;
-  border-top: 1px solid var(--sf)
+  flex-wrap: wrap;
+  border: 2px solid #F59E0B;
+  font-weight: 700
 }
 
-.pw-row .sc-stars {
+.rec-card {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .85rem 1rem;
+  margin-bottom: .6rem;
+  border: 1px solid var(--bd);
+  border-left: 4px solid var(--bd);
+  border-radius: 0 12px 12px 0;
+  background: var(--cb)
+}
+
+.rec-ic {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--sf);
+  color: var(--mu)
+}
+
+.rec-body {
+  flex: 1;
+  min-width: 0
+}
+
+.rec-title {
+  font-weight: 700
+}
+
+.rec-card .sc-stars {
   font-size: 1rem;
   margin: 0
 }
 
-.pw-tag {
+.rec-tag {
   font-size: .75rem;
   font-weight: 700;
   padding: .15rem .6rem;
   border-radius: 99px;
-  background: #FEF3C7;
-  color: #92400E;
+  background: #FEE2E2;
+  color: #B91C1C;
   white-space: nowrap
 }
+
+.rec-urgent { border-left-color: #EF4444 }
+.rec-urgent .rec-ic { background: #FEE2E2; color: #B91C1C }
+.rec-help { border-left-color: #F59E0B }
+.rec-help .rec-ic { background: #FEF3C7; color: #92400E }
+.rec-new { border-left-color: #8B5CF6 }
+.rec-new .rec-ic { background: #EDE9FE; color: #6D28D9 }
+.rec-praise { border-left-color: #10B981 }
+.rec-praise .rec-ic { background: #D1FAE5; color: #065F46 }
 
 .sc-total {
   font-weight: 700;

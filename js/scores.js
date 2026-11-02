@@ -57,26 +57,34 @@ function _playedLabel(date) {
 }
 
 // child = null คือนักเรียนดูของตัวเอง, ไม่งั้นคือบุตรหลานที่ผู้ปกครองเลือก
-const _scoreView = { games: [], filter: 'all', child: null, week: null, practiceOpen: true };
+const _scoreView = { games: [], filter: 'all', child: null, week: null, recCount: 0 };
 
-async function loadScoreGames(child) {
-  const el = document.getElementById('score-games');
+// เกมที่ครูมอบหมายพร้อมดาวและวันที่เล่นล่าสุด + ประวัติการเล่น 7 วัน (child = null คือนักเรียนดูของตัวเอง)
+// ใช้ร่วมกับหน้าคำแนะนำของผู้ปกครอง
+async function childScoreData(child) {
   const sid = child?.student_id;
   const [res, hist] = await Promise.all([
     apiStudentGames(sid).catch(() => ({ ok: false })),
     child ? apiScores(sid).catch(() => ({ ok: false })) : null,
   ]);
-  if (!res.ok) { el.innerHTML = `<div class="ts" style="color:#EF4444">${_esc(res.error || 'โหลดคะแนนไม่สำเร็จ')}</div>`; return; }
+  if (!res.ok) return { error: res.error || 'โหลดคะแนนไม่สำเร็จ' };
   const attempts = hist?.ok ? hist.scores : [];
   const lastPlayed = {};
   attempts.forEach(a => { if (!lastPlayed[a.game_id] || a.played_at > lastPlayed[a.game_id]) lastPlayed[a.game_id] = a.played_at; });
-  _scoreView.child = child || null;
-  _scoreView.filter = 'all';
-  _scoreView.week = child ? _scoreWeek(attempts) : null;
-  _scoreView.games = res.games.map(g => {
+  const games = res.games.map(g => {
     const best = g.best_score == null ? null : +g.best_score;
     return { ...g, best, plays: +g.play_count || 0, stars: scoreStars(best), lastPlayed: lastPlayed[g.game_id] || null };
   });
+  return { games, attempts };
+}
+
+async function loadScoreGames(child) {
+  const el = document.getElementById('score-games');
+  const data = await childScoreData(child);
+  if (data.error) { el.innerHTML = `<div class="ts" style="color:#EF4444">${_esc(data.error)}</div>`; return; }
+  Object.assign(_scoreView, { child: child || null, filter: 'all', games: data.games,
+    week: child ? _scoreWeek(data.attempts) : null,
+    recCount: child ? buildParentRecs({ name: child.full_name, ...data }).length : 0 });
   renderScoreGames();
 }
 
@@ -89,11 +97,6 @@ function _scoreWeek(attempts) {
     return { label: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][d.getDay()], played: playedDays.has(n) };
   });
   return { plays: recent.length, dayCount: playedDays.size, days };
-}
-
-// ควรช่วยฝึก: ได้ 1-2 ดาวทั้งที่เล่นแล้วอย่างน้อย 2 ครั้ง หรือครูมอบหมายแต่ยังไม่เคยเล่น
-function _needsPractice(g) {
-  return g.plays === 0 || (g.stars <= 2 && g.plays >= 2);
 }
 
 function renderScoreGames() {
@@ -124,7 +127,6 @@ function renderScoreGames() {
     </div>`;
   };
 
-  const practice = child ? games.filter(_needsPractice).sort((a, b) => (a.plays === 0) - (b.plays === 0) || a.stars - b.stars) : [];
   const summary = child ? `<div class="ts">
       <div class="pw-week">
         <div style="flex:1;min-width:200px">
@@ -135,15 +137,10 @@ function renderScoreGames() {
           `<span class="pw-day"><i class="${d.played ? 'on' : ''}"></i>${_esc(d.label)}</span>`).join('')}</div>
       </div>
     </div>
-    ${practice.length ? `<details class="ts pw-practice"${_scoreView.practiceOpen ? ' open' : ''}
-      ontoggle="_scoreView.practiceOpen=this.open">
-      <summary>ช่วย${name}ฝึกเกมเหล่านี้ <span class="sc-meta">(${practice.length} เกม)</span></summary>
-      ${practice.map(g => `<div class="pw-row">
-        <div style="flex:1;min-width:0"><strong>${_esc(g.name)}</strong> <span class="sc-meta">· ${_esc(g.subject_name)}</span>
-          <div class="sc-meta">${g.plays ? `เล่น ${g.plays} ครั้ง ยังได้ ${g.stars} ดาว ดีที่สุด ${g.best}/100` : 'ครูมอบหมายแล้ว ยังไม่เคยเล่น'}</div></div>
-        ${g.plays ? starsHtml(g.stars) : '<span class="pw-tag">ยังไม่เล่น</span>'}
-      </div>`).join('')}
-    </details>` : ''}` : '';
+    ${_scoreView.recCount ? `<div class="ts rec-link">
+      <span>มีคำแนะนำ ${_scoreView.recCount} เรื่องสำหรับ${name}</span>
+      <button class="btn btn-s btn-sm" onclick="sec('rec')">ดูคำแนะนำ</button>
+    </div>` : ''}` : '';
 
   el.innerHTML = `${summary}<div class="ts">
       ${child ? `<h3>เกมทั้งหมด ${games.length} เกม</h3>` : `<div class="sc-total">${starLine}</div>`}
