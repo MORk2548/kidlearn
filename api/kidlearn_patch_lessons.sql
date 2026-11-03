@@ -19,6 +19,9 @@ CREATE INDEX IF NOT EXISTS idx_lessons_created_by ON lessons(created_by);
 -- 'text' = บทเรียนเก่าแบบข้อความ, 'html' = บทเรียนจากตัวแก้ไขแบบ Word
 ALTER TABLE lessons ADD COLUMN IF NOT EXISTS body_format VARCHAR(10) NOT NULL DEFAULT 'text';
 
+-- เกมที่บทเรียนนี้ใช้ประกอบ ว่างได้ ลบเกมแล้วบทเรียนยังอยู่
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS game_id INT DEFAULT NULL REFERENCES games(game_id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS lesson_classrooms (
   lesson_id    INT NOT NULL REFERENCES lessons(lesson_id) ON DELETE CASCADE,
   classroom_id INT NOT NULL REFERENCES classrooms(classroom_id) ON DELETE CASCADE,

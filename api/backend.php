@@ -989,10 +989,11 @@ function handleDeleteTeacherGame(): never {
 
 // ── บทเรียน: แยกจากเกม ครูจัดการได้เฉพาะของตัวเอง แอดมินจัดการได้ทุกบท นักเรียนเห็นบทที่มอบหมายให้ห้องตัวเอง ──
 const LESSON_SELECT_SQL = "SELECT l.lesson_id, l.title, l.body, l.body_format, l.grade, l.subject_id, l.updated_at,
-        sub.name AS subject_name, sub.icon AS subject_icon,
+        sub.name AS subject_name, sub.icon AS subject_icon, l.game_id, g.name AS game_name,
         COALESCE((SELECT json_agg(lc.classroom_id ORDER BY lc.classroom_id)
                   FROM lesson_classrooms lc WHERE lc.lesson_id = l.lesson_id), '[]') AS classroom_ids
-    FROM lessons l JOIN subjects sub ON sub.subject_id = l.subject_id";
+    FROM lessons l JOIN subjects sub ON sub.subject_id = l.subject_id
+    LEFT JOIN games g ON g.game_id = l.game_id";
 
 function lessonRows(array $rows): array {
     foreach ($rows as &$r) $r['classroom_ids'] = json_decode($r['classroom_ids'], true);
@@ -1011,6 +1012,7 @@ function ensureLessonSchema(): void {
     if ($done) return;
     $done = true;
     addColumnIfMissing('lessons', 'body_format', "VARCHAR(10) NOT NULL DEFAULT 'text'");
+    addColumnIfMissing('lessons', 'game_id', 'INT DEFAULT NULL REFERENCES games(game_id) ON DELETE SET NULL');
 }
 
 // คืน path ใน bucket ของทุกรูป และปฏิเสธ URL ที่ไม่ใช่รูปบทเรียนของระบบ
@@ -1099,16 +1101,21 @@ function handleSaveLesson(): never {
     if (!$db->one("SELECT 1 FROM subjects WHERE subject_id=?", [$subjectId], 'i')) DB::fail('กรุณาเลือกวิชา', 400);
     $rooms = intArrayLiteral($body['classroom_ids'] ?? []);
     checkGameScope($grade, $subjectId, $rooms);
+    $gameId = (int)($body['game_id'] ?? 0) ?: null;
+    if ($gameId) {
+        $game = findManagedGame($gameId);
+        if ((int)$game['subject_id'] !== $subjectId || $game['grade'] !== $grade) DB::fail('เกมที่เลือกต้องเป็นวิชาและชั้นเดียวกับบทเรียน', 400);
+    }
 
-    $lessonId = $db->transaction(function (DB $db) use ($lessonId, $title, $text, $grade, $subjectId, $rooms) {
+    $lessonId = $db->transaction(function (DB $db) use ($lessonId, $title, $text, $grade, $subjectId, $rooms, $gameId) {
         if ($lessonId) {
-            $db->run("UPDATE lessons SET title=?, body=?, body_format='html', grade=?, subject_id=?, updated_at=NOW() WHERE lesson_id=?",
-                [$title, $text, $grade, $subjectId, $lessonId]);
+            $db->run("UPDATE lessons SET title=?, body=?, body_format='html', grade=?, subject_id=?, game_id=?, updated_at=NOW() WHERE lesson_id=?",
+                [$title, $text, $grade, $subjectId, $gameId, $lessonId]);
             $db->run("DELETE FROM lesson_classrooms WHERE lesson_id=?", [$lessonId]);
         } else {
             $lessonId = (int)$db->one(
-                "INSERT INTO lessons (title, body, body_format, grade, subject_id, created_by) VALUES (?,?,'html',?,?,?) RETURNING lesson_id",
-                [$title, $text, $grade, $subjectId, myId()])['lesson_id'];
+                "INSERT INTO lessons (title, body, body_format, grade, subject_id, game_id, created_by) VALUES (?,?,'html',?,?,?,?) RETURNING lesson_id",
+                [$title, $text, $grade, $subjectId, $gameId, myId()])['lesson_id'];
         }
         $db->run("INSERT INTO lesson_classrooms (lesson_id, classroom_id) SELECT ?, unnest(?::int[])", [$lessonId, $rooms]);
         return $lessonId;

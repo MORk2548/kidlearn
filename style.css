@@ -2605,6 +2605,12 @@ tbody tr:last-child td {
   margin: 0 0 .8rem
 }
 
+.lesson-game {
+  margin: -.4rem 0 1rem;
+  color: var(--mu);
+  font-weight: 600
+}
+
 .lesson-body {
   white-space: pre-wrap;
   line-height: 1.7

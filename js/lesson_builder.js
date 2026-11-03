@@ -7,15 +7,17 @@ async function loadLessonBuilder() {
   const panel = document.getElementById('tc-lesson-panel');
   if (!panel) return;
   panel.innerHTML = '<div class="ts" style="color:var(--mu)">กำลังโหลดบทเรียน...</div>';
-  const [lessonRes, asgRes, subRes] = await Promise.all([
+  const [lessonRes, asgRes, subRes, gameRes] = await Promise.all([
     apiTeacherLessons().catch(() => ({ ok: false })),
     apiTeacherAssignments().catch(() => ({ ok: false })),
     apiSubjects().catch(() => ({ ok: false })),
+    apiTeacherGames().catch(() => ({ ok: false })),
   ]);
   if (!lessonRes.ok) { panel.innerHTML = `<div class="ts" style="color:#EF4444">${_esc(lessonRes.error || 'โหลดบทเรียนไม่สำเร็จ')}</div>`; return; }
   A.lb.lessons = lessonRes.lessons || [];
   A.gb.assignments = asgRes.ok ? (asgRes.assignments || []) : [];
   A.gb.subjects = subRes.ok ? (subRes.subjects || []) : [];
+  A.gb.games = gameRes.ok ? (gameRes.games || []) : [];
   A.lb.view = 'list';
   lbRender();
 }
@@ -129,7 +131,7 @@ function lbListHtml() {
   const card = l => `<div class="gb-card">
       <div class="gb-card-body">
         <div class="gb-card-name">${_esc(l.title)}</div>
-        <div class="gb-card-meta">${_esc(l.subject_name)} · ${_esc(l.grade)}</div>
+        <div class="gb-card-meta">${_esc(l.subject_name)} · ${_esc(l.grade)}${l.game_name ? ` · เกม ${_esc(l.game_name)}` : ''}</div>
         <div class="gb-card-meta">${l.classroom_ids.length ? `ห้อง ${l.classroom_ids.map(gbRoomLabel).join(', ')}` : 'ยังไม่ได้เลือกห้อง นักเรียนยังไม่เห็น'}</div>
       </div>
       <div class="gb-card-actions">
@@ -152,7 +154,7 @@ function lbNew() {
   if (!gbSubjectsAllowed().length) { alert('ยังไม่มีวิชาที่คุณสอน ติดต่อเจ้าหน้าที่เพื่อกำหนดห้องและวิชา'); return; }
   const subjectId = +gbSubjectsAllowed()[0].subject_id;
   const grade = gbGradesFor(subjectId)[0];
-  A.lb.draft = { lesson_id: 0, title: '', body: '', body_format: 'html', subject_id: subjectId, grade,
+  A.lb.draft = { lesson_id: 0, title: '', body: '', body_format: 'html', subject_id: subjectId, grade, game_id: null,
     classroom_ids: gbRoomsFor(subjectId, grade).map(r => +r.classroom_id) };
   A.lb.view = 'edit';
   lbRender();
@@ -162,14 +164,19 @@ function lbEdit(lessonId) {
   const l = A.lb.lessons.find(x => x.lesson_id == lessonId);
   A.lb.draft = { lesson_id: +l.lesson_id, title: l.title, body_format: 'html',
     body: l.body_format === 'html' ? l.body : lbTextToHtml(l.body), subject_id: +l.subject_id, grade: l.grade,
+    game_id: l.game_id ? +l.game_id : null,
     classroom_ids: l.classroom_ids.map(Number) };
   A.lb.view = 'edit';
   lbRender();
 }
 
+// บทเรียนผูกได้เฉพาะเกมวิชาและชั้นเดียวกัน server ตรวจซ้ำตอนบันทึก
+const lbGamesFor = d => A.gb.games.filter(g => g.subject_id == d.subject_id && g.grade === d.grade);
+
 function lbEditHtml() {
   const d = A.lb.draft;
   const rooms = gbRoomsFor(d.subject_id, d.grade);
+  const games = lbGamesFor(d);
   return `<div class="gp-overlay lb-full" role="dialog" aria-modal="true" aria-labelledby="lb-head"><div class="ts">
     <div class="gb-head">
       <h3 id="lb-head" style="margin:0">${d.lesson_id ? 'แก้ไขบทเรียน' : 'สร้างบทเรียน'}</h3>
@@ -187,6 +194,12 @@ function lbEditHtml() {
           ${gbGradesFor(d.subject_id).map(g => `<option${g === d.grade ? ' selected' : ''}>${_esc(g)}</option>`).join('')}
         </select></div>
     </div>
+    <div class="fg"><label class="fl" for="lb-game">บทเรียนนี้ใช้กับเกม</label>
+      <select class="fc" id="lb-game">
+        <option value="">ไม่ผูกกับเกม</option>
+        ${games.map(g => `<option value="${g.game_id}"${g.game_id == d.game_id ? ' selected' : ''}>${_esc(g.name)}</option>`).join('')}
+      </select>
+      ${games.length ? '' : `<div class="ge-hint">ยังไม่มีเกม${_esc(gbSubjectsAllowed().find(s => s.subject_id == d.subject_id)?.name || '')} ${_esc(d.grade)} ที่คุณสร้าง</div>`}</div>
     <div class="fg"><div class="fl">ห้องที่ให้อ่านบทเรียนนี้</div>
       <div class="gb-rooms">
         ${rooms.map(r => `<label class="child-btn"><input type="checkbox" class="lb-room" value="${r.classroom_id}"${d.classroom_ids.includes(+r.classroom_id) ? ' checked' : ''}> ${classLabel(r)}</label>`).join('') || '<span style="color:var(--mu)">ไม่มีห้องที่คุณสอนในชั้นนี้</span>'}
@@ -195,7 +208,7 @@ function lbEditHtml() {
       <div id="lb-body"></div></div>
     <div id="lb-err" class="al ae" style="display:none;margin-top:1rem"></div>
     <div class="gb-actions">
-      <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name })">ดูตัวอย่าง</button>
+      <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name, game_name: A.gb.games.find(g => g.game_id == A.lb.draft.game_id)?.name })">ดูตัวอย่าง</button>
       <button class="btn btn-p" onclick="lbSave()">บันทึกบทเรียน</button>
     </div>
   </div></div>`;
@@ -207,6 +220,7 @@ function lbSync() {
   // Quill 2.0.3 เปลี่ยนทุกช่องว่างเป็น &nbsp; ทำให้เศษส่วนแบบมีจำนวนเต็ม เช่น 3 1/2 ไม่ถูกแปลง
   if (A.lb.quill) d.body = A.lb.quill.getSemanticHTML().replace(/&nbsp;/g, ' ');
   d.classroom_ids = [...document.querySelectorAll('.lb-room:checked')].map(el => +el.value);
+  d.game_id = +document.getElementById('lb-game').value || null;
 }
 
 function lbPickImages() {
@@ -260,6 +274,7 @@ function lbSetScope(subjectId, grade) {
   d.subject_id = subjectId;
   d.grade = grades.includes(grade ?? d.grade) ? (grade ?? d.grade) : grades[0];
   d.classroom_ids = gbRoomsFor(d.subject_id, d.grade).map(r => +r.classroom_id);
+  if (!lbGamesFor(d).some(g => g.game_id == d.game_id)) d.game_id = null;
   lbRender();
 }
 
@@ -304,6 +319,7 @@ function openLessonReader(lesson) {
       </div>
       <div class="gp-body lesson-read">
         <h2>${_gtEsc(lesson.title)}</h2>
+        ${lesson.game_name ? `<div class="lesson-game"><i class="fa-solid fa-gamepad" aria-hidden="true"></i> ใช้กับเกม ${_gtEsc(lesson.game_name)}</div>` : ''}
         <div class="lesson-body${lesson.body_format === 'html' ? ' is-html' : ''}">${lbBodyHtml(lesson.body, lesson.body_format)}</div>
       </div>
     </div>`;

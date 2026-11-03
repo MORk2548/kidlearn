@@ -96,7 +96,7 @@ async function loadStudentLessons(){
       <div class="sg-subject">${_esc(name)}</div>
       <div class="sg-grid">${s.items.map(([l,i])=>`
         <button class="sg-card" onclick="openLessonReader(_studentLessons[${i}])">
-          <span class="sg-body"><span class="sg-name">${_esc(l.title)}</span></span>
+          <span class="sg-body"><span class="sg-name">${_esc(l.title)}</span>${l.game_name?`<span class="sg-meta">ใช้กับเกม ${_esc(l.game_name)}</span>`:''}</span>
           <span class="sg-play">อ่าน</span>
         </button>`).join('')}</div>`).join('')}
   </div>`;
