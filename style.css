@@ -2371,6 +2371,35 @@ tbody tr:last-child td {
   font-size: .8rem
 }
 
+div.sg-card {
+  flex-wrap: wrap;
+  cursor: default
+}
+
+.sg-levels {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem
+}
+
+.sg-level {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer
+}
+
+.sg-level:disabled {
+  background: var(--bd);
+  color: var(--mu);
+  cursor: not-allowed
+}
+
+.gb-level-head {
+  margin: 1.2rem 0 .6rem;
+  font-weight: 800
+}
+
 .gp-saved {
   margin-top: .5rem;
   font-size: .82rem;

@@ -105,7 +105,7 @@ const apiStudentLessons = (sid) => _api('student_lessons', sid ? { params: { stu
 
 // Student games
 const apiStudentGames = (sid) => _api('student_games', sid ? { params: { student_id: sid } } : {});
-const apiGamePlay = (gameId) => _api('game_play', { params: { game_id: gameId } });
+const apiGamePlay = (gameId, level) => _api('game_play', { params: { game_id: gameId, level } });
 const apiSaveScore = (d) => _api('save_score', { body: d });
 
 

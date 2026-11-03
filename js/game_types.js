@@ -258,6 +258,9 @@ function _gtRenderPairs(q, root, done, withLines) {
   paint();
 }
 
+// ด่านของเกมเรียงตามลำดับที่ต้องผ่าน ตรงกับ GAME_LEVELS ใน backend.php
+const GAME_LEVELS = { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก' };
+
 const GAME_TYPES = {
   mcq: {
     label: 'ตอบคำถามสี่ตัวเลือก',

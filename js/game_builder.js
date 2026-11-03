@@ -134,7 +134,7 @@ function gbPickType(type) {
   A.gb.draft = {
     game_id: 0, name: '', description: '', game_type: type, subject_id: subjectId, grade, time_limit: 180, status: 'draft',
     classroom_ids: gbRoomsFor(subjectId, grade).map(r => +r.classroom_id),
-    questions: [GAME_TYPES[type].emptyQuestion()],
+    questions: gbByLevel([], type),
   };
   A.gb.view = 'edit';
   gbRender();
@@ -146,10 +146,18 @@ async function gbEdit(gameId) {
   const g = res.game;
   A.gb.draft = {
     game_id: +g.game_id, name: g.name, description: g.description || '', game_type: g.game_type, subject_id: +g.subject_id, grade: g.grade,
-    time_limit: +g.time_limit, status: g.status, classroom_ids: g.classroom_ids, questions: g.questions,
+    time_limit: +g.time_limit, status: g.status, classroom_ids: g.classroom_ids, questions: gbByLevel(g.questions, g.game_type),
   };
   A.gb.view = 'edit';
   gbRender();
+}
+
+// draft.questions เรียงตามด่านเสมอ ลำดับในฟอร์มจึงตรงกับลำดับใน array และทุกด่านมีอย่างน้อย 1 ข้อ
+function gbByLevel(questions, type) {
+  return Object.keys(GAME_LEVELS).flatMap(level => {
+    const own = questions.filter(q => q.difficulty === level);
+    return own.length ? own : [{ ...GAME_TYPES[type].emptyQuestion(), difficulty: level }];
+  });
 }
 
 // ── ฟอร์มสร้าง/แก้ไขเกม ──
@@ -187,10 +195,14 @@ function gbEditHtml() {
         ${rooms.map(r => `<label class="child-btn"><input type="checkbox" class="gb-room" value="${r.classroom_id}"${d.classroom_ids.includes(+r.classroom_id) ? ' checked' : ''}> ${classLabel(r)}</label>`).join('') || '<span style="color:var(--mu)">ไม่มีห้องที่คุณสอนในชั้นนี้</span>'}
       </div></div>
     <div id="gb-questions">
-      ${d.questions.map((q, i) => `
+      ${Object.entries(GAME_LEVELS).map(([level, levelName], n) => {
+        const own = d.questions.map((q, i) => [q, i]).filter(([q]) => q.difficulty === level);
+        return `<h4 class="gb-level-head">ด่าน ${n + 1}: ${levelName}</h4>
+        ${n ? `<div class="ge-hint">นักเรียนต้องได้ 80 คะแนนขึ้นไปในด่านก่อนหน้าถึงจะเล่นด่านนี้ได้</div>` : ''}
+        ${own.map(([q, i], k) => `
         <div class="gb-q" data-i="${i}">
-          <div class="gb-q-head"><strong>ข้อ ${i + 1}</strong>
-            ${d.questions.length > 1 ? `<button class="btn-del" onclick="gbRemoveQuestion(${i})" title="ลบข้อนี้" aria-label="ลบข้อ ${i + 1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ''}</div>
+          <div class="gb-q-head"><strong>ข้อ ${k + 1}</strong>
+            ${own.length > 1 ? `<button class="btn-del" onclick="gbRemoveQuestion(${i})" title="ลบข้อนี้" aria-label="ลบข้อ ${k + 1} ด่าน${levelName}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ''}</div>
           <div class="gb-q-img">
             ${(q.images || []).map((url, k) => `<figure>
               <img src="${_esc(url)}" alt="รูปที่ ${k + 1} ของข้อ ${i + 1}">
@@ -201,8 +213,9 @@ function gbEditHtml() {
           </div>
           ${type.editorHtml(q)}
         </div>`).join('')}
+        <button class="btn btn-s" onclick="gbAddQuestion('${level}')">เพิ่มข้อด่าน${levelName}</button>`;
+      }).join('')}
     </div>
-    <button class="btn btn-s" onclick="gbAddQuestion()">เพิ่มข้อ</button>
     <div id="gb-err" class="al ae" style="display:none;margin-top:1rem"></div>
     <div class="gb-actions">
       <button class="btn btn-g" onclick="gbPreviewDraft()">ทดลองเล่น</button>
@@ -220,7 +233,8 @@ function gbSync() {
   d.description = document.getElementById('gb-desc').value.trim();
   d.time_limit = +document.getElementById('gb-time').value;
   d.classroom_ids = [...document.querySelectorAll('.gb-room:checked')].map(el => +el.value);
-  d.questions = [...document.querySelectorAll('.gb-q')].map((el, i) => ({ ...type.readEditor(el), images: d.questions[i].images || [] }));
+  d.questions = [...document.querySelectorAll('.gb-q')].map((el, i) =>
+    ({ ...type.readEditor(el), images: d.questions[i].images || [], difficulty: d.questions[i].difficulty }));
 }
 
 // รูปขึ้น Supabase ทันทีที่เลือก แต่ผูกกับเกมตอนบันทึก รูปที่ลบออกจากข้อจะถูกลบจากที่เก็บตอนบันทึกเกม
@@ -254,11 +268,13 @@ function gbSetScope(subjectId, grade) {
   gbRender();
 }
 
-function gbAddQuestion() {
+function gbAddQuestion(level) {
   gbSync();
-  A.gb.draft.questions.push(GAME_TYPES[A.gb.draft.game_type].emptyQuestion());
+  const qs = A.gb.draft.questions;
+  const at = qs.findLastIndex(q => q.difficulty === level) + 1;
+  qs.splice(at, 0, { ...GAME_TYPES[A.gb.draft.game_type].emptyQuestion(), difficulty: level });
   gbRender();
-  document.querySelector('.gb-q:last-child input')?.focus();
+  document.querySelector(`.gb-q[data-i="${at}"] input`)?.focus();
 }
 
 function gbRemoveQuestion(i) {
@@ -295,10 +311,11 @@ async function gbPreviewDraft() {
   if (gameId) gbPreviewSaved(gameId);
 }
 
-async function gbPreviewSaved(gameId) {
-  const res = await apiGamePlay(gameId).catch(() => ({ ok: false }));
+// ครูไปด่านต่อไปได้เลยโดยไม่ต้องได้ 80 คะแนน
+async function gbPreviewSaved(gameId, level = 'easy') {
+  const res = await apiGamePlay(gameId, level).catch(() => ({ ok: false }));
   if (!res.ok) { alert(res.error || 'เปิดเกมไม่สำเร็จ'); return; }
-  openGamePlayerOverlay(res.game);
+  openGamePlayerOverlay(res.game, { requirePass: false, onNextLevel: () => gbPreviewSaved(gameId, res.game.next_level) });
 }
 
 async function gbDelete(gameId) {

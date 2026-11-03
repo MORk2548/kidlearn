@@ -1,8 +1,10 @@
 // game_player.js - ตัวเล่นเกมที่ใช้ทั้งตอนครูทดลองเล่นและตอนนักเรียนเล่นจริง
-// game: { name, game_type, time_limit, questions } รูปแบบเดียวกับที่ game_play ใน backend.php คืน
+// game: { name, game_type, time_limit, level, next_level, pass_score, questions } รูปแบบเดียวกับที่ game_play ใน backend.php คืน
 // onFinish({ score, timeSpent }) เรียกครั้งเดียวเมื่อตอบครบหรือหมดเวลา onClose เรียกเมื่อกดปิด
+// onNextLevel() เรียกเมื่อกดไปด่านต่อไป ปุ่มขึ้นเมื่อได้ถึง pass_score หรือเมื่อ requirePass เป็น false (ครูทดลองเล่น)
 
-function startGamePlayer(root, game, { onFinish = () => {}, onClose = () => {} } = {}) {
+function startGamePlayer(root, game, options = {}) {
+  const { onFinish = () => {}, onClose = () => {}, onNextLevel = null, requirePass = true } = options;
   const type = GAME_TYPES[game.game_type];
   const totalPoints = game.questions.reduce((sum, q) => sum + type.points(q), 0);
   const startedAt = Date.now();
@@ -11,7 +13,7 @@ function startGamePlayer(root, game, { onFinish = () => {}, onClose = () => {} }
   root.innerHTML = `
     <div class="gp">
       <div class="gp-top">
-        <div class="gp-title">${_gtEsc(game.name)}</div>
+        <div class="gp-title">${_gtEsc(game.name)} · ด่าน${GAME_LEVELS[game.level]}</div>
         <div class="gp-timer" role="timer" aria-label="เวลาที่เหลือ"></div>
         <button type="button" class="gp-close" aria-label="ปิดเกม">✕</button>
       </div>
@@ -64,18 +66,24 @@ function startGamePlayer(root, game, { onFinish = () => {}, onClose = () => {} }
     clearInterval(timer);
     const score = totalPoints ? Math.round(earned / totalPoints * 100) : 0;
     const timeSpent = Math.min(game.time_limit, Math.round((Date.now() - startedAt) / 1000));
+    const nextName = game.next_level && GAME_LEVELS[game.next_level];
+    const canAdvance = nextName && onNextLevel && (score >= game.pass_score || !requirePass);
     root.querySelector('.gp-bar').style.width = '100%';
     body.innerHTML = `
       <div class="gp-result">
         ${timeUp ? '<div class="gp-timeup">หมดเวลา</div>' : ''}
         <div class="gp-score">${earned}/${totalPoints}</div>
-        <div class="gp-msg">${score >= 80 ? 'เก่งมาก!' : score >= 50 ? 'ดีแล้ว ลองอีกครั้งให้ได้เต็ม!' : 'ไม่เป็นไร ลองใหม่อีกครั้งนะ'}</div>
+        <div class="gp-msg">${score >= 80 ? 'เก่งมาก!' : score >= 50 ? 'ดีแล้ว ลองอีกครั้งให้ได้เต็ม!' : 'ไม่เป็นไร ลองใหม่อีกครั้งนะ'}
+          ${nextName && score < game.pass_score ? `<div>ได้ ${score} คะแนน ต้องได้ ${game.pass_score} คะแนนขึ้นไปถึงจะปลดด่าน${nextName}</div>` : ''}
+          ${nextName && score >= game.pass_score ? `<div>ปลดด่าน${nextName}แล้ว!</div>` : ''}</div>
         <div class="gp-actions">
           <button type="button" class="btn btn-s gp-again">เล่นอีกครั้ง</button>
-          <button type="button" class="btn btn-p gp-done">ปิด</button>
+          ${canAdvance ? `<button type="button" class="btn btn-p gp-next-level">ไปด่าน${nextName} ➜</button>` : ''}
+          <button type="button" class="btn ${canAdvance ? 'btn-s' : 'btn-p'} gp-done">ปิด</button>
         </div>
       </div>`;
-    body.querySelector('.gp-again').addEventListener('click', () => startGamePlayer(root, game, { onFinish, onClose }));
+    body.querySelector('.gp-again').addEventListener('click', () => startGamePlayer(root, game, options));
+    body.querySelector('.gp-next-level')?.addEventListener('click', () => { close(); onNextLevel(); });
     body.querySelector('.gp-done').addEventListener('click', close);
     onFinish({ score, timeSpent });
   }
@@ -86,11 +94,11 @@ function startGamePlayer(root, game, { onFinish = () => {}, onClose = () => {} }
 }
 
 // เปิดตัวเล่นเต็มจอ ปิดแล้วลบทิ้ง
-function openGamePlayerOverlay(game, { onFinish } = {}) {
+function openGamePlayerOverlay(game, options = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'gp-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   document.body.appendChild(overlay);
-  startGamePlayer(overlay, game, { onFinish, onClose: () => overlay.remove() });
+  startGamePlayer(overlay, game, { ...options, onClose: () => overlay.remove() });
 }

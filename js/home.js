@@ -58,18 +58,23 @@ async function loadStudentGames(){
   if(!res.ok){el.innerHTML=`<div class="ts" style="color:#EF4444">${_esc(res.error||'โหลดเกมไม่สำเร็จ')}</div>`;return;}
   const bySubject={};
   res.games.forEach(g=>(bySubject[g.subject_id] ||= {name:g.subject_name,games:[]}).games.push(g));
+  // ด่านที่ยังล็อกกดไม่ได้ เซิร์ฟเวอร์ตรวจซ้ำตอนเปิดเกม
+  const level=(g,lv)=>`<button class="sg-play sg-level" onclick="playStudentGame(${g.game_id},'${lv.level}')"${lv.unlocked?'':' disabled'}
+      aria-label="ด่าน${GAME_LEVELS[lv.level]}${lv.unlocked?(lv.best_score==null?' ยังไม่เคยเล่น':` ดีที่สุด ${lv.best_score} คะแนน`):' ล็อกอยู่'}">
+      ${lv.unlocked?'':'<i class="fa-solid fa-lock" aria-hidden="true"></i> '}${GAME_LEVELS[lv.level]}${lv.best_score==null?'':` · ${lv.best_score}`}</button>`;
   const card=g=>{
     const type=GAME_TYPES[g.game_type];
     const best=g.best_score==null?null:+g.best_score;
-    return `<button class="sg-card" data-search-item="${_esc(g.subject_name)}" onclick="playStudentGame(${g.game_id})">
+    return `<div class="sg-card" data-search-item="${_esc(g.subject_name)}">
       <span class="sg-body">
         <span class="sg-name">${_esc(g.name)}</span>
         ${g.description?`<span class="sg-meta">${_esc(g.description)}</span>`:''}
-        <span class="sg-meta">${_esc(type?.label||'')} · ${g.question_count} ข้อ · ${Math.round(g.time_limit/60)} นาที</span>
+        <span class="sg-meta">${_esc(type?.label||'')} · ${g.question_count} ข้อ · ${Math.round(g.time_limit/60)} นาทีต่อด่าน</span>
         ${best==null?'<span class="sg-meta">ยังไม่เคยเล่น</span>':`${starsHtml(scoreStars(best))}<span class="sg-meta">ดีที่สุด ${best}/100</span>`}
+        ${g.levels.length>1?'<span class="sg-meta">ได้ 80 คะแนนขึ้นไปเพื่อปลดด่านถัดไป</span>':''}
       </span>
-      <span class="sg-play">เล่น</span>
-    </button>`;
+      <span class="sg-levels">${g.levels.map(lv=>level(g,lv)).join('')}</span>
+    </div>`;
   };
   el.innerHTML=`<div class="ts"><h3>เกมจากครู</h3>
     ${res.games.length?searchBoxHtml('ค้นหาเกม เช่น ชื่อเกม หรือวิชา'):''}
@@ -104,15 +109,20 @@ async function loadStudentLessons(){
   </div>`;
 }
 
-async function playStudentGame(gameId){
-  const res=await apiGamePlay(gameId).catch(()=>({ok:false}));
+async function playStudentGame(gameId,level='easy'){
+  const res=await apiGamePlay(gameId,level).catch(()=>({ok:false}));
   if(!res.ok){alert(res.error||'เปิดเกมไม่สำเร็จ');return;}
-  openGamePlayerOverlay(res.game,{onFinish:async({score,timeSpent})=>{
-    const saved=await apiSaveScore({game_id:gameId,score,time_spent:timeSpent}).catch(()=>({ok:false}));
-    const msg=document.querySelector('.gp-overlay .gp-msg');
-    if(msg) msg.insertAdjacentHTML('beforeend',saved.ok
-      ?'<div class="gp-saved">บันทึกคะแนนแล้ว</div>'
-      :`<div class="gp-saved err">บันทึกคะแนนไม่สำเร็จ: ${_esc(saved.error||'ลองใหม่อีกครั้ง')}</div>`);
-    if(saved.ok) document.getElementById('s-scores').style.display==='block' ? loadScores() : loadHome();
-  }});
+  // ด่านถัดไปปลดได้หลังบันทึกคะแนนเสร็จ ปุ่มไปด่านต่อไปจึงต้องรอการบันทึกนี้
+  let saving=Promise.resolve();
+  openGamePlayerOverlay(res.game,{
+    onFinish:({score,timeSpent})=>{saving=(async()=>{
+      const saved=await apiSaveScore({game_id:gameId,level,score,time_spent:timeSpent}).catch(()=>({ok:false}));
+      const msg=document.querySelector('.gp-overlay .gp-msg');
+      if(msg) msg.insertAdjacentHTML('beforeend',saved.ok
+        ?'<div class="gp-saved">บันทึกคะแนนแล้ว</div>'
+        :`<div class="gp-saved err">บันทึกคะแนนไม่สำเร็จ: ${_esc(saved.error||'ลองใหม่อีกครั้ง')}</div>`);
+      if(saved.ok) document.getElementById('s-scores').style.display==='block' ? loadScores() : loadHome();
+    })();},
+    onNextLevel:async()=>{await saving;playStudentGame(gameId,res.game.next_level);},
+  });
 }

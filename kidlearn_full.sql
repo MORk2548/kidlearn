@@ -262,6 +262,8 @@ CREATE TABLE IF NOT EXISTS scores (
   game_id    INT NOT NULL,
   lesson_no  INT NOT NULL DEFAULT 1,
   score      INT NOT NULL DEFAULT 0,
+  -- ด่านของเกม ตรงกับ questions.difficulty
+  level      VARCHAR(10) NOT NULL DEFAULT 'easy' CHECK (level IN ('easy','medium','hard')),
   time_spent INT NOT NULL DEFAULT 0,
   played_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
@@ -270,6 +272,7 @@ CREATE TABLE IF NOT EXISTS scores (
 
 CREATE INDEX IF NOT EXISTS idx_scores_student ON scores(student_id);
 CREATE INDEX IF NOT EXISTS idx_scores_played  ON scores(played_at);
+CREATE INDEX IF NOT EXISTS idx_scores_game_level ON scores(game_id, level);
 
 -- ============================================================
 -- GROUP 4: Notifications & Recommendations

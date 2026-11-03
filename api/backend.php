@@ -726,6 +726,35 @@ function handleTeacherGameResults(): never {
 const GAME_TYPES = ['mcq', 'truefalse', 'matching', 'linematch', 'sequence'];
 const GAME_MAX_QUESTIONS = 50;
 const GAME_MAX_IMAGES = 4;
+// ด่านเรียงตามลำดับที่ต้องผ่าน ตรงกับ GAME_LEVELS ใน game_types.js
+const GAME_LEVELS = ['easy' => 'ง่าย', 'medium' => 'ปานกลาง', 'hard' => 'ยาก'];
+const GAME_PASS_SCORE = 80;
+
+// เพิ่ม scores.level ให้ฐานข้อมูลที่ยังไม่ได้รัน kidlearn_patch_game_levels.sql
+function ensureGameLevelSchema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (tableColumnExists('scores', 'level')) return;
+    DB::get()->rawQuery(file_get_contents(__DIR__ . '/kidlearn_patch_game_levels.sql'));
+}
+
+// ด่านแรกเปิดเสมอ ด่านถัดไปเปิดเมื่อคะแนนสูงสุดของด่านก่อนหน้าถึง GAME_PASS_SCORE
+function studentLevelUnlocked(int $gameId, string $level, int $userId): bool {
+    $levels = array_keys(GAME_LEVELS);
+    $i = array_search($level, $levels, true);
+    if ($i === 0) return true;
+    return (bool)DB::get()->one(
+        "SELECT 1 FROM scores sc JOIN students st ON st.student_id = sc.student_id
+         WHERE sc.game_id = ? AND sc.level = ? AND st.user_id = ? AND sc.score >= ? LIMIT 1",
+        [$gameId, $levels[$i - 1], $userId, GAME_PASS_SCORE]);
+}
+
+function requestGameLevel(mixed $level): string {
+    $level = (string)($level ?? 'easy');
+    if (!isset(GAME_LEVELS[$level])) DB::fail('ด่านไม่ถูกต้อง', 400);
+    return $level;
+}
 
 function gameText(mixed $value, int $max, string $label): string {
     $text = trim((string)($value ?? ''));
@@ -778,8 +807,10 @@ function parseGameQuestion(string $type, mixed $q, int $no): array {
                 $answers[] = ['answer_text' => $item, 'is_correct' => true, 'seq_order' => $i + 1];
             break;
     }
+    $difficulty = (string)($q['difficulty'] ?? '');
+    if (!isset(GAME_LEVELS[$difficulty])) DB::fail("{$label}: ยังไม่ได้เลือกด่าน", 400);
     return ['text' => $text, 'explanation' => mb_substr(trim((string)($q['explanation'] ?? '')), 0, 1000) ?: null,
-            'images' => gameImageList($q['images'] ?? [], $label), 'answers' => $answers];
+            'images' => gameImageList($q['images'] ?? [], $label), 'difficulty' => $difficulty, 'answers' => $answers];
 }
 
 function gameImageList(mixed $images, string $label): array {
@@ -791,7 +822,8 @@ function gameImageList(mixed $images, string $label): array {
 
 // แถวของ questions/answers → คำถามรูปแบบเดียวกับที่หน้าสร้างเกมส่งมา
 function gameQuestionOut(string $type, array $q, array $answers): array {
-    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? '', 'images' => json_decode($q['images'], true)];
+    $out = ['text' => $q['question_text'], 'explanation' => $q['explanation'] ?? '', 'images' => json_decode($q['images'], true),
+            'difficulty' => $q['difficulty']];
     switch ($type) {
         case 'mcq':
             $out['choices'] = array_column($answers, 'answer_text');
@@ -812,15 +844,18 @@ function gameQuestionOut(string $type, array $q, array $answers): array {
     return $out;
 }
 
-function loadGameQuestions(int $gameId, string $type): array {
+// $level ว่าง = ทุกด่าน (หน้าแก้ไขเกมของครู)
+function loadGameQuestions(int $gameId, string $type, ?string $level = null): array {
     $db = DB::get();
-    $questions = $db->all("SELECT question_id, question_text, explanation, to_json(question_images) AS images FROM questions
-                           WHERE game_id=? ORDER BY order_no, question_id", [$gameId], 'i');
+    $questions = $db->all("SELECT question_id, question_text, explanation, difficulty, to_json(question_images) AS images FROM questions
+                           WHERE game_id=? AND (?::text IS NULL OR difficulty = ?) ORDER BY order_no, question_id",
+                          [$gameId, $level, $level]);
     $byQuestion = [];
     foreach ($db->all(
         "SELECT a.question_id, a.answer_text, a.is_correct, a.pair_left, a.pair_right
          FROM answers a JOIN questions q ON q.question_id = a.question_id
-         WHERE q.game_id=? ORDER BY a.question_id, a.seq_order NULLS LAST, a.answer_id", [$gameId], 'i') as $a)
+         WHERE q.game_id=? AND (?::text IS NULL OR q.difficulty = ?)
+         ORDER BY a.question_id, a.seq_order NULLS LAST, a.answer_id", [$gameId, $level, $level]) as $a)
         $byQuestion[$a['question_id']][] = $a;
     return array_map(fn($q) => gameQuestionOut($type, $q, $byQuestion[$q['question_id']] ?? []), $questions);
 }
@@ -901,6 +936,7 @@ function handleTeacherGames(): never {
 
 function handleTeacherGame(): never {
     authRole('teacher', 'admin');
+    ensureGameLevelSchema();
     $game = findManagedGame((int)($_GET['game_id'] ?? 0));
     $gameId = (int)$game['game_id'];
     $game['classroom_ids'] = gameClassroomIds($gameId);
@@ -912,6 +948,7 @@ function handleSaveTeacherGame(): never {
     global $body;
     authRole('teacher', 'admin');
     ensureTeacherAssignmentSchema();
+    ensureGameLevelSchema();
     $db = DB::get();
     $gameId = (int)($body['game_id'] ?? 0);
     $isUpdate = $gameId > 0;
@@ -937,6 +974,8 @@ function handleSaveTeacherGame(): never {
         DB::fail('ต้องมีคำถาม 1-' . GAME_MAX_QUESTIONS . ' ข้อ', 400);
     $questions = [];
     foreach (array_values($rawQuestions) as $i => $q) $questions[] = parseGameQuestion($type, $q, $i + 1);
+    foreach (GAME_LEVELS as $level => $levelName)
+        if (!in_array($level, array_column($questions, 'difficulty'), true)) DB::fail("ด่าน{$levelName}ต้องมีคำถามอย่างน้อย 1 ข้อ", 400);
 
     $rooms = intArrayLiteral($body['classroom_ids'] ?? []);
     if ($status === 'published' && $rooms === '{}') DB::fail('เลือกห้องที่จะให้เล่นเกมนี้อย่างน้อย 1 ห้อง', 400);
@@ -958,11 +997,11 @@ function handleSaveTeacherGame(): never {
         }
 
         $questionRows = array_map(fn($q, $i) => ['text' => $q['text'], 'explanation' => $q['explanation'],
-            'images' => $q['images'], 'ord' => $i + 1], $questions, array_keys($questions));
+            'images' => $q['images'], 'difficulty' => $q['difficulty'], 'ord' => $i + 1], $questions, array_keys($questions));
         $idByOrder = array_column($db->all(
-            "INSERT INTO questions (game_id, question_text, explanation, question_images, order_no, created_by, updated_by)
-             SELECT ?, q.text, q.explanation, ARRAY(SELECT jsonb_array_elements_text(q.images)), q.ord, ?, ?
-             FROM jsonb_to_recordset(?::jsonb) AS q(text TEXT, explanation TEXT, images JSONB, ord INT)
+            "INSERT INTO questions (game_id, question_text, explanation, question_images, difficulty, order_no, created_by, updated_by)
+             SELECT ?, q.text, q.explanation, ARRAY(SELECT jsonb_array_elements_text(q.images)), q.difficulty, q.ord, ?, ?
+             FROM jsonb_to_recordset(?::jsonb) AS q(text TEXT, explanation TEXT, images JSONB, difficulty TEXT, ord INT)
              RETURNING question_id, order_no",
             [$gameId, myId(), myId(), jsonEncodeSafe($questionRows)]), 'question_id', 'order_no');
 
@@ -1213,9 +1252,10 @@ function viewedStudentUserId(): int {
 
 const SCORE_KEEP_DAYS = 7;
 
-// ลบคะแนนที่เก่ากว่า SCORE_KEEP_DAYS วัน ยกเว้นคะแนนดีที่สุดของนักเรียนแต่ละคนในแต่ละเกม (ดาวคิดจากคะแนนนี้)
+// ลบคะแนนที่เก่ากว่า SCORE_KEEP_DAYS วัน ยกเว้นคะแนนดีที่สุดของนักเรียนแต่ละคนในแต่ละด่านของแต่ละเกม (ดาวและการปลดด่านคิดจากคะแนนนี้)
 // เรียกจากหลายที่แต่ทำงานจริงไม่เกินชั่วโมงละครั้ง และรันซ้ำได้ผลเท่าเดิม
 function pruneOldScores(): void {
+    ensureGameLevelSchema();
     $stamp = sys_get_temp_dir() . '/kidlearn_prune_scores.stamp';
     if (is_file($stamp) && filemtime($stamp) > time() - 3600) return;
     touch($stamp);
@@ -1223,21 +1263,27 @@ function pruneOldScores(): void {
     DB::get()->run("DELETE FROM games WHERE is_active = FALSE");
     DB::get()->run(
         "DELETE FROM scores s USING (
-             SELECT score_id, ROW_NUMBER() OVER (PARTITION BY student_id, game_id ORDER BY score DESC, played_at DESC) AS rn
+             SELECT score_id, ROW_NUMBER() OVER (PARTITION BY student_id, game_id, level ORDER BY score DESC, played_at DESC) AS rn
              FROM scores
          ) r
          WHERE s.score_id = r.score_id AND r.rn > 1 AND s.played_at < NOW() - INTERVAL '" . SCORE_KEEP_DAYS . " days'");
 }
 
+// levels: ด่านที่มีคำถาม เรียงตาม GAME_LEVELS พร้อมคะแนนสูงสุดและสถานะปลดล็อก
 function handleStudentGames(): never {
     authRole('student', 'parent');
     pruneOldScores();
     $userId = viewedStudentUserId();
-    DB::ok(['games' => DB::get()->all(
+    $games = DB::get()->all(
         "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.time_limit, g.subject_id,
                 sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
                 (SELECT COUNT(*) FROM questions q WHERE q.game_id = g.game_id) AS question_count,
-                mine.best_score, COALESCE(mine.play_count, 0) AS play_count
+                mine.best_score, COALESCE(mine.play_count, 0) AS play_count,
+                (SELECT COALESCE(json_object_agg(lv.difficulty, json_build_object('question_count', lv.n, 'best_score', lv.best)), '{}')
+                 FROM (SELECT q.difficulty, COUNT(*) AS n,
+                              (SELECT MAX(sc.score) FROM scores sc JOIN students st ON st.student_id = sc.student_id
+                               WHERE sc.game_id = g.game_id AND sc.level = q.difficulty AND st.user_id = ?) AS best
+                       FROM questions q WHERE q.game_id = g.game_id GROUP BY q.difficulty) lv) AS levels
          FROM games g JOIN subjects sub ON sub.subject_id = g.subject_id
          LEFT JOIN LATERAL (
              SELECT MAX(sc.score) AS best_score, COUNT(*) AS play_count
@@ -1246,24 +1292,45 @@ function handleStudentGames(): never {
          ) mine ON TRUE
          WHERE " . STUDENT_PLAYABLE_GAME_SQL . "
          ORDER BY sub.order_no, g.game_id DESC",
-        [$userId, $userId])]);
+        [$userId, $userId, $userId]);
+    foreach ($games as &$g) {
+        $byLevel = json_decode($g['levels'], true);
+        $g['levels'] = [];
+        $prevBest = GAME_PASS_SCORE;
+        foreach (GAME_LEVELS as $level => $_) {
+            $best = $byLevel[$level]['best_score'] ?? null;
+            if (isset($byLevel[$level])) $g['levels'][] = ['level' => $level, 'question_count' => (int)$byLevel[$level]['question_count'],
+                'best_score' => $best, 'unlocked' => $prevBest >= GAME_PASS_SCORE];
+            $prevBest = $best ?? 0;
+        }
+    }
+    DB::ok(['games' => $games]);
 }
 
-// นักเรียนเล่นได้เฉพาะเกมที่มอบหมายให้ห้องตัวเอง ครู/แอดมินเปิดเกมของตัวเองเพื่อดูตัวอย่างได้
+// นักเรียนเล่นได้เฉพาะเกมที่มอบหมายให้ห้องตัวเองและด่านที่ปลดแล้ว ครู/แอดมินเปิดเกมของตัวเองได้ทุกด่านเพื่อดูตัวอย่าง
 function handleGamePlay(): never {
     authRole('student', 'teacher', 'admin');
+    ensureGameLevelSchema();
     $gameId = (int)($_GET['game_id'] ?? 0);
+    $level = requestGameLevel($_GET['level'] ?? null);
     if (myRole() === 'student') {
         $game = DB::get()->one("SELECT * FROM games g WHERE g.game_id = ? AND " . STUDENT_PLAYABLE_GAME_SQL,
             [$gameId, myId()]);
         if (!$game) DB::fail('ไม่พบเกม', 404);
+        if (!studentLevelUnlocked($gameId, $level, myId()))
+            DB::fail('ด่านนี้ยังล็อกอยู่ ต้องได้ ' . GAME_PASS_SCORE . ' คะแนนขึ้นไปในด่านก่อนหน้า', 403);
     } else {
         $game = findManagedGame($gameId);
     }
+    $questions = loadGameQuestions((int)$game['game_id'], $game['game_type'], $level);
+    if (!$questions) DB::fail('ด่านนี้ยังไม่มีคำถาม', 404);
+    $levels = array_keys(GAME_LEVELS);
+    $next = $levels[array_search($level, $levels, true) + 1] ?? null;
+    if ($next && !DB::get()->one("SELECT 1 FROM questions WHERE game_id = ? AND difficulty = ? LIMIT 1", [$gameId, $next])) $next = null;
     DB::ok(['game' => [
         'game_id' => (int)$game['game_id'], 'name' => $game['name'], 'icon' => $game['icon'],
         'game_type' => $game['game_type'], 'time_limit' => (int)$game['time_limit'], 'subject_id' => (int)$game['subject_id'],
-        'questions' => loadGameQuestions((int)$game['game_id'], $game['game_type']),
+        'level' => $level, 'next_level' => $next, 'pass_score' => GAME_PASS_SCORE, 'questions' => $questions,
     ]]);
 }
 
@@ -1271,8 +1338,10 @@ function handleGamePlay(): never {
 function handleSaveScore(): never {
     global $body;
     authRole('student');
+    ensureGameLevelSchema();
     $db = DB::get();
     $gameId = (int)($body['game_id'] ?? 0);
+    $level = requestGameLevel($body['level'] ?? null);
     $score = $body['score'] ?? null;
     if (!is_int($score) || $score < 0 || $score > 100) DB::fail('คะแนนต้องอยู่ระหว่าง 0-100', 400);
     $timeSpent = max(0, min(86400, (int)($body['time_spent'] ?? 0)));
@@ -1281,13 +1350,14 @@ function handleSaveScore(): never {
     if (!$st) DB::fail('ไม่พบข้อมูลนักเรียน', 403);
     if (!$db->one("SELECT 1 FROM games g WHERE g.game_id = ? AND " . STUDENT_PLAYABLE_GAME_SQL, [$gameId, myId()]))
         DB::fail('ไม่พบเกม', 404);
+    if (!studentLevelUnlocked($gameId, $level, myId())) DB::fail('ด่านนี้ยังล็อกอยู่', 403);
 
     $studentId = (int)$st['student_id'];
     $scoreId = (int)$db->one(
-        "INSERT INTO scores (student_id, game_id, score, time_spent) VALUES (?,?,?,?) RETURNING score_id",
-        [$studentId, $gameId, $score, $timeSpent])['score_id'];
+        "INSERT INTO scores (student_id, game_id, level, score, time_spent) VALUES (?,?,?,?,?) RETURNING score_id",
+        [$studentId, $gameId, $level, $score, $timeSpent])['score_id'];
     logAudit('score_saved', 'score', (string)$scoreId, 'บันทึกผลการเล่นเกม',
-        ['student_id' => $studentId, 'game_id' => $gameId, 'score' => $score]);
+        ['student_id' => $studentId, 'game_id' => $gameId, 'level' => $level, 'score' => $score]);
     pruneOldScores();
     DB::ok(['score_id' => $scoreId, 'score' => $score]);
 }
