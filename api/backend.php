@@ -988,7 +988,7 @@ function handleDeleteTeacherGame(): never {
 }
 
 // ── บทเรียน: แยกจากเกม ครูจัดการได้เฉพาะของตัวเอง แอดมินจัดการได้ทุกบท นักเรียนเห็นบทที่มอบหมายให้ห้องตัวเอง ──
-const LESSON_SELECT_SQL = "SELECT l.lesson_id, l.title, l.body, l.grade, l.subject_id, l.updated_at,
+const LESSON_SELECT_SQL = "SELECT l.lesson_id, l.title, l.body, l.body_format, l.grade, l.subject_id, l.updated_at,
         sub.name AS subject_name, sub.icon AS subject_icon,
         COALESCE((SELECT json_agg(lc.classroom_id ORDER BY lc.classroom_id)
                   FROM lesson_classrooms lc WHERE lc.lesson_id = l.lesson_id), '[]') AS classroom_ids
@@ -1005,11 +1005,19 @@ function findManagedLesson(int $lessonId): array {
     return $lesson;
 }
 
-// รูปในบทเรียนอยู่ในเนื้อหาเป็นบรรทัด ![รูป](URL) คืน path ใน bucket ของทุกรูป และปฏิเสธ URL ที่ไม่ใช่รูปบทเรียนของระบบ
+// บทเรียนเก่าเป็นข้อความที่มีบรรทัด ![รูป](URL) บทเรียนจากตัวแก้ไขใหม่เป็น HTML ที่ผ่าน sanitizeLessonHtml แล้ว
+function ensureLessonSchema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    addColumnIfMissing('lessons', 'body_format', "VARCHAR(10) NOT NULL DEFAULT 'text'");
+}
+
+// คืน path ใน bucket ของทุกรูป และปฏิเสธ URL ที่ไม่ใช่รูปบทเรียนของระบบ
 const LESSON_IMAGE_TOKEN = '/!\[[^\]\n]*\]\(([^)\s]+)\)/u';
 
-function lessonImagePaths(string $text): array {
-    preg_match_all(LESSON_IMAGE_TOKEN, $text, $m);
+function lessonImagePaths(string $text, string $format): array {
+    preg_match_all($format === 'html' ? '/<img src="([^"]*)">/' : LESSON_IMAGE_TOKEN, $text, $m);
     $prefix = storagePublicPrefix();
     $paths = [];
     foreach ($m[1] as $url) {
@@ -1020,8 +1028,42 @@ function lessonImagePaths(string $text): array {
     return array_values($paths);
 }
 
+// นักเรียนเปิดดู HTML ที่ครูเขียน จึงสร้าง HTML ใหม่จาก tag ที่อนุญาตเท่านั้น attribute อื่นทิ้งหมด
+const LESSON_HTML_TAGS = ['p', 'h2', 'h3', 'strong', 'em', 'u', 'ol', 'ul', 'li', 'br', 'img'];
+const LESSON_HTML_DROP = ['script', 'style', 'iframe', 'object', 'embed', 'template', 'svg', 'math', 'noscript', 'textarea', 'select', 'head', 'title'];
+
+function sanitizeLessonHtml(string $html): string {
+    $doc = new DOMDocument();
+    $prev = libxml_use_internal_errors(true);
+    $doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NONET);
+    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+    return lessonHtmlChildren($doc->getElementsByTagName('body')->item(0));
+}
+
+function lessonHtmlChildren(DOMNode $node): string {
+    $out = '';
+    foreach ($node->childNodes as $c) {
+        if ($c instanceof DOMText) {
+            $out .= htmlspecialchars(str_replace("\u{A0}", ' ', $c->data), ENT_QUOTES);
+            continue;
+        }
+        if (!$c instanceof DOMElement) continue;
+        $tag = strtolower($c->tagName);
+        if (in_array($tag, LESSON_HTML_DROP, true)) continue;
+        if (!in_array($tag, LESSON_HTML_TAGS, true)) { $out .= lessonHtmlChildren($c); continue; }
+        if ($tag === 'img') { $out .= '<img src="' . htmlspecialchars($c->getAttribute('src'), ENT_QUOTES) . '">'; continue; }
+        if ($tag === 'br') { $out .= '<br>'; continue; }
+        $align = in_array($tag, ['p', 'h2', 'h3', 'li'], true)
+            && preg_match('/\bql-align-(center|right|justify)\b/', $c->getAttribute('class'), $m) ? " class=\"ql-align-{$m[1]}\"" : '';
+        $out .= "<{$tag}{$align}>" . lessonHtmlChildren($c) . "</{$tag}>";
+    }
+    return $out;
+}
+
 function handleTeacherLessons(): never {
     authRole('teacher', 'admin');
+    ensureLessonSchema();
     $own = myRole() === 'teacher' ? ' WHERE l.created_by = ' . myId() : '';
     DB::ok(['lessons' => lessonRows(DB::get()->all(LESSON_SELECT_SQL . "{$own} ORDER BY l.lesson_id DESC"))]);
 }
@@ -1030,13 +1072,17 @@ function handleSaveLesson(): never {
     global $body;
     authRole('teacher', 'admin');
     ensureTeacherAssignmentSchema();
+    ensureLessonSchema();
     $db = DB::get();
     $lessonId = (int)($body['lesson_id'] ?? 0);
-    $oldImages = $lessonId ? lessonImagePaths(findManagedLesson($lessonId)['body']) : [];
+    $old = $lessonId ? findManagedLesson($lessonId) : null;
+    $oldImages = $old ? lessonImagePaths($old['body'], $old['body_format']) : [];
 
     $title = gameText($body['title'] ?? '', 200, 'ชื่อบทเรียน');
-    $text = gameText($body['body'] ?? '', 10000, 'เนื้อหาบทเรียน');
-    $images = lessonImagePaths($text);
+    $text = sanitizeLessonHtml((string)($body['body'] ?? ''));
+    if (trim(html_entity_decode(strip_tags($text))) === '' && !str_contains($text, '<img')) DB::fail('เนื้อหาบทเรียน: ยังไม่ได้กรอก', 400);
+    if (mb_strlen($text) > 50000) DB::fail('เนื้อหาบทเรียน: ยาวเกิน 50000 ตัวอักษร', 400);
+    $images = lessonImagePaths($text, 'html');
     // รูปใหม่ต้องเป็นรูปที่ผู้ใช้คนนี้อัปโหลดเอง กันไม่ให้อ้างรูปของคนอื่นแล้วรูปนั้นถูกลบตอนลบบทเรียน
     $newImages = array_values(array_diff($images, $oldImages));
     if ($newImages && (int)$db->one("SELECT COUNT(*) AS c FROM image_assets WHERE storage_path = ANY(?::text[]) AND uploaded_by=?",
@@ -1051,12 +1097,12 @@ function handleSaveLesson(): never {
 
     $lessonId = $db->transaction(function (DB $db) use ($lessonId, $title, $text, $grade, $subjectId, $rooms) {
         if ($lessonId) {
-            $db->run("UPDATE lessons SET title=?, body=?, grade=?, subject_id=?, updated_at=NOW() WHERE lesson_id=?",
+            $db->run("UPDATE lessons SET title=?, body=?, body_format='html', grade=?, subject_id=?, updated_at=NOW() WHERE lesson_id=?",
                 [$title, $text, $grade, $subjectId, $lessonId]);
             $db->run("DELETE FROM lesson_classrooms WHERE lesson_id=?", [$lessonId]);
         } else {
             $lessonId = (int)$db->one(
-                "INSERT INTO lessons (title, body, grade, subject_id, created_by) VALUES (?,?,?,?,?) RETURNING lesson_id",
+                "INSERT INTO lessons (title, body, body_format, grade, subject_id, created_by) VALUES (?,?,'html',?,?,?) RETURNING lesson_id",
                 [$title, $text, $grade, $subjectId, myId()])['lesson_id'];
         }
         $db->run("INSERT INTO lesson_classrooms (lesson_id, classroom_id) SELECT ?, unnest(?::int[])", [$lessonId, $rooms]);
@@ -1070,15 +1116,17 @@ function handleSaveLesson(): never {
 function handleDeleteLesson(): never {
     global $body;
     authRole('teacher', 'admin');
+    ensureLessonSchema();
     $lesson = findManagedLesson((int)($body['lesson_id'] ?? 0));
     DB::get()->run("DELETE FROM lessons WHERE lesson_id=?", [(int)$lesson['lesson_id']]);
-    storageDeleteImages(lessonImagePaths($lesson['body']));
+    storageDeleteImages(lessonImagePaths($lesson['body'], $lesson['body_format']));
     logAudit('delete', 'lesson', (string)$lesson['lesson_id'], "ลบบทเรียน {$lesson['title']}");
     DB::ok(['deleted' => true]);
 }
 
 function handleStudentLessons(): never {
     authRole('student');
+    ensureLessonSchema();
     DB::ok(['lessons' => lessonRows(DB::get()->all(LESSON_SELECT_SQL . "
         WHERE EXISTS (SELECT 1 FROM lesson_classrooms lc JOIN students st ON st.classroom_id = lc.classroom_id
                       WHERE lc.lesson_id = l.lesson_id AND st.user_id = ?)

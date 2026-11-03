@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS lessons (
 
 CREATE INDEX IF NOT EXISTS idx_lessons_created_by ON lessons(created_by);
 
+-- 'text' = บทเรียนเก่าแบบข้อความ, 'html' = บทเรียนจากตัวแก้ไขแบบ Word
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS body_format VARCHAR(10) NOT NULL DEFAULT 'text';
+
 CREATE TABLE IF NOT EXISTS lesson_classrooms (
   lesson_id    INT NOT NULL REFERENCES lessons(lesson_id) ON DELETE CASCADE,
   classroom_id INT NOT NULL REFERENCES classrooms(classroom_id) ON DELETE CASCADE,

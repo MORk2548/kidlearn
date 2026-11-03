@@ -1851,8 +1851,75 @@ tbody tr:last-child td {
   margin: 0 auto
 }
 
-.lb-full #lb-body {
-  min-height: 55vh
+.lb-full .ql-toolbar.ql-snow {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sf);
+  border-color: var(--bd);
+  border-radius: 12px 12px 0 0
+}
+
+.lb-full .ql-snow .ql-stroke {
+  stroke: var(--tx)
+}
+
+.lb-full .ql-snow .ql-fill {
+  fill: var(--tx)
+}
+
+.lb-full .ql-snow .ql-picker,
+.lb-full .ql-snow .ql-picker-options {
+  color: var(--tx);
+  background: var(--sf)
+}
+
+.lb-full .ql-snow button:hover .ql-stroke,
+.lb-full .ql-snow .ql-active .ql-stroke {
+  stroke: var(--p)
+}
+
+.lb-full .ql-snow button:hover .ql-fill,
+.lb-full .ql-snow .ql-active .ql-fill {
+  fill: var(--p)
+}
+
+.lb-full .ql-container.ql-snow {
+  border-color: var(--bd);
+  background: var(--field);
+  color: var(--tx);
+  border-radius: 0 0 12px 12px;
+  font: inherit;
+  font-size: 1rem
+}
+
+.lb-full .ql-snow .ql-picker.ql-header .ql-picker-label::before,
+.lb-full .ql-snow .ql-picker.ql-header .ql-picker-item::before {
+  content: 'ข้อความปกติ'
+}
+
+.lb-full .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
+.lb-full .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before {
+  content: 'หัวข้อใหญ่'
+}
+
+.lb-full .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
+.lb-full .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before {
+  content: 'หัวข้อย่อย'
+}
+
+.lb-full .ql-snow .ql-picker.ql-header {
+  width: 110px
+}
+
+.lb-full .ql-editor.ql-blank::before {
+  color: var(--ph);
+  font-style: normal
+}
+
+.lb-full .ql-editor {
+  min-height: 55vh;
+  line-height: 1.7
 }
 
 .gp {
@@ -2541,6 +2608,30 @@ tbody tr:last-child td {
 .lesson-body {
   white-space: pre-wrap;
   line-height: 1.7
+}
+
+.lesson-body.is-html {
+  white-space: normal
+}
+
+.lesson-body p {
+  margin: 0
+}
+
+.lesson-body p:empty {
+  min-height: 1.7em
+}
+
+.lesson-body .ql-align-center {
+  text-align: center
+}
+
+.lesson-body .ql-align-right {
+  text-align: right
+}
+
+.lesson-body .ql-align-justify {
+  text-align: justify
 }
 
 .lesson-img {

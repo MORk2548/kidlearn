@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS lessons (
   grade       VARCHAR(20)  NOT NULL CHECK (grade IN ('ป.1','ป.2','ป.3','ป.4','ป.5','ป.6')),
   title       VARCHAR(200) NOT NULL,
   body        TEXT         NOT NULL,
+  body_format VARCHAR(10)  NOT NULL DEFAULT 'text',
   created_by  INT          NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
