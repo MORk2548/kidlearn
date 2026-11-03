@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════
 // HISTORY — ปุ่มย้อนกลับของเบราว์เซอร์กลับไปหน้าก่อนหน้าในแอป
-// state: { sec }
+// state: { sec, tab? } tab คือแท็บในแผงควบคุมครู
 // ══════════════════════════════════════════════════════
 let _navRestoring = false;
 
@@ -15,11 +15,18 @@ function navPush(state) {
   else history.replaceState(state, '');
 }
 
+// หน้าที่บทบาทนี้เข้าได้คือหน้าที่ applyRoleUI ไม่ได้ซ่อนปุ่มไว้
+function navAllowed(name) {
+  const el = name && document.getElementById('sl-' + name);
+  return !!el && el.style.display !== 'none';
+}
+
 window.addEventListener('popstate', e => {
   const s = e.state;
   if (!s) return;
   _navRestoring = true;
   try {
+    if (s.tab) A.tcTab = s.tab;
     sec(s.sec);
   } finally {
     _navRestoring = false;

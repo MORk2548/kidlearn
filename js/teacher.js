@@ -136,7 +136,8 @@ async function loadTeach() {
   A.tcSubjects=statsRes.ok?(statsRes.subjects||[]):[];
   A.tcStudents=stuRes.ok?(stuRes.students||[]):[];
 
-  _renderTcTabs();
+  // หลังรีเฟรชแท็บที่จำไว้อาจเป็นสร้างเกมหรือบทเรียน ซึ่งต้องโหลดเนื้อหาของแท็บนั้นด้วย
+  switchTcTab(A.tcTab);
   renderTcCards(cardRes.ok?(cardRes.cards||[]):[]);
   if(A.tcBook) openTcCard(A.tcBook.classroom_id, A.tcBook.subject_id);
 }
@@ -511,6 +512,7 @@ function _renderTcTabs(){
 
 function switchTcTab(tab){
   A.tcTab=tab;
+  if(history.state?.sec==='teach') history.replaceState({...history.state,tab},'');
   _renderTcTabs();
   if(tab==='games') loadGameBuilder();
   if(tab==='lessons') loadLessonBuilder();
