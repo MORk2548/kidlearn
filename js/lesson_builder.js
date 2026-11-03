@@ -69,9 +69,9 @@ function lbEdit(lessonId) {
 function lbEditHtml() {
   const d = A.lb.draft;
   const rooms = gbRoomsFor(d.subject_id, d.grade);
-  return `<div class="ts">
+  return `<div class="gp-overlay lb-full" role="dialog" aria-modal="true" aria-labelledby="lb-head"><div class="ts">
     <div class="gb-head">
-      <h3 style="margin:0">${d.lesson_id ? 'แก้ไขบทเรียน' : 'สร้างบทเรียน'}</h3>
+      <h3 id="lb-head" style="margin:0">${d.lesson_id ? 'แก้ไขบทเรียน' : 'สร้างบทเรียน'}</h3>
       <button class="btn btn-sm" onclick="lbCancel()">✕ ยกเลิก</button>
     </div>
     <div class="fg"><label class="fl" for="lb-title">ชื่อบทเรียน</label>
@@ -100,7 +100,7 @@ function lbEditHtml() {
       <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name })">ดูตัวอย่าง</button>
       <button class="btn btn-p" onclick="lbSave()">บันทึกบทเรียน</button>
     </div>
-  </div>`;
+  </div></div>`;
 }
 
 function lbSync() {

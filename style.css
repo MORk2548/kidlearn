@@ -1846,6 +1846,15 @@ tbody tr:last-child td {
   padding: 1rem
 }
 
+.lb-full>.ts {
+  max-width: 1100px;
+  margin: 0 auto
+}
+
+.lb-full #lb-body {
+  min-height: 55vh
+}
+
 .gp {
   max-width: 760px;
   margin: 0 auto
