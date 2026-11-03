@@ -39,6 +39,20 @@ define('DB_NAME', $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'postgres');
 const IMAGE_BUCKET = 'kidlearn-images';
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_EXTENSIONS = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+// ไฟล์แนบบทเรียนอยู่คนละ bucket กับรูป เพราะ bucket รูปรับเฉพาะ MIME รูปภาพ ต้องสร้างด้วย api/kidlearn_patch_lesson_files.sql
+const LESSON_FILE_BUCKET = 'kidlearn-files';
+const LESSON_FILE_MAX_BYTES = 10 * 1024 * 1024;
+const LESSON_FILE_MAX_COUNT = 10;
+const LESSON_FILE_EXTENSIONS = [
+    'application/pdf' => 'pdf',
+    'application/msword' => 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+    'application/vnd.ms-powerpoint' => 'ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+    'application/vnd.ms-excel' => 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+    'text/plain' => 'txt',
+];
 const STUDENT_IMPORT_MAX = 200;
 
 header('Content-Type: application/json; charset=utf-8');
@@ -203,7 +217,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'save_subject', 'toggle_subject', 'delete_subject',
         'forgot_password', 'reset_password',
         'officer_update_user', 'officer_delete_user', 'officer_create_staff',
-        'admin_create_staff', 'upload_image', 'add_classroom', 'delete_classroom', 'choose_classroom',
+        'admin_create_staff', 'upload_image', 'upload_lesson_file','add_classroom', 'delete_classroom', 'choose_classroom',
         'save_teacher_assignments', 'add_teacher_room', 'remove_teacher_room', 'teacher_create_students',
         'save_teacher_game', 'delete_teacher_game', 'save_score', 'save_lesson', 'delete_lesson',
     ];
@@ -989,14 +1003,17 @@ function handleDeleteTeacherGame(): never {
 
 // ── บทเรียน: แยกจากเกม ครูจัดการได้เฉพาะของตัวเอง แอดมินจัดการได้ทุกบท นักเรียนเห็นบทที่มอบหมายให้ห้องตัวเอง ──
 const LESSON_SELECT_SQL = "SELECT l.lesson_id, l.title, l.body, l.body_format, l.grade, l.subject_id, l.updated_at,
-        sub.name AS subject_name, sub.icon AS subject_icon, l.game_id, g.name AS game_name,
+        sub.name AS subject_name, sub.icon AS subject_icon, l.game_id, g.name AS game_name, l.attachments,
         COALESCE((SELECT json_agg(lc.classroom_id ORDER BY lc.classroom_id)
                   FROM lesson_classrooms lc WHERE lc.lesson_id = l.lesson_id), '[]') AS classroom_ids
     FROM lessons l JOIN subjects sub ON sub.subject_id = l.subject_id
     LEFT JOIN games g ON g.game_id = l.game_id";
 
 function lessonRows(array $rows): array {
-    foreach ($rows as &$r) $r['classroom_ids'] = json_decode($r['classroom_ids'], true);
+    foreach ($rows as &$r) {
+        $r['classroom_ids'] = json_decode($r['classroom_ids'], true);
+        $r['attachments'] = array_map('lessonFile', json_decode($r['attachments'] ?? '[]', true) ?: []);
+    }
     return $rows;
 }
 
@@ -1013,6 +1030,16 @@ function ensureLessonSchema(): void {
     $done = true;
     addColumnIfMissing('lessons', 'body_format', "VARCHAR(10) NOT NULL DEFAULT 'text'");
     addColumnIfMissing('lessons', 'game_id', 'INT DEFAULT NULL REFERENCES games(game_id) ON DELETE SET NULL');
+    addColumnIfMissing('lessons', 'attachments', "JSONB NOT NULL DEFAULT '[]'");
+}
+
+// ไฟล์แนบเก็บใน lessons.attachments เป็น [{path, name, size}] ชื่อและขนาดมาจาก image_assets ไม่ใช่จาก client
+function lessonFile(array $f): array {
+    return $f + ['url' => storagePublicPrefix(LESSON_FILE_BUCKET) . $f['path']];
+}
+
+function lessonFilePaths(?string $json): array {
+    return array_column(json_decode($json ?? '[]', true) ?: [], 'path');
 }
 
 // คืน path ใน bucket ของทุกรูป และปฏิเสธ URL ที่ไม่ใช่รูปบทเรียนของระบบ
@@ -1084,6 +1111,7 @@ function handleSaveLesson(): never {
     $lessonId = (int)($body['lesson_id'] ?? 0);
     $old = $lessonId ? findManagedLesson($lessonId) : null;
     $oldImages = $old ? lessonImagePaths($old['body'], $old['body_format']) : [];
+    $oldFiles = $old ? lessonFilePaths($old['attachments']) : [];
 
     $title = gameText($body['title'] ?? '', 200, 'ชื่อบทเรียน');
     $text = sanitizeLessonHtml((string)($body['body'] ?? ''));
@@ -1095,6 +1123,18 @@ function handleSaveLesson(): never {
     if ($newImages && (int)$db->one("SELECT COUNT(*) AS c FROM image_assets WHERE storage_path = ANY(?::text[]) AND uploaded_by=?",
             [textArrayLiteral($newImages), myId()], 'si')['c'] !== count($newImages))
         DB::fail('มีรูปภาพที่ไม่ได้อัปโหลดจากบัญชีนี้', 400);
+    $files = array_values(array_unique(array_map('strval', is_array($body['files'] ?? null) ? $body['files'] : [])));
+    if (count($files) > LESSON_FILE_MAX_COUNT) DB::fail('แนบไฟล์ได้ไม่เกิน ' . LESSON_FILE_MAX_COUNT . ' ไฟล์', 400);
+    foreach ($files as $p) if (!preg_match('#^lesson-file/\d+/[0-9a-f]{32}\.\w+$#', $p)) DB::fail('ไฟล์แนบไม่ถูกต้อง', 400);
+    $assets = $files ? array_column($db->all(
+        "SELECT storage_path, original_filename, byte_size, uploaded_by FROM image_assets WHERE bucket_id=? AND storage_path = ANY(?::text[])",
+        [LESSON_FILE_BUCKET, textArrayLiteral($files)]), null, 'storage_path') : [];
+    foreach ($files as $p) {
+        $a = $assets[$p] ?? null;
+        // ไฟล์ที่เพิ่งแนบต้องเป็นของผู้ใช้คนนี้ กันไม่ให้อ้างไฟล์ของคนอื่นแล้วไฟล์นั้นถูกลบตอนลบบทเรียน
+        if (!$a || (!in_array($p, $oldFiles, true) && (int)$a['uploaded_by'] !== myId())) DB::fail('มีไฟล์แนบที่ไม่ได้อัปโหลดจากบัญชีนี้', 400);
+    }
+    $attachments = jsonEncodeSafe(array_map(fn($p) => ['path' => $p, 'name' => $assets[$p]['original_filename'], 'size' => (int)$assets[$p]['byte_size']], $files));
     $grade = (string)($body['grade'] ?? '');
     if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('กรุณาเลือกระดับชั้น', 400);
     $subjectId = (int)($body['subject_id'] ?? 0);
@@ -1107,20 +1147,21 @@ function handleSaveLesson(): never {
         if ((int)$game['subject_id'] !== $subjectId || $game['grade'] !== $grade) DB::fail('เกมที่เลือกต้องเป็นวิชาและชั้นเดียวกับบทเรียน', 400);
     }
 
-    $lessonId = $db->transaction(function (DB $db) use ($lessonId, $title, $text, $grade, $subjectId, $rooms, $gameId) {
+    $lessonId = $db->transaction(function (DB $db) use ($lessonId, $title, $text, $grade, $subjectId, $rooms, $gameId, $attachments) {
         if ($lessonId) {
-            $db->run("UPDATE lessons SET title=?, body=?, body_format='html', grade=?, subject_id=?, game_id=?, updated_at=NOW() WHERE lesson_id=?",
-                [$title, $text, $grade, $subjectId, $gameId, $lessonId]);
+            $db->run("UPDATE lessons SET title=?, body=?, body_format='html', grade=?, subject_id=?, game_id=?, attachments=?::jsonb, updated_at=NOW() WHERE lesson_id=?",
+                [$title, $text, $grade, $subjectId, $gameId, $attachments, $lessonId]);
             $db->run("DELETE FROM lesson_classrooms WHERE lesson_id=?", [$lessonId]);
         } else {
             $lessonId = (int)$db->one(
-                "INSERT INTO lessons (title, body, body_format, grade, subject_id, game_id, created_by) VALUES (?,?,'html',?,?,?,?) RETURNING lesson_id",
-                [$title, $text, $grade, $subjectId, $gameId, myId()])['lesson_id'];
+                "INSERT INTO lessons (title, body, body_format, grade, subject_id, game_id, attachments, created_by) VALUES (?,?,'html',?,?,?,?::jsonb,?) RETURNING lesson_id",
+                [$title, $text, $grade, $subjectId, $gameId, $attachments, myId()])['lesson_id'];
         }
         $db->run("INSERT INTO lesson_classrooms (lesson_id, classroom_id) SELECT ?, unnest(?::int[])", [$lessonId, $rooms]);
         return $lessonId;
     });
     storageDeleteImages(array_values(array_diff($oldImages, $images)));
+    storageDeleteImages(array_values(array_diff($oldFiles, $files)), LESSON_FILE_BUCKET);
     logAudit('save', 'lesson', (string)$lessonId, "บันทึกบทเรียน {$title}", ['grade' => $grade, 'subject_id' => $subjectId]);
     DB::ok(['lesson_id' => $lessonId]);
 }
@@ -1132,17 +1173,21 @@ function handleDeleteLesson(): never {
     $lesson = findManagedLesson((int)($body['lesson_id'] ?? 0));
     DB::get()->run("DELETE FROM lessons WHERE lesson_id=?", [(int)$lesson['lesson_id']]);
     storageDeleteImages(lessonImagePaths($lesson['body'], $lesson['body_format']));
+    storageDeleteImages(lessonFilePaths($lesson['attachments']), LESSON_FILE_BUCKET);
     logAudit('delete', 'lesson', (string)$lesson['lesson_id'], "ลบบทเรียน {$lesson['title']}");
     DB::ok(['deleted' => true]);
 }
 
+// ผู้ปกครองได้แค่ชื่อบทเรียนที่ผูกกับเกม เพื่อแนะนำว่าลูกควรอ่านบทไหน ไม่ได้เนื้อหา
 function handleStudentLessons(): never {
-    authRole('student');
+    authRole('student', 'parent');
     ensureLessonSchema();
-    DB::ok(['lessons' => lessonRows(DB::get()->all(LESSON_SELECT_SQL . "
+    $lessons = lessonRows(DB::get()->all(LESSON_SELECT_SQL . "
         WHERE EXISTS (SELECT 1 FROM lesson_classrooms lc JOIN students st ON st.classroom_id = lc.classroom_id
                       WHERE lc.lesson_id = l.lesson_id AND st.user_id = ?)
-        ORDER BY sub.order_no, l.lesson_id DESC", [myId()]))]);
+        ORDER BY sub.order_no, l.lesson_id DESC", [viewedStudentUserId()]));
+    if (myRole() === 'parent') foreach ($lessons as &$l) unset($l['body'], $l['body_format'], $l['attachments']);
+    DB::ok(['lessons' => $lessons]);
 }
 
 // ใช้กับ alias g และต้องส่ง user_id ของนักเรียนเป็นพารามิเตอร์
@@ -1156,6 +1201,14 @@ function assertParentOf(int $studentId): void {
         "SELECT 1 FROM parents p JOIN parent_student ps ON ps.parent_id = p.parent_id
          WHERE p.user_id = ? AND ps.student_id = ?", [myId(), $studentId], 'ii');
     if (!$ok) DB::fail('ไม่มีสิทธิ์ดูข้อมูลนักเรียนคนนี้', 403);
+}
+
+// นักเรียนดูข้อมูลของตัวเอง ผู้ปกครองส่ง student_id ของบุตรหลานมา
+function viewedStudentUserId(): int {
+    if (myRole() !== 'parent') return myId();
+    $studentId = (int)($_GET['student_id'] ?? 0);
+    assertParentOf($studentId);
+    return (int)DB::get()->one("SELECT user_id FROM students WHERE student_id=?", [$studentId], 'i')['user_id'];
 }
 
 const SCORE_KEEP_DAYS = 7;
@@ -1176,16 +1229,10 @@ function pruneOldScores(): void {
          WHERE s.score_id = r.score_id AND r.rn > 1 AND s.played_at < NOW() - INTERVAL '" . SCORE_KEEP_DAYS . " days'");
 }
 
-// นักเรียนดูเกมของตัวเอง ผู้ปกครองส่ง student_id ของบุตรหลานมา
 function handleStudentGames(): never {
     authRole('student', 'parent');
     pruneOldScores();
-    $userId = myId();
-    if (myRole() === 'parent') {
-        $studentId = (int)($_GET['student_id'] ?? 0);
-        assertParentOf($studentId);
-        $userId = (int)DB::get()->one("SELECT user_id FROM students WHERE student_id=?", [$studentId], 'i')['user_id'];
-    }
+    $userId = viewedStudentUserId();
     DB::ok(['games' => DB::get()->all(
         "SELECT g.game_id, g.name, g.description, g.icon, g.game_type, g.time_limit, g.subject_id,
                 sub.name AS subject_name, sub.icon AS subject_icon, sub.color AS subject_color,
@@ -1298,6 +1345,7 @@ match ($action) {
     'change_password' => handleChangePassword(),
     'request_password_otp' => handleRequestPasswordOtp(),
     'upload_image'    => handleUploadImage(),
+    'upload_lesson_file' => handleUploadLessonFile(),
     'subjects'        => handleSubjects(),
     'scores'          => handleScores(),
     'my_children'     => handleMyChildren(),
@@ -1643,18 +1691,18 @@ function handleMe(): never {
     DB::ok($user);
 }
 
-function storagePublicPrefix(): string {
-    return rtrim((string)envValue('SUPABASE_URL', ''), '/') . '/storage/v1/object/public/' . IMAGE_BUCKET . '/';
+function storagePublicPrefix(string $bucket = IMAGE_BUCKET): string {
+    return rtrim((string)envValue('SUPABASE_URL', ''), '/') . "/storage/v1/object/public/{$bucket}/";
 }
 
 // ลบไฟล์ใน bucket แล้วลบแถวใน image_assets ถ้าลบไฟล์ไม่สำเร็จจะเก็บแถวไว้ ไฟล์ที่ค้างจึงยังตามหาได้
-function storageDeleteImages(array $paths): void {
+function storageDeleteImages(array $paths, string $bucket = IMAGE_BUCKET): void {
     $paths = array_values($paths);
     $base = rtrim((string)envValue('SUPABASE_URL', ''), '/');
     $key  = (string)envValue('SUPABASE_SERVICE_ROLE_KEY', '');
     if (!$paths || $base === '' || $key === '') return;
 
-    $ch = curl_init("{$base}/storage/v1/object/" . IMAGE_BUCKET);
+    $ch = curl_init("{$base}/storage/v1/object/{$bucket}");
     curl_setopt_array($ch, [
         CURLOPT_CUSTOMREQUEST  => 'DELETE',
         CURLOPT_POSTFIELDS     => jsonEncodeSafe(['prefixes' => $paths]),
@@ -1672,12 +1720,12 @@ function storageDeleteImages(array $paths): void {
     DB::get()->run("DELETE FROM image_assets WHERE storage_path = ANY(?::text[])", [textArrayLiteral($paths)]);
 }
 
-function storageUploadImage(string $path, string $bytes, string $mime): string {
+function storageUploadImage(string $path, string $bytes, string $mime, string $bucket = IMAGE_BUCKET): string {
     $base = rtrim((string)envValue('SUPABASE_URL', ''), '/');
     $key  = (string)envValue('SUPABASE_SERVICE_ROLE_KEY', '');
     if ($base === '' || $key === '') DB::fail('ยังไม่ได้ตั้งค่า SUPABASE_URL หรือ SUPABASE_SERVICE_ROLE_KEY ในไฟล์ .env', 500);
 
-    $ch = curl_init("{$base}/storage/v1/object/" . IMAGE_BUCKET . "/{$path}");
+    $ch = curl_init("{$base}/storage/v1/object/{$bucket}/{$path}");
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $bytes,
@@ -1697,9 +1745,9 @@ function storageUploadImage(string $path, string $bytes, string $mime): string {
     curl_close($ch);
     if ($response === false || $status >= 300) {
         error_log("[KidLearn] storage upload failed ({$status}): " . (is_string($response) ? $response : $error));
-        DB::fail('อัปโหลดรูปไปยัง Supabase ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 502);
+        DB::fail('อัปโหลดไฟล์ไปยัง Supabase ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 502);
     }
-    return "{$base}/storage/v1/object/public/" . IMAGE_BUCKET . "/{$path}";
+    return storagePublicPrefix($bucket) . $path;
 }
 
 function handleUploadImage(): never {
@@ -1734,6 +1782,34 @@ function handleUploadImage(): never {
         $_SESSION['user']['avatar_url'] = $url;
     }
     DB::ok(['url' => $url, 'image_id' => $asset['image_id'] ?? null]);
+}
+
+// อัปโหลดทันทีที่ครูเลือกไฟล์ แต่ผูกกับบทเรียนตอนบันทึก (handleSaveLesson ตรวจว่าเป็นไฟล์ที่ครูคนนี้อัปโหลดเอง)
+function handleUploadLessonFile(): never {
+    global $body;
+    authRole('teacher', 'admin');
+    if (!preg_match('#^data:[^;,]*(?:;[^,]*)?;base64,(.+)$#s', (string)($body['data_url'] ?? ''), $m)) DB::fail('ไฟล์ไม่ถูกต้อง', 400);
+    $bytes = base64_decode($m[1], true);
+    if ($bytes === false || $bytes === '') DB::fail('ไฟล์ไม่ถูกต้อง', 400);
+    if (strlen($bytes) > LESSON_FILE_MAX_BYTES) DB::fail('ไฟล์ต้องมีขนาดไม่เกิน 10 MB', 413);
+
+    $name = trim(mb_substr((string)($body['filename'] ?? ''), 0, 200)) ?: 'ไฟล์ประกอบบทเรียน';
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+    // libmagic บางรุ่นมองไฟล์ Office แบบใหม่เป็น zip ธรรมดา จึงใช้นามสกุลจากชื่อไฟล์ช่วยตัดสินเฉพาะกรณีนี้
+    if ($mime === 'application/zip' || $mime === 'application/octet-stream') {
+        $byName = array_search(strtolower(pathinfo($name, PATHINFO_EXTENSION)), LESSON_FILE_EXTENSIONS, true);
+        if ($byName && str_contains($byName, 'openxmlformats') && str_starts_with($bytes, "PK\x03\x04")) $mime = $byName;
+    }
+    $ext = LESSON_FILE_EXTENSIONS[$mime] ?? null;
+    if (!$ext) DB::fail('รองรับเฉพาะไฟล์ PDF, Word, PowerPoint, Excel และข้อความ (.txt)', 415);
+
+    $id = myId();
+    $path = sprintf('lesson-file/%d/%s.%s', $id, bin2hex(random_bytes(16)), $ext);
+    storageUploadImage($path, $bytes, $mime, LESSON_FILE_BUCKET);
+    DB::get()->run(
+        "INSERT INTO image_assets (bucket_id, storage_path, original_filename, mime_type, byte_size, uploaded_by) VALUES (?,?,?,?,?,?)",
+        [LESSON_FILE_BUCKET, $path, $name, $mime, strlen($bytes), $id]);
+    DB::ok(['file' => lessonFile(['path' => $path, 'name' => $name, 'size' => strlen($bytes)])]);
 }
 
 function handleUpdateProfile(): never {

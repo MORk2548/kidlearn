@@ -101,7 +101,7 @@ const apiDeleteTeacherGame = (gameId) => _api('delete_teacher_game', { body: { g
 const apiTeacherLessons = () => _api('teacher_lessons');
 const apiSaveLesson = (d) => _api('save_lesson', { body: d });
 const apiDeleteLesson = (lessonId) => _api('delete_lesson', { body: { lesson_id: lessonId } });
-const apiStudentLessons = () => _api('student_lessons');
+const apiStudentLessons = (sid) => _api('student_lessons', sid ? { params: { student_id: sid } } : {});
 
 // Student games
 const apiStudentGames = (sid) => _api('student_games', sid ? { params: { student_id: sid } } : {});
@@ -129,6 +129,8 @@ function _fileToDataUrl(file) {
 }
 const apiUploadImage = async (file, purpose = 'avatar') =>
   _api('upload_image', { body: { data_url: await _fileToDataUrl(file), filename: file.name, purpose } });
+const apiUploadLessonFile = async (file) =>
+  _api('upload_lesson_file', { body: { data_url: await _fileToDataUrl(file), filename: file.name } });
 
 // Reports
 const apiReport = (type, extra = {}) => _api('report', { params: { type, ...extra } });

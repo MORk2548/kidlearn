@@ -155,7 +155,7 @@ function lbNew() {
   if (!gbSubjectsAllowed().length) { alert('ยังไม่มีวิชาที่คุณสอน ติดต่อเจ้าหน้าที่เพื่อกำหนดห้องและวิชา'); return; }
   const subjectId = +gbSubjectsAllowed()[0].subject_id;
   const grade = gbGradesFor(subjectId)[0];
-  A.lb.draft = { lesson_id: 0, title: '', body: '', body_format: 'html', subject_id: subjectId, grade, game_id: null,
+  A.lb.draft = { lesson_id: 0, title: '', body: '', body_format: 'html', subject_id: subjectId, grade, game_id: null, attachments: [],
     classroom_ids: gbRoomsFor(subjectId, grade).map(r => +r.classroom_id) };
   A.lb.view = 'edit';
   lbRender();
@@ -165,7 +165,7 @@ function lbEdit(lessonId) {
   const l = A.lb.lessons.find(x => x.lesson_id == lessonId);
   A.lb.draft = { lesson_id: +l.lesson_id, title: l.title, body_format: 'html',
     body: l.body_format === 'html' ? l.body : lbTextToHtml(l.body), subject_id: +l.subject_id, grade: l.grade,
-    game_id: l.game_id ? +l.game_id : null,
+    game_id: l.game_id ? +l.game_id : null, attachments: [...(l.attachments || [])],
     classroom_ids: l.classroom_ids.map(Number) };
   A.lb.view = 'edit';
   lbRender();
@@ -207,6 +207,11 @@ function lbEditHtml() {
       </div></div>
     <div class="fg"><div class="fl">เนื้อหาบทเรียน</div>
       <div id="lb-body"></div></div>
+    <div class="fg"><div class="fl">ไฟล์ประกอบบทเรียน</div>
+      <div id="lb-files">${lbFilesHtml(d.attachments, true)}</div>
+      <label class="btn btn-sm btn-s" style="margin-top:.5rem">แนบไฟล์
+        <input type="file" hidden multiple accept="${LB_FILE_ACCEPT}" onchange="lbAttachFiles(this)"></label>
+      <div class="ge-hint">PDF, Word, PowerPoint, Excel หรือ .txt ไฟล์ละไม่เกิน 10 MB แนบได้สูงสุด ${LB_FILE_MAX} ไฟล์</div></div>
     <div id="lb-err" class="al ae" style="display:none;margin-top:1rem"></div>
     <div class="gb-actions">
       <button class="btn btn-g" onclick="lbSync(); openLessonReader({ ...A.lb.draft, subject_name: gbSubjectsAllowed().find(s => s.subject_id == A.lb.draft.subject_id)?.name, game_name: A.gb.games.find(g => g.game_id == A.lb.draft.game_id)?.name })">ดูตัวอย่าง</button>
@@ -222,6 +227,51 @@ function lbSync() {
   if (A.lb.quill) d.body = A.lb.quill.getSemanticHTML().replace(/&nbsp;/g, ' ');
   d.classroom_ids = [...document.querySelectorAll('.lb-room:checked')].map(el => +el.value);
   d.game_id = +document.getElementById('lb-game').value || null;
+}
+
+const LB_FILE_ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt';
+const LB_FILE_MAX = 10;
+const LB_FILE_ICONS = { pdf: 'fa-file-pdf', doc: 'fa-file-word', docx: 'fa-file-word', ppt: 'fa-file-powerpoint',
+  pptx: 'fa-file-powerpoint', xls: 'fa-file-excel', xlsx: 'fa-file-excel' };
+
+const lbFileSize = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+
+// ใช้ทั้งในตัวแก้ไข (ลบได้) และหน้าอ่าน (เปิดดูหรือดาวน์โหลด)
+function lbFilesHtml(files, editable = false) {
+  return (files || []).map((f, i) => {
+    const icon = LB_FILE_ICONS[f.path.split('.').pop()] || 'fa-file-lines';
+    return `<div class="lesson-file">
+      <i class="fa-solid ${icon}" aria-hidden="true"></i>
+      <a href="${_gtEsc(f.url)}" target="_blank" rel="noopener">${_gtEsc(f.name)}</a>
+      <span class="lesson-file-size">${lbFileSize(f.size)}</span>
+      ${editable
+        ? `<button type="button" class="btn-del" onclick="lbRemoveFile(${i})" aria-label="เอาไฟล์ ${_gtEsc(f.name)} ออก"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`
+        : `<a class="btn btn-sm btn-g" href="${_gtEsc(f.url)}?download=${encodeURIComponent(f.name)}" aria-label="ดาวน์โหลด ${_gtEsc(f.name)}"><i class="fa-solid fa-download" aria-hidden="true"></i></a>`}
+    </div>`;
+  }).join('');
+}
+
+const lbRenderFiles = () => { document.getElementById('lb-files').innerHTML = lbFilesHtml(A.lb.draft.attachments, true); };
+
+// ไฟล์ขึ้น Supabase ทันทีที่เลือก แต่ผูกกับบทเรียนตอนบันทึก ไฟล์ที่เอาออกจะถูกลบจากที่เก็บตอนบันทึก
+async function lbAttachFiles(input) {
+  const files = [...input.files];
+  input.value = '';
+  const d = A.lb.draft;
+  if (d.attachments.length + files.length > LB_FILE_MAX) { showAl('lb-err', `แนบไฟล์ได้ไม่เกิน ${LB_FILE_MAX} ไฟล์`); return; }
+  const label = input.closest('label');
+  label.firstChild.textContent = 'กำลังอัปโหลด... ';
+  const results = await Promise.all(files.map(f => apiUploadLessonFile(f).catch(() => ({ ok: false }))));
+  label.firstChild.textContent = 'แนบไฟล์';
+  d.attachments.push(...results.filter(r => r.ok).map(r => r.file));
+  lbRenderFiles();
+  const failed = results.find(r => !r.ok);
+  if (failed) showAl('lb-err', failed.error || 'อัปโหลดไฟล์ไม่สำเร็จ');
+}
+
+function lbRemoveFile(i) {
+  A.lb.draft.attachments.splice(i, 1);
+  lbRenderFiles();
 }
 
 function lbPickImages() {
@@ -291,7 +341,7 @@ async function lbSave() {
     showAl('lb-err', 'มีรูปที่วางมาจากที่อื่นซึ่งบันทึกไม่ได้ ลบรูปนั้นแล้วใช้ปุ่มรูปภาพบนแถบเครื่องมือแทน');
     return;
   }
-  const res = await apiSaveLesson(A.lb.draft).catch(() => ({ ok: false }));
+  const res = await apiSaveLesson({ ...A.lb.draft, files: A.lb.draft.attachments.map(f => f.path) }).catch(() => ({ ok: false }));
   if (!res.ok) { showAl('lb-err', res.error || 'บันทึกไม่สำเร็จ'); return; }
   await loadLessonBuilder();
   showAl('lb-list-msg', 'บันทึกบทเรียนแล้ว');
@@ -322,6 +372,7 @@ function openLessonReader(lesson) {
         <h2>${_gtEsc(lesson.title)}</h2>
         ${lesson.game_name ? `<div class="lesson-game"><i class="fa-solid fa-gamepad" aria-hidden="true"></i> ใช้กับเกม ${_gtEsc(lesson.game_name)}</div>` : ''}
         <div class="lesson-body${lesson.body_format === 'html' ? ' is-html' : ''}">${lbBodyHtml(lesson.body, lesson.body_format)}</div>
+        ${lesson.attachments?.length ? `<div class="lesson-files"><h3>ไฟล์ประกอบบทเรียน</h3>${lbFilesHtml(lesson.attachments)}</div>` : ''}
       </div>
     </div>`;
   overlay.querySelector('.gp-close').addEventListener('click', () => overlay.remove());

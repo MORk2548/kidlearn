@@ -2,6 +2,7 @@
 // RECOMMENDATIONS — คำแนะนำสำหรับผู้ปกครอง คิดจากข้อมูลรายเกมของลูกทุกครั้งที่เปิดหน้า
 // ══════════════════════════════════════════════════════
 const REC_INACTIVE_DAYS = 3;
+const REC_LOW_STARS = 2;
 
 // กฎเรียงตามความสำคัญ แต่ละกฎคืนรายการคำแนะนำ { title, body, stars? } จากเกมและประวัติการเล่นของลูก
 const REC_RULES = [
@@ -14,8 +15,15 @@ const REC_RULES = [
         ? [{ title: `${name}ไม่ได้เล่นมา ${days} วันแล้ว`, body: 'ลองชวนเล่นวันละ 10 นาที เริ่มจากเกมที่ได้ดาวเยอะเพื่อให้สนุกก่อน' }]
         : [];
     } },
+  // บทเรียนที่ครูผูกกับเกมนั้น ผู้ปกครองแค่รู้ชื่อบทเพื่อบอกให้ลูกไปอ่านเองในหน้าบทเรียนของลูก
+  { tone: 'review', icon: 'fa-book-open', pick: ({ name, games }) =>
+      games.filter(g => g.plays >= 1 && g.stars <= REC_LOW_STARS && g.lessons.length).map(g => ({
+        title: `ให้${name}อ่านบทเรียน ${g.lessons.map(l => `"${l.title}"`).join(', ')}`,
+        body: `${g.subject_name} · เกม ${g.name} คะแนนดีที่สุด ${g.best ?? 0}/100 ลองให้อ่านบทเรียนนี้ในเมนูบทเรียนก่อน แล้วค่อยกลับไปเล่นเกมใหม่`,
+        stars: g.stars,
+      })) },
   { tone: 'help', icon: 'fa-hand-holding-heart', pick: ({ games }) =>
-      games.filter(g => g.stars >= 1 && g.stars <= 2 && g.plays >= 2).map(g => ({
+      games.filter(g => g.stars >= 1 && g.stars <= REC_LOW_STARS && g.plays >= 2 && !g.lessons.length).map(g => ({
         title: `นั่งเล่นด้วยกันสักรอบ: ${g.name}`,
         body: `${g.subject_name} · เล่นแล้ว ${g.plays} ครั้งยังได้ ${g.stars} ดาว อาจยังไม่เข้าใจโจทย์ ลองอ่านโจทย์ให้ฟังแล้วให้ลูกตอบเอง`,
         stars: g.stars,
@@ -30,7 +38,7 @@ const REC_RULES = [
         const full = attempts.filter(a => a.game_id == g.game_id && +a.score >= 100 && _daysAgo(a.played_at) < 7)
           .sort((a, b) => (a.played_at < b.played_at ? -1 : 1))[0];
         return full ? [{
-          title: `ชมได้เลย: ได้ 5 ดาวเกม ${g.name}`,
+          title: `ยินดีด้วย: ได้ 5 ดาวเกม ${g.name}`,
           body: `ได้เต็ม ${_playedLabel(full.played_at)} หลังเล่นไป ${g.plays} ครั้ง ความพยายามได้ผล`,
           stars: 5,
         }] : [];

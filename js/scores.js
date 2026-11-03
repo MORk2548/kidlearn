@@ -63,17 +63,20 @@ const _scoreView = { games: [], filter: 'all', child: null, week: null, recCount
 // ใช้ร่วมกับหน้าคำแนะนำของผู้ปกครอง
 async function childScoreData(child) {
   const sid = child?.student_id;
-  const [res, hist] = await Promise.all([
+  const [res, hist, lessonRes] = await Promise.all([
     apiStudentGames(sid).catch(() => ({ ok: false })),
     child ? apiScores(sid).catch(() => ({ ok: false })) : null,
+    apiStudentLessons(sid).catch(() => ({ ok: false })),
   ]);
   if (!res.ok) return { error: res.error || 'โหลดคะแนนไม่สำเร็จ' };
   const attempts = hist?.ok ? hist.scores : [];
+  const lessons = lessonRes.ok ? lessonRes.lessons : [];
   const lastPlayed = {};
   attempts.forEach(a => { if (!lastPlayed[a.game_id] || a.played_at > lastPlayed[a.game_id]) lastPlayed[a.game_id] = a.played_at; });
   const games = res.games.map(g => {
     const best = g.best_score == null ? null : +g.best_score;
-    return { ...g, best, plays: +g.play_count || 0, stars: scoreStars(best), lastPlayed: lastPlayed[g.game_id] || null };
+    return { ...g, best, plays: +g.play_count || 0, stars: scoreStars(best), lastPlayed: lastPlayed[g.game_id] || null,
+      lessons: lessons.filter(l => l.game_id == g.game_id) };
   });
   return { games, attempts };
 }

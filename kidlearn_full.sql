@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS lessons (
   body        TEXT         NOT NULL,
   body_format VARCHAR(10)  NOT NULL DEFAULT 'text',
   game_id     INT          DEFAULT NULL REFERENCES games(game_id) ON DELETE SET NULL,
+  attachments JSONB        NOT NULL DEFAULT '[]',
   created_by  INT          NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()

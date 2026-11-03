@@ -45,6 +45,8 @@ KidLearn เป็นเว็บการเรียนรู้สำหร�
   migration สำหรับฐานข้อมูลเดิม ให้ครูสร้างเกมเองได้ (ระดับชั้น เจ้าของ สถานะ เกมโยงเส้น ห้องที่มอบหมาย) รันหลัง patch v4
 - `api/kidlearn_patch_lessons.sql`
   migration สำหรับฐานข้อมูลเดิม เพิ่มคำอธิบายเกม และตารางบทเรียนที่แยกจากเกม (`lessons`, `lesson_classrooms`) รันหลัง patch teacher_games
+- `api/kidlearn_patch_lesson_files.sql`
+  สร้าง bucket `kidlearn-files` สำหรับไฟล์แนบบทเรียน และคอลัมน์ `lessons.attachments` รันหลัง patch lessons ต้องรันทั้งฐานข้อมูลเดิมและติดตั้งใหม่ เพราะ `kidlearn_full.sql` ไม่ได้สร้าง bucket
 
 ### เนื้อหาและไฟล์ช่วยงาน
 
