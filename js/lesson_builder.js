@@ -209,7 +209,7 @@ function lbEditHtml() {
       <div id="lb-body"></div></div>
     <div class="fg"><div class="fl">ไฟล์ประกอบบทเรียน</div>
       <div id="lb-files">${lbFilesHtml(d.attachments, true)}</div>
-      <label class="btn btn-sm btn-s" style="margin-top:.5rem">แนบไฟล์
+      <label class="btn btn-sm btn-s" style="margin:.5rem 0 1rem">แนบไฟล์
         <input type="file" hidden multiple accept="${LB_FILE_ACCEPT}" onchange="lbAttachFiles(this)"></label>
       <div class="ge-hint">PDF, Word, PowerPoint, Excel หรือ .txt ไฟล์ละไม่เกิน 10 MB แนบได้สูงสุด ${LB_FILE_MAX} ไฟล์</div></div>
     <div id="lb-err" class="al ae" style="display:none;margin-top:1rem"></div>
