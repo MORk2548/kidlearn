@@ -1017,7 +1017,7 @@ function ensureLessonSchema(): void {
 const LESSON_IMAGE_TOKEN = '/!\[[^\]\n]*\]\(([^)\s]+)\)/u';
 
 function lessonImagePaths(string $text, string $format): array {
-    preg_match_all($format === 'html' ? '/<img src="([^"]*)">/' : LESSON_IMAGE_TOKEN, $text, $m);
+    preg_match_all($format === 'html' ? '/<img src="([^"]*)"/' : LESSON_IMAGE_TOKEN, $text, $m);
     $prefix = storagePublicPrefix();
     $paths = [];
     foreach ($m[1] as $url) {
@@ -1052,7 +1052,12 @@ function lessonHtmlChildren(DOMNode $node): string {
         $tag = strtolower($c->tagName);
         if (in_array($tag, LESSON_HTML_DROP, true)) continue;
         if (!in_array($tag, LESSON_HTML_TAGS, true)) { $out .= lessonHtmlChildren($c); continue; }
-        if ($tag === 'img') { $out .= '<img src="' . htmlspecialchars($c->getAttribute('src'), ENT_QUOTES) . '">'; continue; }
+        if ($tag === 'img') {
+            $width = (int)$c->getAttribute('width');
+            $out .= '<img src="' . htmlspecialchars($c->getAttribute('src'), ENT_QUOTES) . '"'
+                . ($width > 0 ? ' width="' . min($width, 2000) . '"' : '') . '>';
+            continue;
+        }
         if ($tag === 'br') { $out .= '<br>'; continue; }
         $align = in_array($tag, ['p', 'h2', 'h3', 'li'], true)
             && preg_match('/\bql-align-(center|right|justify)\b/', $c->getAttribute('class'), $m) ? " class=\"ql-align-{$m[1]}\"" : '';

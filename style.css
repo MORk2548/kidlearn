@@ -2614,6 +2614,56 @@ tbody tr:last-child td {
   white-space: normal
 }
 
+/* ครูกำหนดความกว้างรูปเองแล้ว ถ้าจำกัดความสูงด้วยรูปจะถูกบีบ */
+.lesson-body.is-html .lesson-img {
+  height: auto;
+  max-height: none
+}
+
+.lb-full .ql-editor img {
+  cursor: pointer
+}
+
+.lb-img-box {
+  position: absolute;
+  outline: 2px solid var(--p);
+  pointer-events: none
+}
+
+.lb-img-box[hidden] {
+  display: none
+}
+
+.lb-img-del,
+.lb-img-handle {
+  position: absolute;
+  pointer-events: auto
+}
+
+.lb-img-del {
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: #DC2626;
+  color: #fff;
+  cursor: pointer
+}
+
+.lb-img-handle {
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--p);
+  cursor: nwse-resize;
+  touch-action: none
+}
+
 .lesson-body p {
   margin: 0
 }

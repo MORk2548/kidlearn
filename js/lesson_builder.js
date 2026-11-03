@@ -62,7 +62,67 @@ async function lbMountEditor() {
     },
   });
   q.setContents(q.clipboard.convert({ html: A.lb.draft.body }));
+  lbImageTools(q);
   A.lb.quill = q;
+}
+
+// คลิกรูปเพื่อเลือก ลากมุมขวาล่างเพื่อปรับขนาด กดถังขยะหรือปุ่ม Delete เพื่อลบ ขนาดเก็บเป็น width ของ <img>
+function lbImageTools(q) {
+  const box = document.createElement('div');
+  box.className = 'lb-img-box';
+  box.hidden = true;
+  box.innerHTML = `<button type="button" class="lb-img-del" title="ลบรูป" aria-label="ลบรูป"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+    <span class="lb-img-handle" title="ลากเพื่อปรับขนาด"></span>`;
+  q.container.appendChild(box);
+  const handle = box.querySelector('.lb-img-handle');
+  let img = null;
+
+  const place = () => {
+    const c = q.container.getBoundingClientRect(), r = img.getBoundingClientRect();
+    Object.assign(box.style, { left: `${r.left - c.left}px`, top: `${r.top - c.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  };
+  const select = el => {
+    img = el;
+    box.hidden = !el;
+    if (el) place();
+  };
+  const remove = () => {
+    q.deleteText(q.getIndex(Quill.find(img)), 1, 'user');
+    select(null);
+  };
+
+  q.root.addEventListener('click', e => select(e.target.tagName === 'IMG' ? e.target : null));
+  q.on('text-change', () => { if (img) img.isConnected ? place() : select(null); });
+  box.querySelector('.lb-img-del').addEventListener('click', remove);
+  // capture บน container เพื่อให้ทำงานก่อน keyboard ของ Quill ไม่อย่างนั้น Backspace จะลบตัวอักษรหน้าเคอร์เซอร์แทนรูป
+  q.container.addEventListener('keydown', e => {
+    if (!img) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      e.stopPropagation();
+      remove();
+    } else select(null);
+  }, true);
+
+  handle.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX, startW = img.getBoundingClientRect().width, maxW = q.root.clientWidth - 30;
+    let width = startW;
+    const move = ev => {
+      width = Math.round(Math.max(40, Math.min(maxW, startW + ev.clientX - startX)));
+      img.style.width = `${width}px`;
+      place();
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      img.removeAttribute('style');
+      q.formatText(q.getIndex(Quill.find(img)), 1, 'width', String(width), 'user');
+      place();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up, { once: true });
+  });
 }
 
 function lbListHtml() {
