@@ -61,7 +61,7 @@ async function loadStudentGames(){
   const card=g=>{
     const type=GAME_TYPES[g.game_type];
     const best=g.best_score==null?null:+g.best_score;
-    return `<button class="sg-card" onclick="playStudentGame(${g.game_id})">
+    return `<button class="sg-card" data-search-item="${_esc(g.subject_name)}" onclick="playStudentGame(${g.game_id})">
       <span class="sg-body">
         <span class="sg-name">${_esc(g.name)}</span>
         ${g.description?`<span class="sg-meta">${_esc(g.description)}</span>`:''}
@@ -72,9 +72,10 @@ async function loadStudentGames(){
     </button>`;
   };
   el.innerHTML=`<div class="ts"><h3>เกมจากครู</h3>
-    ${Object.values(bySubject).map(s=>`
+    ${res.games.length?searchBoxHtml('ค้นหาเกม เช่น ชื่อเกม หรือวิชา'):''}
+    ${Object.values(bySubject).map(s=>`<div data-search-group>
       <div class="sg-subject">${_esc(s.name)}</div>
-      <div class="sg-grid">${s.games.map(card).join('')}</div>`).join('')
+      <div class="sg-grid">${s.games.map(card).join('')}</div></div>`).join('')
       ||'<div class="gb-empty">ยังไม่มีเกมจากครู</div>'}
   </div>`;
 }
@@ -92,13 +93,14 @@ async function loadStudentLessons(){
   _studentLessons.forEach((l,i)=>(bySubject[l.subject_name] ||= {items:[]}).items.push([l,i]));
   const subjects=Object.entries(bySubject);
   el.innerHTML=`<div class="ts">
-    ${subjects.map(([name,s])=>`
+    ${searchBoxHtml('ค้นหาบทเรียน เช่น ชื่อบท วิชา หรือชื่อเกม')}
+    ${subjects.map(([name,s])=>`<div data-search-group>
       <div class="sg-subject">${_esc(name)}</div>
       <div class="sg-grid">${s.items.map(([l,i])=>`
-        <button class="sg-card" onclick="openLessonReader(_studentLessons[${i}])">
+        <button class="sg-card" data-search-item="${_esc(name)}" onclick="openLessonReader(_studentLessons[${i}])">
           <span class="sg-body"><span class="sg-name">${_esc(l.title)}</span>${l.game_name?`<span class="sg-meta">ใช้กับเกม ${_esc(l.game_name)}</span>`:''}</span>
           <span class="sg-play">อ่าน</span>
-        </button>`).join('')}</div>`).join('')}
+        </button>`).join('')}</div></div>`).join('')}
   </div>`;
 }
 

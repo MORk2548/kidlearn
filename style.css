@@ -2065,6 +2065,30 @@ tbody tr:last-child td {
   margin-bottom: 1rem
 }
 
+.list-search {
+  position: relative;
+  margin-bottom: .8rem
+}
+
+.list-search i {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ph);
+  pointer-events: none
+}
+
+.list-search .fc {
+  padding-left: 2.6rem
+}
+
+[data-search-item][hidden],
+[data-search-group][hidden],
+.search-empty[hidden] {
+  display: none !important
+}
+
 .gb-filters {
   display: flex;
   gap: .5rem;

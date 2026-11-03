@@ -1,7 +1,7 @@
 // game_builder.js - แท็บ "เกมของฉัน" ในแดชบอร์ดครู: รายการเกม เลือกแบบเกม กรอกคำถาม เลือกห้อง แล้วบันทึก
 // ครูเลือกได้เฉพาะวิชา ชั้น และห้องที่ตัวเองสอนตาม teacher_assignments เซิร์ฟเวอร์ตรวจซ้ำอีกชั้น
 
-if (typeof A.gb === 'undefined') A.gb = { view: 'list', games: [], assignments: [], subjects: [], filter: { grade: '', subject: '' }, draft: null };
+if (typeof A.gb === 'undefined') A.gb = { view: 'list', games: [], assignments: [], subjects: [], filter: { grade: '', subject: '', q: '' }, draft: null };
 
 const GB_TIME_OPTIONS = [60, 120, 180, 300, 600, 900];
 const GB_MAX_IMAGES = 4; // ตรงกับ GAME_MAX_IMAGES ใน backend.php
@@ -50,7 +50,12 @@ function gbRender() {
   if (!panel) return;
   if (A.gb.view === 'pick') panel.innerHTML = gbPickHtml();
   else if (A.gb.view === 'edit') panel.innerHTML = gbEditHtml();
-  else panel.innerHTML = gbListHtml();
+  else {
+    panel.innerHTML = gbListHtml();
+    // ตัวกรองชั้น/วิชา render ใหม่ทั้งรายการ ต้องค้นตามคำเดิมซ้ำ
+    const search = panel.querySelector('.list-search input');
+    if (search?.value) filterCards(search);
+  }
 }
 
 // ── รายการเกม ──
@@ -62,7 +67,7 @@ function gbListHtml() {
   const card = g => {
     const type = GAME_TYPES[g.game_type];
     const published = g.status === 'published';
-    return `<div class="gb-card">
+    return `<div class="gb-card" data-search-item="">
       <div class="gb-card-body">
         <div class="gb-card-name">${_esc(g.name)}</div>
         ${g.description ? `<div class="gb-card-meta">${_esc(g.description)}</div>` : ''}
@@ -94,6 +99,7 @@ function gbListHtml() {
         ${subjects.map(([id, name]) => `<option value="${id}"${id == subject ? ' selected' : ''}>${_esc(name)}</option>`).join('')}
       </select>
     </div>` : ''}
+    ${A.gb.games.length ? searchBoxHtml('ค้นหาเกม เช่น ชื่อเกม แบบเกม หรือห้อง', A.gb.filter.q, 'A.gb.filter.q=this.value;') : ''}
     <div id="gb-list-msg" class="al ao" style="display:none"></div>
     ${games.map(card).join('') || `<div class="gb-empty">${A.gb.games.length ? 'ไม่มีเกมตามตัวกรองนี้' : 'ยังไม่มีเกม กด "สร้างเกมใหม่" เพื่อเริ่ม'}</div>`}
   </div>`;

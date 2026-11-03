@@ -128,7 +128,7 @@ function lbImageTools(q) {
 }
 
 function lbListHtml() {
-  const card = l => `<div class="gb-card">
+  const card = l => `<div class="gb-card" data-search-item="">
       <div class="gb-card-body">
         <div class="gb-card-name">${_esc(l.title)}</div>
         <div class="gb-card-meta">${_esc(l.subject_name)} · ${_esc(l.grade)}${l.game_name ? ` · เกม ${_esc(l.game_name)}` : ''}</div>
@@ -145,6 +145,7 @@ function lbListHtml() {
       <h3 style="margin:0">บทเรียนของฉัน</h3>
       <button class="btn btn-p" onclick="lbNew()">สร้างบทเรียนใหม่</button>
     </div>
+    ${A.lb.lessons.length ? searchBoxHtml('ค้นหาบทเรียน เช่น ชื่อบท วิชา ชั้น หรือชื่อเกม') : ''}
     <div id="lb-list-msg" class="al ao" style="display:none"></div>
     ${A.lb.lessons.map(card).join('') || '<div class="gb-empty">ยังไม่มีบทเรียน กด "สร้างบทเรียนใหม่" เพื่อเริ่ม</div>'}
   </div>`;
