@@ -148,3 +148,6 @@ const apiExecutiveContent = (type, dateRange = 'all') => _api('executive_content
 const apiOfficerUsers = (dateRange = 'all') => _api('officer_users', { params: { date_range: dateRange } });
 const apiOfficerUpdateUser = (d) => _api('officer_update_user', { body: d });
 const apiOfficerDeleteUser = (d) => _api('officer_delete_user', { body: d });
+const apiTeacherCodes = () => _api('teacher_codes');
+const apiCreateTeacherCode = (d) => _api('create_teacher_code', { body: d });
+const apiDeleteTeacherCode = (code) => _api('delete_teacher_code', { body: { code } });

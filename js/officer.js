@@ -242,6 +242,56 @@ function _esc(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ════════ รหัสประจำตัวครู (หน้า s-tcodes ของ officer และ admin) ════════
+async function loadTeacherCodes() {
+  const list = document.getElementById('tcodes-list');
+  list.innerHTML = '<div style="color:var(--mu)">กำลังโหลด...</div>';
+  const res = await apiTeacherCodes().catch(() => ({ ok: false }));
+  if (!res.ok) { list.innerHTML = `<div style="color:#EF4444">${_esc(res.error || 'โหลดรหัสไม่สำเร็จ')}</div>`; return; }
+  const codes = res.codes || [];
+  const used = codes.filter(c => c.used_at).length;
+  document.getElementById('tcodes-count').textContent =
+    `ทั้งหมด ${codes.length} รหัส · ครูใช้แล้ว ${used} · ยังว่าง ${codes.length - used}`;
+  if (!codes.length) {
+    list.innerHTML = '<div style="color:var(--mu);padding:1rem;text-align:center">ยังไม่มีรหัส ครูจะสมัครบัญชีเองไม่ได้จนกว่าจะสร้างรหัสให้</div>';
+    return;
+  }
+  const rows = codes.map(c => `<tr>
+      <td style="font-family:monospace;font-weight:700;font-size:.95rem">${_esc(c.code)}</td>
+      <td>${_esc(c.note) || '<span style="color:var(--mu)">-</span>'}</td>
+      <td>${c.used_at
+        ? (c.teacher_id
+            ? `<b>${_esc(c.teacher_name)}</b><div style="font-size:.75rem;color:var(--mu)">${_esc(c.teacher_username)} · สมัคร ${formatDateTimeTH(c.used_at)}</div>`
+            : `<span style="color:var(--mu)">บัญชีครูถูกลบแล้ว · ใช้เมื่อ ${formatDateTimeTH(c.used_at)}</span>`)
+        : '<span style="font-size:.75rem;padding:.15rem .55rem;border-radius:99px;background:#FEF3C7;color:#92400E;font-weight:700">ยังไม่มีครูใช้</span>'}</td>
+      <td style="font-size:.78rem;color:var(--mu)">${formatDateTimeTH(c.created_at)}${c.created_by_name ? `<div>โดย ${_esc(c.created_by_name)}</div>` : ''}</td>
+      <td style="text-align:center">${c.used_at ? '' :
+        `<button class="btn-del" title="ลบรหัส" aria-label="ลบรหัส ${_esc(c.code)}" data-code="${_esc(c.code)}" onclick="deleteTeacherCode(this.dataset.code)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`}</td>
+    </tr>`).join('');
+  list.innerHTML = `<div class="tw"><table style="font-size:.85rem;min-width:620px">
+    <thead><tr><th>รหัส</th><th>ให้ใคร</th><th>ครูที่ใช้รหัสนี้</th><th>สร้างเมื่อ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+async function createTeacherCode() {
+  const codeEl = document.getElementById('tcodes-code');
+  const noteEl = document.getElementById('tcodes-note');
+  const msg = document.getElementById('tcodes-msg');
+  const res = await apiCreateTeacherCode({ code: codeEl.value.trim(), note: noteEl.value.trim() })
+    .catch(() => ({ ok: false, error: 'เชื่อมต่อไม่ได้' }));
+  if (!res.ok) { msg.innerHTML = `<span style="color:#EF4444">${_esc(res.error || 'สร้างรหัสไม่สำเร็จ')}</span>`; return; }
+  msg.innerHTML = `<span style="color:#16A34A">สร้างรหัส <b style="font-family:monospace">${_esc(res.code)}</b> แล้ว ส่งให้ครูใช้ตอนสมัคร</span>`;
+  codeEl.value = noteEl.value = '';
+  loadTeacherCodes();
+}
+
+async function deleteTeacherCode(code) {
+  if (!confirm(`ลบรหัส ${code} ?`)) return;
+  const res = await apiDeleteTeacherCode(code).catch(() => ({ ok: false, error: 'เชื่อมต่อไม่ได้' }));
+  if (!res.ok) { alert(res.error || 'ลบไม่สำเร็จ'); return; }
+  loadTeacherCodes();
+}
+
 // ════════ เพิ่มเจ้าหน้าที่ / ผู้บริหาร (Officer) ════════
 function ofOpenCreateStaff() {
   const overlay = document.createElement('div');
@@ -373,8 +423,7 @@ function _ofRenderUsersTab() {
           <option value="1m"${_ofDateRange==='1m'?' selected':''}>ย้อนหลัง 1 เดือน</option>
           <option value="1y"${_ofDateRange==='1y'?' selected':''}>ย้อนหลัง 1 ปี</option>
         </select>
-        <div style="font-size:.72rem;color:var(--mu);margin-top:.35rem">นับย้อนหลังจากเวลาปัจจุบัน ไม่ใช่เดือนหรือปีปฏิทิน</div>
-      </div>
+        <div style="font-size:.72rem;color:var(--mu);margin-top:.35rem">นับย้อนหลังจากเวลาปัจจุบัน ไม่ใช่เดือนหรือปีปฏิทิน</div>      </div>
       <div id="of-users-list" style="background:var(--cb);border-radius:14px;padding:1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06)">
         <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding:.75rem 1rem;background:linear-gradient(135deg,var(--tint),#F0F9FF);border-radius:12px">
           <div style="flex:1">

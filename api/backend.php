@@ -216,7 +216,7 @@ function enforceRequestPolicy(string $action, array $body): void {
         'admin_toggle_user', 'admin_delete_user', 'admin_reset_pass',
         'save_subject', 'toggle_subject', 'delete_subject',
         'forgot_password', 'reset_password',
-        'officer_update_user', 'officer_delete_user', 'officer_create_staff',
+        'officer_update_user', 'officer_delete_user', 'officer_create_staff', 'create_teacher_code', 'delete_teacher_code',
         'admin_create_staff', 'upload_image', 'upload_lesson_file','add_classroom', 'delete_classroom', 'choose_classroom',
         'save_teacher_assignments', 'add_teacher_room', 'remove_teacher_room', 'teacher_create_students',
         'save_teacher_game', 'delete_teacher_game', 'save_score', 'save_lesson', 'delete_lesson',
@@ -1492,6 +1492,9 @@ match ($action) {
     'officer_update_user'  => handleOfficerUpdateUser(),
     'officer_delete_user'  => handleOfficerDeleteUser(),
     'officer_create_staff' => handleOfficerCreateStaff(),
+    'teacher_codes'        => handleTeacherCodes(),
+    'create_teacher_code'  => handleCreateTeacherCode(),
+    'delete_teacher_code'  => handleDeleteTeacherCode(),
     // admin create staff
     'admin_create_staff'   => handleAdminCreateStaff(),
     // executive endpoints
@@ -1644,12 +1647,12 @@ function handleRegister(): never {
     if (strlen($pass) < 6)                      DB::fail('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 400);
     // officer/executive สร้างได้เฉพาะผ่าน admin_create_staff / officer_create_staff
     if (!in_array($role, ['student','parent','teacher'], true)) DB::fail('role ไม่ถูกต้อง', 400);
+    $teacherCode = trim((string)($body['teacher_code'] ?? ''));
     if ($role === 'teacher') {
-        $teacherCode = (string)envValue('TEACHER_REGISTER_CODE', '');
-        // ไม่ได้ตั้งรหัสไว้ = ปิดการสมัครครูเอง กันคนทั่วไปสมัครเป็นครู
-        if ($teacherCode === '') DB::fail('ยังไม่เปิดให้สมัครบัญชีครู กรุณาติดต่อผู้ดูแลระบบ', 403);
-        if (!hash_equals($teacherCode, trim((string)($body['teacher_code'] ?? ''))))
-            DB::fail('รหัสประจำตัวครูไม่ถูกต้อง', 403);
+        ensureTeacherCodeSchema();
+        // ต้องมีรหัสที่ admin/officer สร้างไว้ กันคนทั่วไปสมัครเป็นครู
+        if ($teacherCode === '' || !$db->one("SELECT 1 FROM teacher_codes WHERE code=? AND used_at IS NULL", [$teacherCode]))
+            DB::fail('รหัสประจำตัวครูไม่ถูกต้องหรือถูกใช้ไปแล้ว', 403);
     }
 
     if ($db->one("SELECT 1 FROM users WHERE username=?", [$uname], 's'))
@@ -1660,7 +1663,7 @@ function handleRegister(): never {
     $hash = password_hash($pass, PASSWORD_BCRYPT);
 
     // DB::fail ภายในจะ rollback แถว users ที่เพิ่งเพิ่มไปด้วย
-    $uid = $db->transaction(function (DB $db) use ($body, $uname, $email, $hash, $role, $name) {
+    $uid = $db->transaction(function (DB $db) use ($body, $uname, $email, $hash, $role, $name, $teacherCode) {
         $db->run("INSERT INTO users (username,email,password,role,full_name) VALUES (?,?,?,?,?)",
             [$uname, $email, $hash, $role, $name], 'sssss');
         $uid = $db->insertId();
@@ -1698,6 +1701,10 @@ function handleRegister(): never {
         if ($role === 'teacher') {
             $dept = trim($body['department'] ?? '');
             $db->run("INSERT INTO teachers (user_id,department) VALUES (?,?)", [$uid, $dept], 'is');
+            // เช็ก used_at ซ้ำในคำสั่งเดียว กันสองคนสมัครพร้อมกันด้วยรหัสเดียว
+            $claimed = $db->one("UPDATE teacher_codes SET used_by=?, used_at=NOW()
+                                 WHERE code=? AND used_at IS NULL RETURNING code", [$uid, $teacherCode]);
+            if (!$claimed) DB::fail('รหัสประจำตัวครูไม่ถูกต้องหรือถูกใช้ไปแล้ว', 403);
         }
         return $uid;
     });
@@ -3018,6 +3025,57 @@ function handleOfficerCreateStaff(): never {
     global $body;
     authRole('officer', 'admin');
     _doCreateStaff($body);
+}
+
+// ── รหัสประจำตัวครู (ใช้สมัครบัญชีครูได้รหัสละครั้ง) ──────────────────
+function ensureTeacherCodeSchema(): void {
+    if (tableColumnExists('teacher_codes', 'code')) return;
+    DB::get()->rawQuery(file_get_contents(__DIR__ . '/kidlearn_patch_teacher_codes.sql'));
+}
+
+function handleTeacherCodes(): never {
+    authRole('officer', 'admin');
+    ensureTeacherCodeSchema();
+    DB::ok(['codes' => DB::get()->all(
+        "SELECT c.code, c.note, c.created_at, c.used_at,
+                t.user_id AS teacher_id, t.full_name AS teacher_name, t.username AS teacher_username,
+                m.full_name AS created_by_name
+         FROM teacher_codes c
+         LEFT JOIN users t ON t.user_id = c.used_by
+         LEFT JOIN users m ON m.user_id = c.created_by
+         ORDER BY c.created_at DESC")]);
+}
+
+function handleCreateTeacherCode(): never {
+    global $body;
+    authRole('officer', 'admin');
+    ensureTeacherCodeSchema();
+    $db   = DB::get();
+    $note = mb_substr(trim((string)($body['note'] ?? '')), 0, 255);
+    $code = trim((string)($body['code'] ?? ''));
+    if ($code === '') {
+        // สุ่มเลข 8 หลัก ชนกับรหัสเดิมได้ยาก ถ้าชนก็สุ่มใหม่
+        do $code = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+        while ($db->one("SELECT 1 FROM teacher_codes WHERE code=?", [$code]));
+    } elseif (mb_strlen($code) < 6 || mb_strlen($code) > 100) {
+        // หน้าสมัครไม่จำกัดจำนวนครั้ง รหัสสั้นเกินไปจะถูกเดาได้
+        DB::fail('รหัสประจำตัวครูต้องยาว 6-100 ตัวอักษร', 400);
+    } elseif ($db->one("SELECT 1 FROM teacher_codes WHERE code=?", [$code])) {
+        DB::fail('มีรหัสนี้อยู่แล้ว', 409);
+    }
+    $db->run("INSERT INTO teacher_codes (code, note, created_by) VALUES (?,?,?)", [$code, $note, myId()]);
+    DB::ok(['code' => $code]);
+}
+
+function handleDeleteTeacherCode(): never {
+    global $body;
+    authRole('officer', 'admin');
+    ensureTeacherCodeSchema();
+    // ลบได้เฉพาะรหัสที่ยังไม่มีครูใช้ เพื่อเก็บประวัติว่าครูคนไหนสมัครด้วยรหัสอะไร
+    $row = DB::get()->one("DELETE FROM teacher_codes WHERE code=? AND used_at IS NULL RETURNING code",
+        [trim((string)($body['code'] ?? ''))]);
+    if (!$row) DB::fail('ลบไม่ได้ รหัสนี้ไม่มีอยู่หรือมีครูใช้แล้ว', 409);
+    DB::ok();
 }
 
 // ── ฟังก์ชันกลางสร้าง officer / executive ──────────────────

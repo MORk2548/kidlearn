@@ -36,7 +36,7 @@ window.addEventListener('popstate', e => {
 function sec(name, state = { sec: name }) {
   navPush(state);
   // ซ่อนทุก section รวมถึง s-lessons และ s-content
-  ['home','lessons','scores','rec','children','teach','officer','executive','admin','settings'].forEach(s => {
+  ['home','lessons','scores','rec','children','teach','officer','tcodes','executive','admin','settings'].forEach(s => {
     const e = document.getElementById('s-' + s);
     if (e) e.style.display = 'none';
   });
@@ -58,6 +58,7 @@ function sec(name, state = { sec: name }) {
   if (name === 'children') loadChildren();
   if (name === 'teach')    loadTeach();
   if (name === 'officer')  _renderOfficerPanel();
+  if (name === 'tcodes')   loadTeacherCodes();
   if (name === 'executive') _renderExecutivePanel();
   if (name === 'settings') loadSettings();
   if (name === 'admin')    loadAdmin();
@@ -79,6 +80,8 @@ function applyRoleUI() {
   document.getElementById('sl-children').style.display  = isPa ? 'flex'  : 'none';
   document.getElementById('sl-teach').style.display     = isTc ? 'flex'  : 'none';
   document.getElementById('sl-officer').style.display   = isOf || isAd ? 'flex' : 'none';
+  document.getElementById('sl-tcodes').style.display    = isOf || isAd ? 'flex' : 'none';
+  document.getElementById('bn-tcodes').style.display    = isOf || isAd ? 'flex' : 'none';
   document.getElementById('sl-executive').style.display = isEx || isAd ? 'flex' : 'none';
   document.getElementById('sl-scores').style.display    = (isTc || isOf) ? 'none'  : 'flex';
   // Admin nav

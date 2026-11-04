@@ -330,6 +330,17 @@ CREATE TABLE IF NOT EXISTS login_failures (
 );
 ALTER TABLE login_failures ENABLE ROW LEVEL SECURITY;
 
+-- รหัสประจำตัวครู ใช้สมัครบัญชีครูได้ครั้งเดียว used_by คือครูที่ใช้รหัสนี้
+CREATE TABLE IF NOT EXISTS teacher_codes (
+  code       VARCHAR(100) PRIMARY KEY,
+  note       VARCHAR(255) NOT NULL DEFAULT '',
+  created_by INT          REFERENCES users(user_id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  used_by    INT          REFERENCES users(user_id) ON DELETE SET NULL,
+  used_at    TIMESTAMPTZ  DEFAULT NULL
+);
+ALTER TABLE teacher_codes ENABLE ROW LEVEL SECURITY;
+
 -- ============================================================
 -- GROUP 5: Advanced (Patch v3)
 -- ============================================================

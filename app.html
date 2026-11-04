@@ -32,6 +32,7 @@
     <button class="sl"        id="sl-children" onclick="sec('children')" style="display:none">จัดการบุตรหลาน</button>
     <button class="sl"        id="sl-teach"    onclick="sec('teach')"    style="display:none">แผงควบคุม</button>
     <button class="sl"        id="sl-officer"  onclick="sec('officer')"  style="display:none">จัดการผู้ใช้</button>
+    <button class="sl"        id="sl-tcodes"   onclick="sec('tcodes')"   style="display:none">รหัสประจำตัวครู</button>
     <button class="sl"        id="sl-executive" onclick="sec('executive')" style="display:none">แผงบริหาร</button>
     <button class="sl"        id="sl-admin"    onclick="sec('admin')"    style="display:none">ผู้ดูแลระบบ</button>
     <button class="sl"        id="sl-settings" onclick="sec('settings')">ตั้งค่า</button>
@@ -213,6 +214,27 @@
       <div id="of-dashboard"></div>
     </div>
 
+    <!-- ── รหัสประจำตัวครู (officer/admin) ── -->
+    <div id="s-tcodes" style="display:none">
+      <div class="pg-title">รหัสประจำตัวครู</div>
+      <div class="ts" style="margin-bottom:1rem">
+        <h3>สร้างรหัสให้ครู</h3>
+        <div style="font-size:.8rem;color:var(--mu);margin-bottom:.6rem">ครูกรอกรหัสนี้ตอนสมัครบัญชีครู แต่ละรหัสใช้ได้ครั้งเดียว แล้วจะผูกกับครูคนที่ใช้</div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <input class="fc" id="tcodes-note" maxlength="255" placeholder="ให้ใคร เช่น ครูสมศรี (ไม่บังคับ)" aria-label="ให้ใคร" style="flex:2 1 200px">
+          <input class="fc" id="tcodes-code" maxlength="100" placeholder="รหัส (เว้นว่าง = สุ่มเลข 8 หลัก)" aria-label="รหัส" autocomplete="off" style="flex:1 1 180px"
+            onkeydown="if(event.key==='Enter')createTeacherCode()">
+          <button class="btn btn-p" style="white-space:nowrap" onclick="createTeacherCode()">สร้างรหัส</button>
+        </div>
+        <div id="tcodes-msg" role="status" style="font-size:.85rem;margin-top:.5rem"></div>
+      </div>
+      <div class="ts">
+        <h3>รหัสทั้งหมด</h3>
+        <div id="tcodes-count" style="font-size:.8rem;color:var(--mu);margin-bottom:.6rem"></div>
+        <div id="tcodes-list"></div>
+      </div>
+    </div>
+
     <!-- ── EXECUTIVE ── -->
     <div id="s-executive" style="display:none">
       <div id="ex-dashboard"></div>
@@ -305,6 +327,9 @@
   <button class="bn-item" id="bn-teach"    onclick="sec('teach')"    style="display:none">
     <i class="fa-solid fa-chalkboard-user"></i><span>แผงควบคุม</span>
   </button>
+  <button class="bn-item" id="bn-tcodes"   onclick="sec('tcodes')"   style="display:none">
+    <i class="fa-solid fa-key"></i><span>รหัสครู</span>
+  </button>
   <button class="bn-item" id="bn-admin"    onclick="sec('admin')"    style="display:none">
     <i class="fa-solid fa-screwdriver-wrench"></i><span>แอดมิน</span>
   </button>
@@ -319,11 +344,11 @@
 <!-- ════════════════════════════════════════════════════
      SCRIPTS (order matters)
 ════════════════════════════════════════════════════ -->
-<script src="js/api.js?v=3.31"></script>
+<script src="js/api.js?v=3.33"></script>
 <script src="js/game_types.js?v=1.8"></script>
 <script src="js/data.js?v=4.7"></script>
 <script src="js/state.js?v=3.10"></script>
-<script src="js/router.js?v=3.14"></script>
+<script src="js/router.js?v=3.15"></script>
 <script src="js/auth.js?v=3.13"></script>
 <script src="js/home.js?v=3.32"></script>
 <script src="js/scores.js?v=3.19"></script>
@@ -334,9 +359,9 @@
 <script src="js/game_player.js?v=1.5"></script>
 <script src="js/game_builder.js?v=1.9"></script>
 <script src="js/lesson_builder.js?v=1.12"></script>
-<script src="js/officer.js?v=3.17"></script>
+<script src="js/officer.js?v=3.19"></script>
 <script src="js/executive.js?v=3.14"></script>
-<script src="js/admin.js?v=3.18"></script>
+<script src="js/admin.js?v=3.19"></script>
 <script src="js/profile.js?v=3.16"></script>
 <script>
   window.addEventListener('DOMContentLoaded', async () => {
