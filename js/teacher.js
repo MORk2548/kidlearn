@@ -254,25 +254,34 @@ async function openTcCard(classroomId, subjectId){
 }
 
 // รวมทุกครั้งที่เล่นเป็นสถิติต่อเกม ต่อนักเรียน (attempts เรียงตามเวลาจาก backend)
+// best = คะแนนเกม คิดแบบเดียวกับ gameScoresSql ใน backend.php: เฉลี่ยคะแนนสูงสุดของทุกด่านที่เกมมี ด่านที่ยังไม่เล่นนับ 0
 function _tcGameStats(res){
   const avg=xs=>xs.length?Math.round(xs.reduce((t,x)=>t+x,0)/xs.length):null;
-  const games=new Map(res.games.map(g=>[g.game_id,{...g, byStudent:new Map()}]));
+  const games=new Map(res.games.map(g=>[g.game_id,{...g, levels:JSON.parse(g.levels||'[]'), byStudent:new Map()}]));
   for(const a of res.attempts){
     const g=games.get(a.game_id);
     if(!g)continue;
-    const s=g.byStudent.get(a.student_id)||{series:[],times:[]};
+    const s=g.byStudent.get(a.student_id)||{series:[],times:[],levelBest:{}};
     s.series.push(+a.score);
+    s.levelBest[a.level]=Math.max(s.levelBest[a.level]??0,+a.score);
     if(+a.time_spent) s.times.push(+a.time_spent);
     s.lastPlayed=a.played_at;
     g.byStudent.set(a.student_id,s);
   }
   for(const g of games.values()){
-    for(const s of g.byStudent.values()) Object.assign(s,{best:Math.max(...s.series), last:s.series.at(-1), plays:s.series.length, avgTime:avg(s.times)});
+    const gameScore=s=>Math.round(g.levels.reduce((t,lv)=>t+(s.levelBest[lv]??0),0)/Math.max(1,g.levels.length));
+    for(const s of g.byStudent.values()) Object.assign(s,{best:gameScore(s), last:s.series.at(-1), plays:s.series.length, avgTime:avg(s.times)});
     const stats=[...g.byStudent.values()], bests=stats.map(s=>s.best);
     g.summary={played:stats.length, avg:avg(bests), max:bests.length?Math.max(...bests):null,
       min:bests.length?Math.min(...bests):null, avgTime:avg(stats.flatMap(s=>s.times))};
   }
   return games;
+}
+
+// "ง่าย 100 · ปานกลาง 60 · ยาก –" ของนักเรียนหนึ่งคนในเกม g
+function _tcLevelText(g,s){
+  return g.levels.length<2?'—':Object.keys(GAME_LEVELS).filter(lv=>g.levels.includes(lv))
+    .map(lv=>`${GAME_LEVELS[lv]} ${s.levelBest[lv]??'–'}`).join(' · ');
 }
 
 function _tcTime(sec){
@@ -326,8 +335,8 @@ function exportTcBookCsv(){
   if(!g)return;
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
   const lines=[
-    ['เลขที่','นักเรียน','ดีที่สุด','ล่าสุด','จำนวนครั้ง','คะแนนทุกครั้ง','เวลาเฉลี่ย (วินาที)','เล่นล่าสุด','ต้องดูแล'],
-    ..._tcBookVisibleRows().map(({stat:s,...st})=>[st.student_no??'',st.full_name,s?.best,s?.last,s?.plays??0,s?.series.join(' '),
+    ['เลขที่','นักเรียน','คะแนนเกม','แต่ละด่าน','ล่าสุด','จำนวนครั้ง','คะแนนทุกครั้ง','เวลาเฉลี่ย (วินาที)','เล่นล่าสุด','ต้องดูแล'],
+    ..._tcBookVisibleRows().map(({stat:s,...st})=>[st.student_no??'',st.full_name,s?.best,s?_tcLevelText(g,s):'',s?.last,s?.plays??0,s?.series.join(' '),
       s?.avgTime,s?new Date(s.lastPlayed).toLocaleDateString('th-TH'):'',st.needs_attention?'ใช่':'']),
   ].map(r=>r.map(q).join(','));
   const a=document.createElement('a');
@@ -354,6 +363,7 @@ function _renderTcBookRows(){
   if(!el||!g)return;
   const rows=_tcBookVisibleRows(), sm=g.summary;
   const pill=val=>`<span class="tc-pill" style="background:${scoreColor(val)}">${val}/100</span>`;
+  const levels=s=>_esc(_tcLevelText(g,s));
   const bars=series=>`<span class="tc-bars" role="img" aria-label="คะแนนทุกครั้ง ${series.join(', ')}">${
     series.slice(-10).map(v=>`<i style="height:${Math.max(3,v/100*22)}px;background:${scoreColor(v)}"></i>`).join('')}</span>`;
   const th='padding:.5rem .6rem;white-space:nowrap;font-weight:700';
@@ -365,18 +375,18 @@ function _renderTcBookRows(){
     <div style="overflow-x:auto;border:1px solid var(--bd);border-radius:10px">
     <table style="border-collapse:collapse;font-size:.8rem;width:100%">
       <thead><tr style="background:var(--sf);color:var(--tx)">
-        <th style="${th};text-align:left">เลขที่ · นักเรียน</th><th style="${th}">ดีที่สุด</th><th style="${th}">ล่าสุด</th>
+        <th style="${th};text-align:left">เลขที่ · นักเรียน</th><th style="${th}">คะแนนเกม</th><th style="${th}">แต่ละด่าน</th><th style="${th}">ล่าสุด</th>
         <th style="${th}">เล่น</th><th style="${th}">ทุกครั้ง</th><th style="${th}">เวลาเฉลี่ย</th><th style="${th}">เล่นล่าสุด</th>
       </tr></thead>
       <tbody>${rows.map(({stat:s,...st})=>{
         const bg=A.tcStudent==st.student_id?'var(--tint)':'var(--cb)';
         return `<tr style="border-top:1px solid var(--sf);cursor:pointer;background:${bg}" onclick="selectTcStudent(${st.student_id})">
         <td style="padding:.45rem .6rem;white-space:nowrap;font-weight:600"><span title="กดเพื่อแก้เลขที่" onclick="event.stopPropagation();editTcStudentNo(${st.student_id})" style="display:inline-block;min-width:1.8rem;margin-right:.35rem;padding:.05rem .3rem;border:1px dashed var(--bd);border-radius:6px;text-align:center;color:var(--tx)">${st.student_no??'–'}</span>${st.needs_attention?'<span class="att-dot" title="ต้องดูแล"></span>':''}${_esc(st.full_name)}</td>
-        ${s?`<td style="${td}">${pill(s.best)}</td><td style="${td}">${s.last}/100</td><td style="${td}">${s.plays}</td>
+        ${s?`<td style="${td}">${pill(s.best)}</td><td style="${td}">${levels(s)}</td><td style="${td}">${s.last}/100</td><td style="${td}">${s.plays}</td>
           <td style="${td}">${bars(s.series)}</td><td style="${td};color:var(--mu)">${_tcTime(s.avgTime)}</td>
           <td style="${td};color:var(--mu)">${new Date(s.lastPlayed).toLocaleDateString('th-TH')}</td>`
-        :`<td colspan="6" style="padding:.45rem .6rem;color:var(--mu)">ยังไม่ได้เล่นเกมนี้</td>`}
-      </tr>`;}).join('')||'<tr><td colspan="7" style="padding:1rem;text-align:center;color:var(--mu)">ไม่พบนักเรียน</td></tr>'}</tbody>
+        :`<td colspan="7" style="padding:.45rem .6rem;color:var(--mu)">ยังไม่ได้เล่นเกมนี้</td>`}
+      </tr>`;}).join('')||'<tr><td colspan="8" style="padding:1rem;text-align:center;color:var(--mu)">ไม่พบนักเรียน</td></tr>'}</tbody>
     </table></div>`;
 }
 

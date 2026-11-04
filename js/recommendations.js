@@ -19,7 +19,7 @@ const REC_RULES = [
   { tone: 'review', icon: 'fa-book-open', pick: ({ name, games }) =>
       games.filter(g => g.plays >= 1 && g.stars <= REC_LOW_STARS && g.lessons.length).map(g => ({
         title: `ให้${name}อ่านบทเรียน ${g.lessons.map(l => `"${l.title}"`).join(', ')}`,
-        body: `${g.subject_name} · เกม ${g.name} คะแนนดีที่สุด ${g.best ?? 0}/100 ลองให้อ่านบทเรียนนี้ในเมนูบทเรียนก่อน แล้วค่อยกลับไปเล่นเกมใหม่`,
+        body: `${g.subject_name} · เกม ${g.name} คะแนนเกม ${g.best ?? 0}/100 ลองให้อ่านบทเรียนนี้ในเมนูบทเรียนก่อน แล้วค่อยกลับไปเล่นเกมใหม่`,
         stars: g.stars,
       })) },
   { tone: 'help', icon: 'fa-hand-holding-heart', pick: ({ games }) =>

@@ -70,7 +70,7 @@ async function loadStudentGames(){
         <span class="sg-name">${_esc(g.name)}</span>
         ${g.description?`<span class="sg-meta">${_esc(g.description)}</span>`:''}
         <span class="sg-meta">${_esc(type?.label||'')} · ${g.question_count} ข้อ · ${Math.round(g.time_limit/60)} นาทีต่อด่าน</span>
-        ${best==null?'<span class="sg-meta">ยังไม่เคยเล่น</span>':`${starsHtml(scoreStars(best))}<span class="sg-meta">ดีที่สุด ${best}/100</span>`}
+        ${best==null?'<span class="sg-meta">ยังไม่เคยเล่น</span>':`${starsHtml(scoreStars(best))}<span class="sg-meta">คะแนนเกม ${best}/100 (เฉลี่ยทุกด่าน)</span>`}
         ${g.levels.length>1?'<span class="sg-meta">ได้ 80 คะแนนขึ้นไปเพื่อปลดด่านถัดไป</span>':''}
       </span>
       <span class="sg-levels">${g.levels.map(lv=>level(g,lv)).join('')}</span>

@@ -648,11 +648,11 @@ function cardStudentRows(string $cardsSql, array $params = []): array {
     return DB::get()->all(
         "WITH cards AS ({$cardsSql})
          SELECT k.classroom_id, k.subject_id, st.student_id, st.student_no, u.full_name,
-                ROUND(AVG(sc.score), 1) AS avg_score, MAX(sc.played_at) AS last_played
+                ROUND(AVG(sc.best_score), 1) AS avg_score, MAX(sc.last_played) AS last_played
          FROM cards k
          JOIN students st ON st.classroom_id = k.classroom_id
          JOIN users u ON u.user_id = st.user_id AND u.is_active = TRUE
-         LEFT JOIN scores sc ON sc.student_id = st.student_id
+         LEFT JOIN (" . gameScoresSql() . ") sc ON sc.student_id = st.student_id
               AND (k.subject_id IS NULL OR sc.game_id IN (SELECT game_id FROM games WHERE subject_id = k.subject_id))
          GROUP BY k.classroom_id, k.subject_id, st.student_id, st.student_no, u.full_name
          ORDER BY st.student_no NULLS LAST, u.full_name",
@@ -699,7 +699,8 @@ function handleTeacherGameResults(): never {
     foreach ($students as &$s) $s['needs_attention'] = needsAttention($s['avg_score'], $s['last_played']);
 
     $games = $db->all(
-        "SELECT g.game_id, g.name, g.game_type, sub.name AS subject_name
+        "SELECT g.game_id, g.name, g.game_type, sub.name AS subject_name,
+                (SELECT array_to_json(array_agg(DISTINCT q.difficulty)) FROM questions q WHERE q.game_id = g.game_id) AS levels
          FROM games g
          JOIN game_classrooms gc ON gc.game_id = g.game_id AND gc.classroom_id = ?
          JOIN subjects sub ON sub.subject_id = g.subject_id
@@ -707,7 +708,7 @@ function handleTeacherGameResults(): never {
          ORDER BY sub.order_no, g.game_id",
         [$classroomId, $subjectId, $subjectId], 'iii');
     $attempts = $db->all(
-        "SELECT sc.student_id, sc.game_id, sc.score, sc.time_spent, sc.played_at
+        "SELECT sc.student_id, sc.game_id, sc.level, sc.score, sc.time_spent, sc.played_at
          FROM scores sc
          JOIN students st ON st.student_id = sc.student_id AND st.classroom_id = ?
          JOIN game_classrooms gc ON gc.game_id = sc.game_id AND gc.classroom_id = st.classroom_id
@@ -737,6 +738,21 @@ function ensureGameLevelSchema(): void {
     $done = true;
     if (tableColumnExists('scores', 'level')) return;
     DB::get()->rawQuery(file_get_contents(__DIR__ . '/kidlearn_patch_game_levels.sql'));
+}
+
+// คะแนนเกมของนักเรียน 1 แถวต่อ (student_id, game_id): best_score, play_count, last_played
+// best_score = เฉลี่ยคะแนนสูงสุดของทุกด่านที่เกมมี ด่านที่ยังไม่เล่นนับ 0 การได้เต็มแค่ด่านง่ายจึงไม่นับว่าเก่งทั้งเกม
+// $where กรองแถวของ scores (alias sc) ก่อนรวม เช่น 'sc.student_id=?'
+function gameScoresSql(string $where = 'TRUE'): string {
+    ensureGameLevelSchema();
+    return "SELECT b.student_id, b.game_id, ROUND(SUM(b.best)::numeric / MAX(gl.n))::int AS best_score,
+                   SUM(b.plays)::int AS play_count, MAX(b.last_played) AS last_played
+            FROM (SELECT sc.student_id, sc.game_id, sc.level, MAX(sc.score) AS best, COUNT(*) AS plays, MAX(sc.played_at) AS last_played
+                  FROM scores sc WHERE {$where} GROUP BY sc.student_id, sc.game_id, sc.level) b
+            JOIN (SELECT game_id, difficulty, COUNT(*) OVER (PARTITION BY game_id) AS n
+                  FROM (SELECT DISTINCT game_id, difficulty FROM questions) d) gl
+              ON gl.game_id = b.game_id AND gl.difficulty = b.level
+            GROUP BY b.student_id, b.game_id";
 }
 
 // ด่านแรกเปิดเสมอ ด่านถัดไปเปิดเมื่อคะแนนสูงสุดของด่านก่อนหน้าถึง GAME_PASS_SCORE
@@ -1285,10 +1301,8 @@ function handleStudentGames(): never {
                                WHERE sc.game_id = g.game_id AND sc.level = q.difficulty AND st.user_id = ?) AS best
                        FROM questions q WHERE q.game_id = g.game_id GROUP BY q.difficulty) lv) AS levels
          FROM games g JOIN subjects sub ON sub.subject_id = g.subject_id
-         LEFT JOIN LATERAL (
-             SELECT MAX(sc.score) AS best_score, COUNT(*) AS play_count
-             FROM scores sc JOIN students st ON st.student_id = sc.student_id
-             WHERE sc.game_id = g.game_id AND st.user_id = ?
+         LEFT JOIN LATERAL (" . gameScoresSql(
+             'sc.game_id = g.game_id AND sc.student_id = (SELECT student_id FROM students WHERE user_id = ?)') . "
          ) mine ON TRUE
          WHERE " . STUDENT_PLAYABLE_GAME_SQL . "
          ORDER BY sub.order_no, g.game_id DESC",
@@ -2011,8 +2025,8 @@ function handleMyChildren(): never {
          JOIN users    u  ON u.user_id     = st.user_id
          LEFT JOIN classrooms c ON c.classroom_id = st.classroom_id
          LEFT JOIN (
-             SELECT student_id, AVG(score) AS avg_score, COUNT(*) AS total_plays
-             FROM scores GROUP BY student_id
+             SELECT student_id, ROUND(AVG(best_score), 1) AS avg_score, SUM(play_count) AS total_plays
+             FROM (" . gameScoresSql() . ") gs GROUP BY student_id
          ) pr ON pr.student_id = st.student_id
          WHERE ps.parent_id=?",
         [$p['parent_id']], 'i'
@@ -2068,12 +2082,12 @@ function handleTeacherStats(): never {
     $stats = $db->all("SELECT sub.subject_id, sub.name AS subject_name, sub.color AS subject_color,
                      sub.icon,
                      COUNT(DISTINCT sc.student_id)        AS student_count,
-                     COUNT(sc.score_id)                   AS total_plays,
-                     ROUND(AVG(sc.score), 1)              AS avg_score,
-                     MAX(sc.score)                        AS best_score
+                     COALESCE(SUM(sc.play_count), 0)      AS total_plays,
+                     ROUND(AVG(sc.best_score), 1)         AS avg_score,
+                     MAX(sc.best_score)                   AS best_score
               FROM subjects sub
               LEFT JOIN games g ON g.subject_id = sub.subject_id
-              LEFT JOIN scores sc ON sc.game_id = g.game_id
+              LEFT JOIN (" . gameScoresSql() . ") sc ON sc.game_id = g.game_id
                    AND " . teacherScopeSql('(SELECT st.classroom_id FROM students st WHERE st.student_id = sc.student_id)', 'sub.subject_id') . "
               WHERE " . (myRole() === 'teacher'
                   ? "EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.teacher_user_id = " . myId() . " AND (ta.subject_id IS NULL OR ta.subject_id = sub.subject_id))"
@@ -2091,13 +2105,13 @@ function handleAllStudents(): never {
     $db       = DB::get();
     $students = $db->all(
         "SELECT u.user_id, st.student_id, st.student_no, u.full_name, st.grade, st.classroom_id, c.room_no,
-                COUNT(DISTINCT sc.score_id)  AS games_played,
-                ROUND(AVG(sc.score), 1)      AS avg_score,
-                MAX(sc.played_at)            AS last_active
+                COALESCE(SUM(sc.play_count), 0) AS games_played,
+                ROUND(AVG(sc.best_score), 1) AS avg_score,
+                MAX(sc.last_played)          AS last_active
          FROM students st
          JOIN users u ON u.user_id=st.user_id
          LEFT JOIN classrooms c ON c.classroom_id=st.classroom_id
-         LEFT JOIN scores sc ON sc.student_id=st.student_id
+         LEFT JOIN (" . gameScoresSql() . ") sc ON sc.student_id=st.student_id
               AND " . teacherScopeSql('st.classroom_id', '(SELECT g.subject_id FROM games g WHERE g.game_id = sc.game_id)') . "
          WHERE u.is_active=TRUE AND " . teacherScopeSql('st.classroom_id') . "
          GROUP BY u.user_id, st.student_id, st.student_no, u.full_name, st.grade, st.classroom_id, c.room_no
@@ -2142,12 +2156,7 @@ function handleStudentPlans(): never {
          LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
          LEFT JOIN games g ON g.game_id = lpi.game_id
          LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-         LEFT JOIN (
-            SELECT student_id, game_id, MAX(score) AS best_score
-            FROM scores
-            WHERE student_id=?
-            GROUP BY student_id, game_id
-         ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+         LEFT JOIN (" . gameScoresSql('sc.student_id=?') . ") best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
          WHERE lp.student_id=?
          ORDER BY lp.week_start DESC, lp.plan_id DESC, lpi.sort_order ASC",
         [$studentId, $studentId], 'ii'
@@ -2234,8 +2243,11 @@ function createParentNotificationUnique(int $studentId, string $title, string $m
 function refreshStudentNotifications(int $studentId): void {
     $db = DB::get();
     $recent = $db->all(
-        "SELECT score, played_at FROM scores WHERE student_id=? ORDER BY played_at DESC LIMIT 10",
-        [$studentId], 'i'
+        // เทียบเฉพาะด่านเดียวกับครั้งล่าสุด คะแนนที่ลดลงเพราะขึ้นด่านที่ยากกว่าไม่ใช่สัญญาณที่ต้องเตือน
+        "SELECT score, played_at FROM scores
+         WHERE student_id=? AND level = (SELECT level FROM scores WHERE student_id=? ORDER BY played_at DESC LIMIT 1)
+         ORDER BY played_at DESC LIMIT 10",
+        [$studentId, $studentId], 'ii'
     );
     if ($recent) {
         $recentAvg = array_sum(array_map(fn($r) => (int)$r['score'], array_slice($recent, 0, 5))) / max(1, count(array_slice($recent, 0, 5)));
@@ -2259,11 +2271,7 @@ function refreshStudentNotifications(int $studentId): void {
                 SUM(CASE WHEN COALESCE(best.best_score, 0) >= lpi.target_score THEN 1 ELSE 0 END) AS completed_items
          FROM learning_plans lp
          LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
-         LEFT JOIN (
-            SELECT student_id, game_id, MAX(score) AS best_score
-            FROM scores WHERE student_id=?
-            GROUP BY student_id, game_id
-         ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+         LEFT JOIN (" . gameScoresSql('sc.student_id=?') . ") best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
          WHERE lp.student_id=? AND lp.status='active'
          GROUP BY lp.plan_id
          ORDER BY lp.week_start DESC, lp.plan_id DESC
@@ -2378,14 +2386,14 @@ function handleReportV2(): never {
         $rows = $db->all(
             "SELECT * FROM (
                 SELECT u.full_name, st.grade, st.student_id, st.student_no, c.room_no,
-                       ROUND(AVG(sc.score),1) AS avg_score,
-                       MAX(sc.played_at) AS last_active,
+                       ROUND(AVG(sc.best_score),1) AS avg_score,
+                       MAX(sc.last_played) AS last_active,
                        COALESCE(MIN(sm.mastery_score), 0) AS weakest_mastery,
-                       COALESCE(DATE_PART('day', NOW() - MAX(sc.played_at)), 999999) AS inactive_days
+                       COALESCE(DATE_PART('day', NOW() - MAX(sc.last_played)), 999999) AS inactive_days
                 FROM students st
                 JOIN users u ON u.user_id = st.user_id
                 LEFT JOIN classrooms c ON c.classroom_id = st.classroom_id
-                LEFT JOIN scores sc ON sc.student_id = st.student_id
+                LEFT JOIN (" . gameScoresSql() . ") sc ON sc.student_id = st.student_id
                 LEFT JOIN student_mastery sm ON sm.student_id = st.student_id
                 GROUP BY st.student_id, u.user_id, c.classroom_id
              ) risk
@@ -2419,11 +2427,7 @@ function handleReportV2(): never {
              JOIN students st ON st.student_id = lp.student_id
              JOIN users u ON u.user_id = st.user_id
              LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
-             LEFT JOIN (
-                SELECT student_id, game_id, MAX(score) AS best_score
-                FROM scores
-                GROUP BY student_id, game_id
-             ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+             LEFT JOIN (" . gameScoresSql() . ") best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
              GROUP BY lp.plan_id, u.user_id
              ORDER BY lp.created_at DESC"
         );
@@ -2583,7 +2587,7 @@ function handleReport(): never {
         $parents  = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='parent'  AND is_active=TRUE");
         $teachers = $db->one("SELECT COUNT(*) AS c FROM users WHERE role='teacher' AND is_active=TRUE");
         $games    = $db->one("SELECT COUNT(*) AS c FROM scores");
-        $avgScore = $db->one("SELECT ROUND(AVG(score),1) AS a FROM scores");
+        $avgScore = $db->one("SELECT ROUND(AVG(best_score),1) AS a FROM (" . gameScoresSql() . ") gs");
         DB::ok([
             'total_students' => (int)$students['c'],
             'total_parents'  => (int)$parents['c'],
@@ -2595,23 +2599,23 @@ function handleReport(): never {
     if ($type === 'by_subject') {
         $rows = $db->all("SELECT sub.subject_id, sub.name AS subject_name, sub.icon, sub.color,
             COUNT(DISTINCT sc.student_id) AS student_count,
-            COUNT(sc.score_id) AS total_plays,
-            ROUND(AVG(sc.score),1) AS avg_score,
-            MAX(sc.score) AS best_score
+            COALESCE(SUM(sc.play_count), 0) AS total_plays,
+            ROUND(AVG(sc.best_score),1) AS avg_score,
+            MAX(sc.best_score) AS best_score
             FROM subjects sub
             LEFT JOIN games g ON g.subject_id=sub.subject_id
-            LEFT JOIN scores sc ON sc.game_id=g.game_id
+            LEFT JOIN (" . gameScoresSql() . ") sc ON sc.game_id=g.game_id
             GROUP BY sub.subject_id ORDER BY sub.order_no");
         DB::ok(['subjects' => $rows]);
     }
     if ($type === 'by_student') {
         $rows = $db->all("SELECT u.user_id, u.full_name, st.grade, st.student_no, c.room_no,
-            COUNT(sc.score_id) AS total_plays,
-            ROUND(AVG(sc.score),1) AS avg_score,
-            MAX(sc.played_at) AS last_active
+            COALESCE(SUM(sc.play_count), 0) AS total_plays,
+            ROUND(AVG(sc.best_score),1) AS avg_score,
+            MAX(sc.last_played) AS last_active
             FROM students st JOIN users u ON u.user_id=st.user_id
             LEFT JOIN classrooms c ON c.classroom_id=st.classroom_id
-            LEFT JOIN scores sc ON sc.student_id=st.student_id
+            LEFT JOIN (" . gameScoresSql() . ") sc ON sc.student_id=st.student_id
             WHERE u.is_active=TRUE
             GROUP BY st.student_id, u.user_id, c.classroom_id ORDER BY avg_score DESC NULLS LAST LIMIT 100");
         DB::ok(['students' => $rows]);
@@ -2894,7 +2898,7 @@ function handleExecutiveDashboard(): never {
     $students = $db->one("SELECT COUNT(*) AS c FROM students s JOIN users u ON u.user_id=s.user_id WHERE u.is_active=TRUE$accountDateSql", $dateParams);
     $teachers = $db->one("SELECT COUNT(*) AS c FROM teachers t JOIN users u ON u.user_id=t.user_id WHERE u.is_active=TRUE$accountDateSql", $dateParams);
     $totalPlays = $db->one("SELECT COUNT(*) AS c FROM scores sc WHERE TRUE$scoreDateSql");
-    $avgScore = $db->one("SELECT ROUND(AVG(sc.score),1) AS a FROM scores sc WHERE TRUE$scoreDateSql");
+    $avgScore = $db->one("SELECT ROUND(AVG(best_score),1) AS a FROM (" . gameScoresSql("TRUE$scoreDateSql") . ") gs");
     
     DB::ok([
         'total_students' => (int)($students['c'] ?? 0),
@@ -3043,12 +3047,7 @@ function handleStudentPlansV2(): never {
                  LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
                  LEFT JOIN games g ON g.game_id = lpi.game_id
                  LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-                 LEFT JOIN (
-                    SELECT student_id, game_id, MAX(score) AS best_score
-                    FROM scores
-                    WHERE student_id=?
-                    GROUP BY student_id, game_id
-                 ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+                 LEFT JOIN (" . gameScoresSql('sc.student_id=?') . ") best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
                  WHERE lp.student_id=?
                  ORDER BY lp.week_start DESC, lp.plan_id DESC, lpi.sort_order ASC",
                 [$requestedStudentId, $requestedStudentId], 'ii'
@@ -3065,11 +3064,7 @@ function handleStudentPlansV2(): never {
                  LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
                  LEFT JOIN games g ON g.game_id = lpi.game_id
                  LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-                 LEFT JOIN (
-                    SELECT student_id, game_id, MAX(score) AS best_score
-                    FROM scores
-                    GROUP BY student_id, game_id
-                 ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+                 LEFT JOIN (" . gameScoresSql() . ") best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
                  WHERE " . teacherScopeSql('st.classroom_id') . "
                  ORDER BY lp.week_start DESC, lp.plan_id DESC, lpi.sort_order ASC"
             );
@@ -3092,12 +3087,7 @@ function handleStudentPlansV2(): never {
          LEFT JOIN learning_plan_items lpi ON lpi.plan_id = lp.plan_id
          LEFT JOIN games g ON g.game_id = lpi.game_id
          LEFT JOIN subjects sub ON sub.subject_id = g.subject_id
-         LEFT JOIN (
-            SELECT student_id, game_id, MAX(score) AS best_score
-            FROM scores
-            WHERE student_id=?
-            GROUP BY student_id, game_id
-         ) best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
+         LEFT JOIN (" . gameScoresSql('sc.student_id=?') . ") best ON best.student_id = lp.student_id AND best.game_id = lpi.game_id
          WHERE lp.student_id=?
          ORDER BY lp.week_start DESC, lp.plan_id DESC, lpi.sort_order ASC",
         [$studentId, $studentId], 'ii'

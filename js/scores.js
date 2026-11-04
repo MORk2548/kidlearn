@@ -29,7 +29,7 @@ async function loadScores() {
   loadScoreGames(kids.find(k => k.student_id == A.selChild));
 }
 
-// ดาว 5 ดวงจากคะแนนดีที่สุด (เต็ม 100): 1-39 = 1 ดาว, ทุก 20 คะแนนได้เพิ่ม 1 ดาว, 5 ดาวต้องได้เต็ม 100
+// ดาว 5 ดวงจากคะแนนเกม (เต็ม 100 เฉลี่ยคะแนนสูงสุดของทุกด่าน): 1-39 = 1 ดาว, ทุก 20 คะแนนได้เพิ่ม 1 ดาว, 5 ดาวต้องได้เต็ม 100
 function scoreStars(best) {
   if (best == null || best <= 0) return 0;
   return best >= 100 ? 5 : Math.max(1, Math.floor(best / 20));
@@ -122,7 +122,7 @@ function renderScoreGames() {
       <div class="sc-name">${_esc(g.name)}</div>
       <div class="sc-meta">${_esc(g.subject_name)}${type ? ' · ' + _esc(type.label) : ''}</div>
       ${played ? `${starsHtml(g.stars)}
-        <div class="sc-meta">ดีที่สุด ${g.best}/100 · เล่น ${g.plays} ครั้ง</div>
+        <div class="sc-meta">คะแนนเกม ${g.best}/100 · เล่น ${g.plays} ครั้ง</div>
         ${child ? (g.lastPlayed ? `<div class="sc-meta">เล่นล่าสุด ${_playedLabel(g.lastPlayed)}</div>` : '')
           : `<div class="sc-hint">${nextStarHint(g.best, g.stars)}</div>`}`
       : '<div class="sc-meta" style="margin:.6rem 0">ยังไม่เคยเล่น</div>'}
@@ -150,6 +150,6 @@ function renderScoreGames() {
       <div class="sc-filters">${filters.map(([v, l]) =>
         `<button class="child-btn${f === v ? ' active' : ''}" onclick="_scoreView.filter='${v}';renderScoreGames()">${_esc(l)}</button>`).join('')}</div>
       <div class="sc-grid">${shown.map(card).join('') || '<div class="gb-empty">ได้ดาวเต็มทุกเกมแล้ว</div>'}</div>
-      ${child ? '<div class="sc-meta" style="margin-top:.75rem">ประวัติการเล่นแสดงย้อนหลัง 7 วัน ส่วนคะแนนดีที่สุดของทุกเกมเก็บไว้ตลอด</div>' : ''}
+      ${child ? '<div class="sc-meta" style="margin-top:.75rem">ประวัติการเล่นแสดงย้อนหลัง 7 วัน ส่วนคะแนนสูงสุดของทุกด่านเก็บไว้ตลอด</div>' : ''}
     </div>`;
 }
