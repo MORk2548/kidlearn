@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS classrooms (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (grade, room_no)
 );
+ALTER TABLE classrooms ENABLE ROW LEVEL SECURITY;
 
 INSERT INTO classrooms (grade, room_no)
 SELECT g, r FROM unnest(ARRAY['ป.1','ป.2','ป.3','ป.4','ป.5','ป.6']) AS g, generate_series(1, 3) AS r
@@ -227,7 +228,7 @@ BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = '';
 
 CREATE TRIGGER trg_lesson_content_updated_at
   BEFORE UPDATE ON lesson_content
@@ -251,6 +252,7 @@ CREATE TABLE IF NOT EXISTS teacher_assignments (
   subject_id      INT REFERENCES subjects(subject_id) ON DELETE CASCADE,
   UNIQUE NULLS NOT DISTINCT (teacher_user_id, classroom_id, subject_id)
 );
+ALTER TABLE teacher_assignments ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- GROUP 3: Scores & Progress
