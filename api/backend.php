@@ -731,6 +731,15 @@ const GAME_MAX_IMAGES = 4;
 const GAME_LEVELS = ['easy' => 'ง่าย', 'medium' => 'ปานกลาง', 'hard' => 'ยาก'];
 const GAME_PASS_SCORE = 80;
 
+// กันเดารหัสผ่าน: ผิดติดกัน LOGIN_MAX_FAILS ครั้งภายใน LOGIN_FAIL_WINDOW_MINUTES นาที ล็อกชื่อนั้น LOGIN_LOCK_MINUTES นาที
+// นับตามชื่อที่พิมพ์ ไม่นับตาม IP เพราะนักเรียนทั้งโรงเรียนมักออกเน็ตผ่าน IP เดียวกัน
+const LOGIN_MAX_FAILS = 5;
+const LOGIN_LOCK_MINUTES = 3;
+const LOGIN_FAIL_WINDOW_MINUTES = 15;
+// ต้องประกาศก่อน router ข้างล่าง const ระดับไฟล์ของ PHP มีค่าก็ต่อเมื่อรันมาถึงบรรทัดนั้นแล้ว
+const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+
 // เพิ่ม scores.level ให้ฐานข้อมูลที่ยังไม่ได้รัน kidlearn_patch_game_levels.sql
 function ensureGameLevelSchema(): void {
     static $done = false;
@@ -1496,13 +1505,44 @@ match ($action) {
 // AUTH
 // ============================================================
 
+
+function ensureLoginFailureSchema(): void {
+    if (tableColumnExists('login_failures', 'login_key')) return;
+    DB::get()->rawQuery(file_get_contents(__DIR__ . '/kidlearn_patch_login_failures.sql'));
+}
+
+function failLoginIfLocked(string $key): void {
+    $row = DB::get()->one("SELECT CEIL(EXTRACT(EPOCH FROM locked_until - NOW()) / 60) AS minutes
+                           FROM login_failures WHERE login_key=? AND locked_until > NOW()", [$key]);
+    if ($row) DB::fail("ใส่รหัสผ่านผิดหลายครั้ง ลองใหม่อีกครั้งใน {$row['minutes']} นาที", 429);
+}
+
+// คืนจำนวนครั้งที่ยังลองได้ก่อนถูกล็อก (0 = เพิ่งถูกล็อก)
+function recordLoginFailure(string $key): int {
+    $db = DB::get();
+    $db->run("DELETE FROM login_failures WHERE updated_at < NOW() - INTERVAL '1 day'");
+    $fails = (int)$db->one(
+        "INSERT INTO login_failures (login_key, fails) VALUES (?, 1)
+         ON CONFLICT (login_key) DO UPDATE SET updated_at = NOW(),
+             fails = CASE WHEN login_failures.updated_at < NOW() - INTERVAL '" . LOGIN_FAIL_WINDOW_MINUTES . " minutes'
+                          THEN 1 ELSE login_failures.fails + 1 END
+         RETURNING fails", [$key])['fails'];
+    if ($fails < LOGIN_MAX_FAILS) return LOGIN_MAX_FAILS - $fails;
+    $db->run("UPDATE login_failures SET fails = 0, locked_until = NOW() + INTERVAL '" . LOGIN_LOCK_MINUTES . " minutes'
+              WHERE login_key=?", [$key]);
+    return 0;
+}
+
 function handleLogin(): never {
     global $body;
     $db   = DB::get();
     ensureClassroomSchema();
+    ensureLoginFailureSchema();
     $u    = trim($body['username'] ?? $_POST['username'] ?? '');
     $pass = $body['password'] ?? $_POST['password'] ?? '';
     if (!$u || !$pass) DB::fail('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 400);
+    $loginKey = mb_strtolower(mb_substr($u, 0, 255));
+    failLoginIfLocked($loginKey);
 
     $user = $db->one(
         "SELECT u.*, s.student_id, s.grade, s.parent_phone, s.classroom_id, c.room_no, s.student_no,
@@ -1520,8 +1560,13 @@ function handleLogin(): never {
          WHERE (u.username=? OR u.email=?) AND u.is_active=TRUE",
         [$u, $u], 'ss'
     );
-    if (!$user || !password_verify($pass, $user['password']))
+    if (!$user || !password_verify($pass, $user['password'])) {
+        $left = recordLoginFailure($loginKey);
+        if (!$left) DB::fail('ใส่รหัสผ่านผิดหลายครั้ง ลองใหม่อีกครั้งใน ' . LOGIN_LOCK_MINUTES . ' นาที', 429);
+        if ($left <= 2) DB::fail("ชื่อผู้ใช้หรือรหัสผ่านผิด ลองได้อีก {$left} ครั้ง จากนั้นต้องรอ " . LOGIN_LOCK_MINUTES . ' นาที', 401);
         DB::fail('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 401);
+    }
+    $db->run("DELETE FROM login_failures WHERE login_key=?", [$loginKey]);
 
     unset($user['password']);
 
@@ -2637,9 +2682,6 @@ function handleReport(): never {
 // ============================================================
 // FORGOT / RESET PASSWORD
 // ============================================================
-
-const OTP_TTL_MINUTES = 10;
-const OTP_MAX_ATTEMPTS = 5;
 
 function smtpConfigured(): bool {
     return (bool)(envValue('SMTP_HOST') && envValue('SMTP_USER') && envValue('SMTP_PASS'));

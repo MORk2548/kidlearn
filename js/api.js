@@ -34,7 +34,7 @@ async function _api(action, { method = 'GET', body, params } = {}) {
       return {
         ok: false,
         error: action === 'login'
-          ? 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+          ? (data.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
           : 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
       };
     }
