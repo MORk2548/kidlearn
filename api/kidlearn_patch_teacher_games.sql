@@ -31,7 +31,7 @@ $$;
 
 ALTER TABLE games DROP CONSTRAINT IF EXISTS games_game_type_check;
 ALTER TABLE games ADD CONSTRAINT games_game_type_check
-  CHECK (game_type IN ('mcq','truefalse','fill','matching','linematch','sequence','wordsearch','letterorder'));
+  CHECK (game_type IN ('mcq','truefalse','fill','matching','linematch','sequence','wordsearch','letterorder','categorize'));
 
 CREATE INDEX IF NOT EXISTS idx_games_grade_subject ON games(grade, subject_id);
 

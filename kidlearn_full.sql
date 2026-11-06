@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS games (
   name           VARCHAR(100) NOT NULL,
   game_type      TEXT NOT NULL DEFAULT 'mcq'
                  CONSTRAINT games_game_type_check
-                 CHECK (game_type IN ('mcq','truefalse','fill','matching','linematch','sequence','wordsearch','letterorder')),
+                 CHECK (game_type IN ('mcq','truefalse','fill','matching','linematch','sequence','wordsearch','letterorder','categorize')),
   level          TEXT NOT NULL DEFAULT 'easy'
                  CHECK (level IN ('easy','medium','hard')),
   icon           VARCHAR(10) DEFAULT '🎮',

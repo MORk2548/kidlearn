@@ -724,7 +724,7 @@ function handleTeacherGameResults(): never {
 // TEACHER GAMES — ครูสร้างเกมจากแบบเกมที่กำหนดไว้
 // ============================================================
 
-const GAME_TYPES = ['mcq', 'truefalse', 'matching', 'linematch', 'sequence'];
+const GAME_TYPES = ['mcq', 'truefalse', 'matching', 'linematch', 'sequence', 'categorize'];
 const GAME_MAX_QUESTIONS = 50;
 const GAME_MAX_IMAGES = 4;
 // ด่านเรียงตามลำดับที่ต้องผ่าน ตรงกับ GAME_LEVELS ใน game_types.js
@@ -775,6 +775,13 @@ function studentLevelUnlocked(int $gameId, string $level, int $userId): bool {
         [$gameId, $levels[$i - 1], $userId, GAME_PASS_SCORE]);
 }
 
+// เปิดให้ games.game_type รับ categorize ในฐานข้อมูลที่ยังไม่ได้รัน kidlearn_patch_categorize_game.sql
+function ensureCategorizeSchema(): void {
+    if (DB::get()->one("SELECT 1 FROM pg_constraint WHERE conname = 'games_game_type_check'
+                        AND pg_get_constraintdef(oid) LIKE '%categorize%'")) return;
+    DB::get()->rawQuery(file_get_contents(__DIR__ . '/kidlearn_patch_categorize_game.sql'));
+}
+
 function requestGameLevel(mixed $level): string {
     $level = (string)($level ?? 'easy');
     if (!isset(GAME_LEVELS[$level])) DB::fail('ด่านไม่ถูกต้อง', 400);
@@ -802,7 +809,7 @@ function parseGameQuestion(string $type, mixed $q, int $no): array {
     $label = "ข้อ {$no}";
     if (!is_array($q)) DB::fail("{$label}: รูปแบบข้อมูลไม่ถูกต้อง", 400);
     $defaultText = ['matching' => 'จับคู่ให้ถูกต้อง', 'linematch' => 'โยงเส้นจับคู่ให้ถูกต้อง',
-                    'sequence' => 'เรียงลำดับให้ถูกต้อง'][$type] ?? '';
+                    'sequence' => 'เรียงลำดับให้ถูกต้อง', 'categorize' => 'แยกบัตรคำลงกลุ่มให้ถูกต้อง'][$type] ?? '';
     $text = gameText(trim((string)($q['text'] ?? '')) ?: $defaultText, 1000, "{$label} โจทย์");
     $answers = [];
     switch ($type) {
@@ -830,6 +837,23 @@ function parseGameQuestion(string $type, mixed $q, int $no): array {
         case 'sequence':
             foreach (gameTextList($q['items'] ?? null, 3, 6, 500, "{$label} ลำดับ") as $i => $item)
                 $answers[] = ['answer_text' => $item, 'is_correct' => true, 'seq_order' => $i + 1];
+            break;
+        case 'categorize':
+            // บัตรแต่ละใบเก็บชื่อกลุ่มใน pair_left และลำดับกลุ่มใน pair_right เพื่อให้โหลดกลับได้ลำดับกลุ่มเดิม
+            $groups = gameTextList($q['groups'] ?? null, 2, 3, 100, "{$label} กลุ่ม");
+            $items = $q['items'] ?? null;
+            if (!is_array($items)) DB::fail("{$label}: ต้องมีบัตรคำ 3-6 ใบ", 400);
+            $items = array_values($items);
+            $texts = gameTextList(array_map(fn($it) => is_array($it) ? ($it['text'] ?? '') : '', $items), 3, 6, 300, "{$label} บัตรคำ");
+            $used = [];
+            foreach ($items as $i => $it) {
+                $g = $it['group'] ?? null;
+                if (!is_int($g) || !isset($groups[$g])) DB::fail("{$label} บัตรคำ {$texts[$i]}: ยังไม่ได้เลือกกลุ่ม", 400);
+                $used[$g] = true;
+                $answers[] = ['answer_text' => $texts[$i], 'is_correct' => true, 'pair_left' => $groups[$g],
+                              'pair_right' => (string)$g, 'seq_order' => $i + 1];
+            }
+            if (count($used) !== count($groups)) DB::fail("{$label}: ทุกกลุ่มต้องมีบัตรคำอย่างน้อย 1 ใบ", 400);
             break;
     }
     $difficulty = (string)($q['difficulty'] ?? '');
@@ -864,6 +888,12 @@ function gameQuestionOut(string $type, array $q, array $answers): array {
             break;
         case 'sequence':
             $out['items'] = array_column($answers, 'answer_text');
+            break;
+        case 'categorize':
+            $groups = array_column($answers, 'pair_left', 'pair_right');
+            ksort($groups);
+            $out['groups'] = array_values($groups);
+            $out['items'] = array_map(fn($a) => ['text' => $a['answer_text'], 'group' => (int)$a['pair_right']], $answers);
             break;
     }
     return $out;
@@ -982,6 +1012,7 @@ function handleSaveTeacherGame(): never {
     $name = gameText($body['name'] ?? '', 100, 'ชื่อเกม');
     $type = (string)($body['game_type'] ?? '');
     if (!in_array($type, GAME_TYPES, true)) DB::fail('กรุณาเลือกแบบเกม', 400);
+    if ($type === 'categorize') ensureCategorizeSchema();
     $grade = (string)($body['grade'] ?? '');
     if (!in_array($grade, CLASSROOM_GRADES, true)) DB::fail('กรุณาเลือกระดับชั้น', 400);
     $subjectId = (int)($body['subject_id'] ?? 0);

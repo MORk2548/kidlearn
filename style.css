@@ -2606,6 +2606,80 @@ div.sg-card {
   cursor: default
 }
 
+.gq-cat-pool {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .6rem;
+  min-height: 72px;
+  padding: .75rem;
+  margin-bottom: 1rem;
+  border: 3px dashed var(--bd);
+  border-radius: 16px
+}
+
+.gq-cat-empty {
+  align-self: center;
+  color: var(--mu);
+  font-size: .85rem
+}
+
+.gq-cat-bins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1rem
+}
+
+.gq-cat-bin {
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  border: 3px solid var(--bd);
+  border-radius: 16px;
+  background: var(--tint);
+  overflow: hidden;
+  transition: border-color .15s
+}
+
+.gq-cat-bin.target {
+  border-color: var(--s);
+  cursor: pointer
+}
+
+.gq-cat-label {
+  min-height: 48px;
+  padding: .5rem;
+  border: 0;
+  background: var(--s);
+  color: #fff;
+  font-family: 'KoHo', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  overflow-wrap: anywhere
+}
+
+.gq-cat-label:disabled {
+  cursor: default
+}
+
+.gq-cat-cards {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  padding: .6rem
+}
+
+.gq-cat-card {
+  min-height: 48px
+}
+
+.gq-cat-pool .gq-cat-card {
+  flex: 0 1 auto
+}
+
 /* EDITOR ROWS */
 .ge-rows {
   display: flex;
@@ -2792,4 +2866,16 @@ div.sg-card {
   max-height: 60vh;
   margin: .5rem auto;
   border-radius: 12px
+}
+
+/* CATEGORIZE EDITOR (game_types.js) */
+.ge-cat-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: .5rem;
+  margin-bottom: .75rem
+}
+
+.ge-row .ge-cat-group {
+  flex: 0 1 9rem
 }

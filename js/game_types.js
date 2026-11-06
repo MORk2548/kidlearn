@@ -258,6 +258,20 @@ function _gtRenderPairs(q, root, done, withLines) {
   paint();
 }
 
+const GT_MAX_GROUPS = 3;
+
+// ตัวเลือกกลุ่มของบัตรคำแสดงชื่อกลุ่มที่ครูพิมพ์ ณ ตอนนั้น
+function _gtGroupOptions(groups, picked) {
+  return Array.from({ length: GT_MAX_GROUPS }, (_, g) =>
+    `<option value="${g}"${picked === g ? ' selected' : ''}>${_gtEsc(groups[g] || `กลุ่มที่ ${g + 1}`)}</option>`).join('');
+}
+
+function _gtSyncGroups(input) {
+  const root = input.closest('.ge-cat');
+  const groups = [...root.querySelectorAll('[data-k="group"]')].map(el => el.value.trim());
+  root.querySelectorAll('select[data-k="item-group"]').forEach(sel => { sel.innerHTML = _gtGroupOptions(groups, +sel.value); });
+}
+
 // ด่านของเกมเรียงตามลำดับที่ต้องผ่าน ตรงกับ GAME_LEVELS ใน backend.php
 const GAME_LEVELS = { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก' };
 
@@ -407,6 +421,109 @@ const GAME_TYPES = {
             `<span class="gq-seq-hint">ควรเป็นลำดับที่ ${q.items.indexOf(order[i]) + 1}</span>`);
           row.querySelectorAll('button').forEach(b => { b.disabled = true; });
         });
+        done(correct);
+      });
+      paint();
+    },
+  },
+
+  categorize: {
+    label: 'แยกหมวดหมู่',
+    desc: 'แยกบัตรคำ 3-6 ใบลงตะกร้า 2-3 กลุ่ม',
+    points: (q) => q.items.length,
+    emptyQuestion: () => ({ text: '', groups: ['', ''], items: Array.from({ length: GT_MIN_ROWS }, (_, i) => ({ text: '', group: i % 2 })), explanation: '' }),
+    editorHtml(q) {
+      const groups = Array.from({ length: GT_MAX_GROUPS }, (_, g) => q.groups[g] ?? '');
+      const rows = q.items.map((item, i) => `
+        <div class="ge-row">
+          <input class="fc" data-k="item" value="${_gtEsc(item.text)}" placeholder="บัตรคำ" aria-label="บัตรคำที่ ${i + 1}">
+          <select class="fc ge-cat-group" data-k="item-group" aria-label="กลุ่มของบัตรคำที่ ${i + 1}">${_gtGroupOptions(groups, item.group)}</select>
+          ${_gtRemoveBtn(q.items.length)}
+        </div>`);
+      return `<div class="ge-cat">
+        ${_gtTextField('คำสั่ง (ไม่บังคับ)', 'text', q.text, 'เช่น แยกสัตว์บกกับสัตว์น้ำ')}
+        <div class="fl">ชื่อกลุ่ม (2-3 กลุ่ม)</div>
+        <div class="ge-cat-groups">
+          ${groups.map((g, i) => `<input class="fc" data-k="group" value="${_gtEsc(g)}" oninput="_gtSyncGroups(this)"
+            placeholder="${i < 2 ? `กลุ่มที่ ${i + 1} เช่น ${['สัตว์บก', 'สัตว์น้ำ'][i]}` : 'กลุ่มที่ 3 (ไม่บังคับ)'}" aria-label="ชื่อกลุ่มที่ ${i + 1}">`).join('')}
+        </div>
+        ${_gtRowsField('บัตรคำและกลุ่มที่ถูกต้อง (3-6 ใบ) ตอนเล่นบัตรจะถูกสลับลำดับ', 'เพิ่มบัตรคำ', rows)}
+        ${_gtExplanationField(q)}
+      </div>`;
+    },
+    readEditor(root) {
+      const groups = [...root.querySelectorAll('[data-k="group"]')].map(el => el.value.trim());
+      if (!groups[GT_MAX_GROUPS - 1]) groups.pop();
+      return {
+        text: _gtRead(root, 'text'),
+        groups,
+        items: [...root.querySelectorAll('.ge-row')].map(row => ({
+          text: row.querySelector('[data-k="item"]').value.trim(),
+          group: +row.querySelector('[data-k="item-group"]').value,
+        })),
+        explanation: _gtRead(root, 'explanation'),
+      };
+    },
+    // แตะบัตรแล้วแตะตะกร้า แตะบัตรที่อยู่ในตะกร้าเพื่อย้าย แตะกองบัตรเพื่อเอาบัตรออกจากตะกร้า
+    render(q, root, done) {
+      const order = _gtShuffle(q.items.map((_, i) => i));
+      const placed = new Map();
+      let selected = null, checked = false;
+
+      root.innerHTML = `${_gtQuestionText(q)}
+        <div class="gq-cat-pool" data-g="" aria-label="บัตรคำที่ยังไม่ได้แยก"></div>
+        <div class="gq-cat-bins">
+          ${q.groups.map((g, gi) => `<div class="gq-cat-bin" data-g="${gi}">
+            <button type="button" class="gq-cat-label" data-g="${gi}">${_gtRich(g)}</button>
+            <div class="gq-cat-cards"></div>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="btn btn-p gq-check" disabled>ตรวจคำตอบ</button>`;
+      const pool = root.querySelector('.gq-cat-pool');
+      const checkBtn = root.querySelector('.gq-check');
+      const card = (i) => `<button type="button" class="gq-item gq-cat-card${selected === i ? ' sel' : ''}" data-i="${i}"
+        aria-pressed="${selected === i}">${_gtRich(q.items[i].text)}</button>`;
+
+      function paint() {
+        const at = (g) => order.filter(i => placed.get(i) === g).map(card).join('');
+        pool.innerHTML = at(undefined) || '<span class="gq-cat-empty">แยกครบแล้ว กดตรวจคำตอบได้เลย</span>';
+        pool.hidden = checked;
+        root.querySelectorAll('.gq-cat-bin').forEach(bin => {
+          bin.querySelector('.gq-cat-cards').innerHTML = at(+bin.dataset.g);
+          bin.classList.toggle('target', selected !== null);
+        });
+        checkBtn.disabled = checked || placed.size !== q.items.length;
+        if (selected !== null) root.querySelector(`.gq-cat-card[data-i="${selected}"]`)?.focus();
+      }
+
+      root.addEventListener('click', (e) => {
+        if (checked) return;
+        const c = e.target.closest('.gq-cat-card');
+        if (c) {
+          selected = selected === +c.dataset.i ? null : +c.dataset.i;
+        } else if (selected !== null) {
+          const zone = e.target.closest('.gq-cat-bin, .gq-cat-pool');
+          if (!zone) return;
+          if (zone.dataset.g === '') placed.delete(selected); else placed.set(selected, +zone.dataset.g);
+          selected = null;
+        } else return;
+        paint();
+      });
+
+      checkBtn.addEventListener('click', () => {
+        checked = true;
+        selected = null;
+        paint();
+        let correct = 0;
+        root.querySelectorAll('.gq-cat-card').forEach(el => {
+          const item = q.items[+el.dataset.i];
+          const ok = placed.get(+el.dataset.i) === item.group;
+          correct += ok;
+          el.classList.add(ok ? 'ok' : 'no');
+          el.disabled = true;
+          if (!ok) el.insertAdjacentHTML('beforeend', `<span class="gq-seq-hint">ควรอยู่ใน ${_gtRich(q.groups[item.group])}</span>`);
+        });
+        root.querySelectorAll('.gq-cat-label').forEach(b => { b.disabled = true; });
         done(correct);
       });
       paint();
